@@ -13,8 +13,9 @@ import secrets
 import time
 from dataclasses import dataclass
 
-from wiki_cli import vec
+from wiki_cli import links, vec
 from wiki_cli.cache import Cache
+from wiki_cli.pages import Resolver
 from wiki_cli.models import Embedder, ModelUnavailable, Reranker
 from wiki_cli.search import RERANK_CHARS, keyword_query, search
 
@@ -85,6 +86,8 @@ class Navigator:
         self.conn = cache.conn
         self.embedder = embedder
         self.reranker = reranker
+        self._resolver: Resolver | None = None  # built on the first read; see _titled
+        self._titles: dict[str, str] = {}
         for statement in SCHEMA:
             self.conn.execute(statement)
         cutoff = time.time() - SESSION_TTL_DAYS * 86400
@@ -435,11 +438,36 @@ class Navigator:
     def _best_heading(self, session: Session, rows: list[tuple]) -> str:
         return self._best_chunk(session, rows)[1]
 
-    @staticmethod
-    def _cap(text: str) -> tuple[str, bool]:
+    def _cap(self, text: str) -> tuple[str, bool]:
+        text = self._titled(text)
         if len(text) <= SECTION_CAP:
             return text, False
         return text[:SECTION_CAP].rsplit("\n", 1)[0], True
+
+    def _titled(self, text: str) -> str:
+        """``[[slug]]`` -> ``[[slug|Title]]``, so the reader sees each linked page's name next
+        to the slug it navigates by. Links with display text, embeds, and links to pages whose
+        title is just the slug are left as written; the file itself is never changed."""
+        if self._resolver is None:
+            rows = self.conn.execute("SELECT slug, path, title FROM pages WHERE kind = 'page'").fetchall()
+            self._resolver = Resolver([(slug, path) for slug, path, _ in rows])
+            self._titles = {slug: title for slug, _, title in rows if title}
+
+        def add_title(match, pipe: str) -> str:
+            target, _, display = links.split_target(match.group(2))
+            if match.group(1) or display:
+                return match.group(0)
+            title = self._titles.get(self._resolver.resolve(target) or "")
+            if not title or title.casefold() == target.rsplit("/", 1)[-1].casefold():
+                return match.group(0)
+            return f"[[{match.group(2)}{pipe}{title}]]"
+
+        lines = text.split("\n")
+        for index, line in enumerate(lines):
+            if "[[" in line:
+                pipe = "\\|" if line.lstrip().startswith("|") else "|"  # a bare | would split a table cell
+                lines[index] = links.WIKILINK.sub(lambda match: add_title(match, pipe), line)
+        return "\n".join(lines)
 
 
 def _labeler(headings: list[str]):

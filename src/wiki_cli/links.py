@@ -9,6 +9,7 @@ from urllib.parse import unquote
 
 _WIKILINK = re.compile(r"(!?)\[\[([^\[\]\n]+?)\]\]")
 _MARKDOWN_LINK = re.compile(r"(!?)\[([^\[\]\n]*)\]\(\s*(<[^<>\n]+>|[^()\s]+)(?:\s+\"[^\"\n]*\")?\s*\)")
+WIKILINK = _WIKILINK  # groups: 1 "!" for an embed, 2 the inner "target#anchor|display"
 _ANY_LINK = re.compile(_WIKILINK.pattern + "|" + _MARKDOWN_LINK.pattern)
 _SCHEME = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*:")
 _HEADING = re.compile(r"(#{1,6})[ \t]+(.*?)[ \t]*#*[ \t]*")

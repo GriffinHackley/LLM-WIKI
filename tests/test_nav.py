@@ -268,3 +268,22 @@ def test_candidate_summaries_are_short(nav, wiki_graph):
     nav.read(session, "hub", WHY)
     [item] = [item for item in nav.candidates(session)["linked"] if item["slug"] == "verbose"]
     assert len(item["summary"]) <= 201 and item["summary"].endswith("…")
+
+
+def test_read_shows_linked_page_titles(wiki):
+    wiki.page("person", "ruth-marsh", summary="Owner of the North Mill.", title="Ruth Marsh")
+    wiki.page("person", "silas-reed", summary="Council chair.")  # title is the slug: left alone
+    wiki.page("topic", "meeting", {
+        "Who was there": "Present: [[ruth-marsh]], [[ruth-marsh|the Director]], [[silas-reed]], [[ghost]].\n"
+                         "![[ruth-marsh#^q-1]]\n\n| Person | Role |\n|---|---|\n| [[ruth-marsh]] | Owner |"},
+        summary="A meeting.")
+    cache = Cache(wiki.settings())
+    cache.refresh()
+    nav = Navigator(cache, embedder=HashEmbedder())
+    session = nav.start("who was at the meeting")["session"]
+    content = nav.read(session, "meeting", WHY, section="Who was there")["content"]
+    cache.close()
+    assert "Present: [[ruth-marsh|Ruth Marsh]], [[ruth-marsh|the Director]], [[silas-reed]], [[ghost]]." in content
+    assert "![[ruth-marsh#^q-1]]" in content
+    assert r"| [[ruth-marsh\|Ruth Marsh]] | Owner |" in content
+    assert "Present: [[ruth-marsh]], " in (wiki.root / "wiki/topics/meeting.md").read_text(encoding="utf-8")  # file untouched
