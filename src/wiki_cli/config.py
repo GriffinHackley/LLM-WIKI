@@ -49,6 +49,7 @@ class Settings:
     require_frontmatter: bool = False
     named_types: tuple[str, ...] = ()  # page types `suggest` matches by name; empty = all
     vocabulary: Vocabulary = field(default_factory=Vocabulary, compare=False)
+    root_note: str | None = field(default=None, compare=False)  # set when no config chose the root
 
     def page_type_for(self, rel: str, data: dict | None) -> str | None:
         value = (data or {}).get(self.page_type_field)
@@ -74,6 +75,20 @@ def find_root(start: Path) -> Path | None:
     return None
 
 
+def implicit_root(cwd: Path) -> tuple[Path, str]:
+    """Root when no config or ``--root`` names one: the enclosing git repo, else ``cwd``.
+    The home folder and drive roots are refused; indexing them is never intended."""
+    root, how = cwd, "the current folder"
+    for directory in (cwd, *cwd.parents):
+        if (directory / ".git").exists():
+            root, how = directory, "the git repository"
+            break
+    if root == Path.home().resolve() or root == Path(root.anchor):
+        raise ConfigError(f"no {CONFIG_FILENAME} found and {root} is not a wiki folder; "
+                          "cd into the wiki, pass --root, or add a config (see 'wiki init')")
+    return root, f"no {CONFIG_FILENAME} found; using {how} {root} as the wiki root"
+
+
 def load_settings(
     root: str | os.PathLike | None = None,
     cache: str | os.PathLike | None = None,
@@ -81,13 +96,16 @@ def load_settings(
     reranker: str | None = None,
 ) -> Settings:
     """Root from ``--root``, then ``WIKI_ROOT``, then the nearest ``.wiki-cli.toml`` upward,
-    then the current folder."""
+    then the enclosing git repository, then the current folder (never the home folder)."""
     root_value = root or os.environ.get("WIKI_ROOT")
+    root_note = None
     if root_value:
         resolved = Path(root_value).expanduser().resolve()
     else:
         cwd = Path.cwd().resolve()
-        resolved = find_root(cwd) or cwd
+        resolved = find_root(cwd)
+        if resolved is None:
+            resolved, root_note = implicit_root(cwd)
     if not resolved.is_dir():
         raise ConfigError(f"wiki root does not exist: {resolved}")
 
@@ -132,6 +150,7 @@ def load_settings(
         require_frontmatter=bool(check.get("require_frontmatter", False)),
         named_types=tuple(t.lower() for t in _patterns(suggest, "named_types", (), "[suggest] named_types")),
         vocabulary=Vocabulary(rules),
+        root_note=root_note,
     )
 
 

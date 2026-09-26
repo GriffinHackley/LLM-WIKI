@@ -128,3 +128,27 @@ def test_check_and_unwritten_ignore_existing_attachments(wiki, run):
     assert issue["message"] == "1 links to pages not written yet: ghost"
     code, unwritten = run_json(run, "unwritten")
     assert [item["target"] for item in unwritten["unwritten"]] == ["ghost"]
+
+
+def test_no_config_uses_git_repository_root(tmp_path, capsys, monkeypatch):
+    (tmp_path / ".git").mkdir()
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "top.md").write_text("# Top\n", encoding="utf-8")
+    (tmp_path / "docs" / "a.md").write_text("# A\n\nSee [[top]].\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path / "docs")
+    assert main(["neighbors", "a", "--format", "json"]) == 0
+    captured = capsys.readouterr()
+    assert [n["slug"] for n in json.loads(captured.out)["neighbors"]] == ["top"]
+    assert captured.err.startswith("note: no .wiki-cli.toml found; using the git repository")
+    assert (tmp_path / ".cache" / "wiki.sqlite3").is_file()
+    assert not (tmp_path / "docs" / ".cache").exists()
+
+
+def test_no_config_refuses_home_folder(tmp_path, capsys, monkeypatch):
+    (tmp_path / "a.md").write_text("# A\n", encoding="utf-8")
+    monkeypatch.setattr("pathlib.Path.home", classmethod(lambda cls: tmp_path))
+    monkeypatch.chdir(tmp_path)
+    assert main(["search", "a", "--keyword-only"]) == 2
+    assert "is not a wiki folder" in capsys.readouterr().err
+    assert not (tmp_path / ".cache").exists()
+    assert main(["index", "status", "--root", str(tmp_path)]) == 0  # explicit --root still works

@@ -48,8 +48,10 @@ every link is a `links-to` relation whose reason is the sentence around it.
 ## Configure: `.wiki-cli.toml`
 
 Commands find the root by walking up to the nearest `.wiki-cli.toml`, else use the
-current folder; `--root` or `WIKI_ROOT` overrides that, and `WIKI_CONFIG` points at
-a different config file. `wiki init` drafts one from a survey of the repo. Every
+enclosing git repository, else the current folder, and say which folder they chose
+when no config did. They refuse to treat your home folder or a drive root as a wiki.
+`--root` or `WIKI_ROOT` overrides all of this, and `WIKI_CONFIG` points at a
+different config file. `wiki init` drafts one from a survey of the repo. Every
 setting is optional:
 
 ```toml
