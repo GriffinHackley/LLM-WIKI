@@ -4,6 +4,10 @@ Search and navigation for a folder of Markdown notes maintained by an LLM (an
 Obsidian vault, a `docs/` folder, a Karpathy-style wiki). Agents find the best
 starting page without reading an index, see where each page leads through typed
 relations with reasons, and read only the sections they need, within a page limit.
+
+**New here? Start with [docs/getting-started.md](docs/getting-started.md)**: install, set
+up an existing wiki, and connect Claude Code, in about ten minutes.
+
 See [UPGRADE_PLAN.md](UPGRADE_PLAN.md) for the design and
 [FUTURE_IDEAS.md](FUTURE_IDEAS.md) for deferred ideas.
 
