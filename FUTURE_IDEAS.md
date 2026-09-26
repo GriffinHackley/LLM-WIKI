@@ -26,6 +26,11 @@ agent can weigh cost when choosing.
 - **Embed plain text:** send link-stripped chunk text (`[[a|B]]` -> `B`) to the embedding
   model and reranker instead of raw Markdown. Linking claim IDs in the Politics wiki moved
   one evaluation question from rank 3 to 4, which suggests the markup is noise.
+  *Tested for the reranker (2026-09-26), no effect:* on the 50 Politics questions, plain
+  text left hit@3 at 0.778 and moved MRR from 0.639 to 0.650; four questions changed rank,
+  two up and two down. Replacing bare `[[slug]]` links with page titles did no better.
+  Link markup is 7% of chunk characters and the reranker ignores it. Not worth
+  re-embedding for; revisit only if a wiki's pages are much denser in links.
 - **GPU embedding:** Ollama or ONNX Runtime with DirectML on the AMD RX 7900 XT,
   if CPU embedding time becomes a bottleneck.
 - **Rust implementation:** a single fast binary, if the tool needs distributing
