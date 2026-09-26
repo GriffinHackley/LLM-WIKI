@@ -293,6 +293,19 @@ def _print_nav_text(result: dict) -> None:
         if result.get("more_linked"):
             print(f"(+{result['more_linked']} more linked pages)")
         return
+    if "pages_read" in result:  # nav end
+        print(f"session {result['session']} ended: read {', '.join(result['pages_read']) or 'nothing'}; "
+              f"cited {', '.join(result['cited']) or 'nothing'}")
+        for key, label in (("cited_without_reading", "cited without reading"), ("unknown", "unknown pages")):
+            if result.get(key):
+                print(f"warning: {label}: {', '.join(result[key])}")
+        return
+    if "events" in result:  # nav log
+        print(f"session {result['session']}{' (ended)' if result['ended'] else ''}: {result['question']}")
+        for event in result["events"]:
+            detail = {key: value for key, value in event.items() if key not in ("kind", "slug")}
+            print(f"  {event['kind']:<10} {event.get('slug', '')}  {json.dumps(detail, ensure_ascii=False)}".rstrip())
+        return
     print(json.dumps(result, ensure_ascii=False, indent=1))
 
 

@@ -193,6 +193,16 @@ class TestInit:
         assert config["page_type"]["field"] == "type"
         assert "# heading = \"Appearances\"" in draft and "# field = \"sources\"" in draft
 
+    def test_proposes_the_main_folder_and_excludes_templates(self, repo, capsys):
+        for index in range(12):  # the fixture has README.md and three pages in guides/ and reference/
+            repo.write(f"notes/n{index}.md", f"# N{index}\n")
+        repo.write("templates/person.md", "# Template\n")
+        assert main(["init", "--root", str(repo)]) == 0
+        draft = capsys.readouterr().out
+        config = tomllib.loads(draft)
+        assert config["pages"] == ["notes/**/*.md"] and config["exclude"] == ["templates/**"]
+        assert "leaves out: README.md, guides/ (2 pages)" in draft
+
     def test_write_never_overwrites(self, repo, capsys):
         assert main(["init", "--root", str(repo), "--write"]) == 0
         assert (repo / ".wiki-cli.toml").is_file()

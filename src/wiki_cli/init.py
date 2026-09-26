@@ -17,6 +17,7 @@ from wiki_cli.pages import PAGE, Resolver, load, scan_vault
 SUMMARY_LIKE = ("summary", "overview", "abstract", "tl;dr", "tldr", "synopsis", "what this is", "description")
 MIN_PAGES = 3  # a heading or field must appear on at least this many pages to be proposed
 MAX_RULES = 12
+MAIN_FOLDER_SHARE = 0.7  # propose `pages = ["<folder>/**/*.md"]` when one folder holds this share
 
 
 def survey(settings: Settings) -> dict:
@@ -63,12 +64,16 @@ def survey(settings: Settings) -> dict:
                 if page.page_type:
                     heading_types[link.section][page.page_type] += 1
 
+    main_folder, left_out = _main_folder(pages)
     headings = sorted(
         ((heading, len(slugs), heading_links[heading]) for heading, slugs in heading_pages.items()
          if len(slugs) >= MIN_PAGES),
         key=lambda item: (-item[1], item[0]))[:MAX_RULES]
     return {
         "pages": len(pages),
+        "main_folder": main_folder,
+        "left_out": left_out,
+        "templates": any(page.file.rel.split("/", 1)[0].lower() == "templates" for page in pages),
         "raw": sum(1 for page_file, _ in files if page_file.kind != PAGE),
         "with_frontmatter": with_frontmatter,
         "type_field": settings.page_type_field if types else None,
@@ -85,10 +90,36 @@ def survey(settings: Settings) -> dict:
     }
 
 
+def _main_folder(pages) -> tuple[str | None, list[str]]:
+    """The top-level folder holding most pages, and what indexing only it would leave out
+    (root files like README.md individually, other folders as "name/ (N pages)")."""
+    tops = Counter(page.file.rel.split("/", 1)[0] if "/" in page.file.rel else "" for page in pages)
+    folder, count = next(((top, n) for top, n in tops.most_common() if top), (None, 0))
+    if folder is None or count == len(pages) or count < MAIN_FOLDER_SHARE * len(pages):
+        return None, []
+    root_files = sorted(page.file.rel for page in pages if "/" not in page.file.rel)
+    other_folders = [f"{top}/ ({n} pages)" for top, n in tops.most_common() if top and top != folder]
+    return folder, root_files + other_folders
+
+
 def _looks_like_page(value: str, resolver: Resolver) -> bool:
     match = re.fullmatch(r"\s*\[\[([^\[\]\n]+?)\]\]\s*", value)
     target = links.split_target(match.group(1))[0] if match else value
     return bool(target.strip()) and resolver.resolve(target) is not None
+
+
+def _pages_lines(result: dict) -> list[str]:
+    lines = []
+    if result.get("main_folder"):
+        left = result["left_out"]
+        shown = ", ".join(left[:6]) + (f" and {len(left) - 6} more" if len(left) > 6 else "")
+        lines += [f"# Most pages are under {result['main_folder']}/. Indexing only that folder leaves out: {shown}.",
+                  "# Delete this line to index every *.md file instead.",
+                  f'pages = ["{result["main_folder"]}/**/*.md"]']
+    else:
+        lines.append('# pages = ["**/*.md"]')
+    lines.append('exclude = ["templates/**"]' if result.get("templates") else '# exclude = ["templates/**"]')
+    return lines
 
 
 def render(result: dict) -> str:
@@ -99,8 +130,7 @@ def render(result: dict) -> str:
         f"# Survey: {result['pages']} pages ({result['with_frontmatter']} with frontmatter), "
         f"{result['raw']} raw text files.",
         "",
-        '# pages = ["**/*.md"]',
-        '# exclude = ["templates/**"]',
+        *_pages_lines(result),
         '# raw = ["raw/**/*.txt"]',
         "",
         "[summary]",
