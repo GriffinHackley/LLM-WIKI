@@ -40,12 +40,6 @@ def test_links_in_code_are_ignored():
     assert [link.target for link in links.extract_links(body)] == ["real"]
 
 
-def test_claim_ids_only_in_named_sections_and_outside_links():
-    body = "Mentions EF-001 in prose.\n\n## Claims supported\n- EF-049 — rationale\n- [[EF-050]] linked\n"
-    assert [(cid, section) for cid, section, _ in links.claim_ids(body, {"claims supported"})] == [
-        ("EF-049", "claims supported")]
-
-
 def test_section_text_uses_first_matching_section_in_priority_order():
     body = "# T\n\n## What this is\nA memo.\n\n## Summary\nThe real summary\ncontinues.\n\nSecond para.\n"
     assert links.section_text(body, ("summary", "what this is")) == "The real summary continues."

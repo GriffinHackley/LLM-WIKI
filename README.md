@@ -1,13 +1,14 @@
 # wiki-cli
 
-Search and navigation tools for an Obsidian wiki maintained by an LLM, built for
-the Politics wiki. Agents find the best starting page without reading the index,
-see where each page leads through typed relations with reasons, and read only
-the sections they need, within a page limit. See [UPGRADE_PLAN.md](UPGRADE_PLAN.md) for the design and
+Search and navigation for a folder of Markdown notes maintained by an LLM (an
+Obsidian vault, a `docs/` folder, a Karpathy-style wiki). Agents find the best
+starting page without reading an index, see where each page leads through typed
+relations with reasons, and read only the sections they need, within a page limit.
+See [UPGRADE_PLAN.md](UPGRADE_PLAN.md) for the design and
 [FUTURE_IDEAS.md](FUTURE_IDEAS.md) for deferred ideas.
 
-The tool never edits wiki pages. Everything it builds lives in a disposable
-SQLite cache.
+The tool never edits pages. Everything it builds lives in a disposable SQLite
+cache in `<root>/.cache/` (add `.cache/` to the repo's `.gitignore`).
 
 ## Install
 
@@ -27,37 +28,87 @@ python -m venv .venv
 .venv/Scripts/python -m pip install -e ".[test]"
 ```
 
-## Configure the wiki
+## Quick start
 
-Put `.wiki-cli.toml` in the wiki's root folder:
+It works with no configuration: run it anywhere inside a folder of Markdown.
 
-```toml
-pages = ["wiki/**/*.md", "dossiers/*/DOSSIER.md", "dossiers/*/claims.md", "dossiers/*/open-questions.md"]
-exclude = ["wiki/index.md"]
-raw = ["raw/*.txt"]          # searched only with --include-raw
-# embed_model = "BAAI/bge-small-en-v1.5"
-# reranker = "jinaai/jina-reranker-v1-turbo-en"
+```bash
+cd my-notes
+wiki index refresh                 # index and embed (about 2 minutes per 500 pages on CPU)
+wiki search "how do I configure the exporter?"
+wiki neighbors setup-guide
+wiki init                          # print a starter .wiki-cli.toml for this repo
 ```
 
-Add `.cache/` to the wiki's `.gitignore`. Commands find the root by walking up
-from the current folder; `--root` or `WIKI_ROOT` overrides that, and
-`WIKI_CONFIG` points at a different config file.
+With no config, every `*.md` file under the folder is a page (hidden folders and
+`node_modules` are skipped), `raw/**/*.txt` is searchable source text if a `raw/`
+folder exists, both `[[wikilinks]]` and `[text](path.md)` links are followed, and
+every link is a `links-to` relation whose reason is the sentence around it.
+
+## Configure: `.wiki-cli.toml`
+
+Commands find the root by walking up to the nearest `.wiki-cli.toml`, else use the
+current folder; `--root` or `WIKI_ROOT` overrides that, and `WIKI_CONFIG` points at
+a different config file. `wiki init` drafts one from a survey of the repo. Every
+setting is optional:
+
+```toml
+pages = ["wiki/**/*.md"]          # default ["**/*.md"]
+exclude = ["wiki/index.md"]
+raw = ["raw/**/*.txt"]            # default; searched only with --include-raw
+embed_model = "BAAI/bge-small-en-v1.5"
+reranker = "jinaai/jina-reranker-v1-turbo-en"   # or "none"
+
+[summary]                         # where a page's summary comes from, in order
+fields = ["summary", "description"]            # frontmatter keys (default)
+headings = ["Summary", "Overview"]             # default ["Summary"]; else the first paragraph
+
+[page_type]
+field = "type"                    # frontmatter key holding the page type (default)
+[page_type.folders]               # optional: type by folder when the field is absent
+"notes/people" = "person"
+
+[check]
+require_frontmatter = false       # default
+summary_types = ["person"]        # page types that must have a summary ("*" = all)
+
+[suggest]
+named_types = ["person", "organization"]  # pages `suggest` matches by name (default: all)
+```
 
 ## Relations
 
-Relations are derived from what the pages already say, so there is nothing
-extra to write. The section a link sits in sets its type, and the rest of the
-list line becomes its reason:
+Typed relations come from rules in the same file. A rule gives links under a
+heading, or the values of a frontmatter field, a type and an inverse label:
+
+```toml
+[[relations]]
+heading = "Entities mentioned"    # or a list of headings
+page_type = "document"            # optional, or a list
+type = "mentions"
+inverse = "mentioned-in"
+
+[[relations]]
+field = "sources"                 # frontmatter field holding slugs or [[links]]
+type = "draws-on"
+inverse = "drawn-on-by"
+reason = "Listed in sources."     # optional fixed reason
+```
+
+With that rule, this list item
 
 ```markdown
 ## Entities mentioned
 - [[mike-johnson]] — Speaker who delayed the oath (p. 2)
 ```
 
-becomes `abc-doc -> mentions -> mike-johnson` with reason "Speaker who delayed
-the oath (p. 2)". Frontmatter `sources:`, `rests_on:` and `source_path:`, bare
-claim IDs under `## Claims supported`, and quote embeds also become edges. Run
-`wiki vocab` for every type and its inverse label.
+becomes `mentions -> mike-johnson` with reason "Speaker who delayed the oath
+(p. 2)". Without rules, links are still relations (`links-to`), and frontmatter
+values written as `[[links]]` count as links, as in Obsidian. Two types are built
+in: `embeds` (a `![[page#^block]]` embed) and `links-to`. When a page reaches one
+target several ways, the most specific type wins: heading-rule types in file order,
+then `embeds`, then field-only types, then `links-to`. `wiki vocab` lists the types.
+Changing the rules re-derives relations on the next refresh without re-embedding.
 
 ## Commands
 
@@ -71,9 +122,10 @@ claim IDs under `## Claims supported`, and quote embeds also become edges. Run
 | `wiki neighbors <slug> [--incoming] [--outgoing] [--relation T] [--limit N]` | A page's typed relations with reasons, no page bodies |
 | `wiki check <slug> \| --all [--verify-cache] [--strict] [--no-warnings]` | Frontmatter, summaries, ambiguous and unwritten links, stale summaries |
 | `wiki index refresh \| rebuild [--no-embed] \| status` | Manage the cache and embeddings |
+| `wiki init [--write]` | Survey the repo and draft a `.wiki-cli.toml` (never overwrites) |
 | `wiki models list \| download` | Supported models; `download` is the only command that downloads |
 | `wiki eval sample \| run` | Search-quality evaluation (see [docs/evaluation.md](docs/evaluation.md)) |
-| `wiki vocab` | Relation types |
+| `wiki vocab` | Relation types, their inverses, and where each comes from |
 
 All commands accept `--format json` (compact, deterministic), `--root` and
 `--cache`. Exit codes: 0 success, 1 validation failures, 2 usage or runtime
@@ -81,10 +133,10 @@ errors.
 
 ## Models
 
-`--embed-model` / `WIKI_EMBED_MODEL` and `--reranker` / `WIKI_RERANKER` (or
-`none`) override `.wiki-cli.toml`. Models load from `~/.cache/wiki-cli/models/`
-only; run `wiki models download` once. Without a downloaded model, search falls
-back to keyword-only and says so.
+`--embed-model` / `WIKI_EMBED_MODEL` and `--reranker` / `WIKI_RERANKER` override
+`.wiki-cli.toml`. Models load from `~/.cache/wiki-cli/models/` only; run
+`wiki models download` once. Without a downloaded model, search falls back to
+keyword-only and says so.
 
 ## Tests and benchmark
 

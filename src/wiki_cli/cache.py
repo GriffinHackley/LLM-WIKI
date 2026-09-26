@@ -17,9 +17,8 @@ from wiki_cli.config import Settings
 from wiki_cli.edges import derive
 from wiki_cli.models import Embedder
 from wiki_cli.pages import PAGE, Page, PageFile, Resolver, content_hash, parse, scan, scan_vault, vault_files
-from wiki_cli.vocabulary import INVERSE_LABELS, specificity
 
-SCHEMA_VERSION = "3"
+SCHEMA_VERSION = "4"
 EMBED_BATCH_PAGES = 32
 LARGE_CHANGE = 500  # pages; beyond this, truncate the write-ahead log afterwards
 
@@ -99,6 +98,8 @@ class Cache:
         self.readonly = readonly
         self.rebuilt = False  # schema was reset when this instance opened the cache
         self.needs_full_refresh = False
+        self.needs_rederive = False
+        self.vocabulary = settings.vocabulary
         self.conn = self._connect()
         self._ensure_schema()
 
@@ -131,10 +132,17 @@ class Cache:
     def _ensure_schema(self) -> None:
         version = self._meta("schema_version")
         root = self._meta("root")
-        if version == SCHEMA_VERSION and root == str(self.settings.root):
+        summary = self._meta("summary_config")
+        if (version == SCHEMA_VERSION and root == str(self.settings.root)
+                and summary == self.settings.summary_fingerprint()):
+            # Relation rules or page-type settings changed: re-derive edges on the next
+            # refresh (no re-embedding needed).
+            if not self.readonly and self._meta("graph_config") != self.settings.fingerprint():
+                self.needs_rederive = True
             return
         if self.readonly:
-            raise CacheUnavailable("cache is missing or from another schema version; run 'wiki index rebuild'")
+            raise CacheUnavailable("cache is missing, from another schema version, or built with other "
+                                   "summary settings; run 'wiki index rebuild'")
         self._reset()
 
     def _reset(self) -> None:
@@ -147,7 +155,9 @@ class Cache:
                     self.conn.execute(statement)
             self.conn.executemany(
                 "INSERT INTO metadata(key, value) VALUES (?, ?)",
-                [("schema_version", SCHEMA_VERSION), ("root", str(self.settings.root))],
+                [("schema_version", SCHEMA_VERSION), ("root", str(self.settings.root)),
+                 ("summary_config", self.settings.summary_fingerprint()),
+                 ("graph_config", self.settings.fingerprint())],
             )
             self.conn.execute("COMMIT")
         except BaseException:
@@ -215,6 +225,8 @@ class Cache:
                 self._delete(rel)
             stats.removed = len(removed)
             stats.moved = sum(1 for digest in added_hashes if digest in removed_hashes)
+            if self.needs_rederive:
+                self._rederive(files, resolver)
             # Always: attachments can appear without any page changing, and the query only
             # touches unresolved edges or edges whose target vanished.
             self._reresolve(resolver)
@@ -223,6 +235,7 @@ class Cache:
             self.conn.execute("ROLLBACK")
             raise
         self.needs_full_refresh = False
+        self.needs_rederive = False
         if stats.added + stats.changed + stats.removed > LARGE_CHANGE:
             self.checkpoint()
         return stats
@@ -255,7 +268,7 @@ class Cache:
                 (stat.st_mtime_ns, stat.st_size, page_file.rel),
             )
             return "touched"
-        self._store(parse(page_file, data), stat, resolver)
+        self._store(parse(page_file, data, self.settings), stat, resolver)
         return "changed"
 
     def _store(self, page: Page, stat: os.stat_result, resolver: Resolver) -> None:
@@ -297,8 +310,26 @@ class Cache:
                (source_path, source_slug, target_slug, relation_type, reason, resolved)
                VALUES (?, ?, ?, ?, ?, ?)""",
             [(rel, page.slug, edge.target, edge.type, edge.reason, int(edge.resolved))
-             for edge in derive(page, resolver)],
+             for edge in derive(page, resolver, self.vocabulary)],
         )
+
+    def _rederive(self, files, resolver: Resolver) -> None:
+        """Recompute every page's edges and type after the relation or page-type settings changed."""
+        for page_file, _ in files:
+            try:
+                page = parse(page_file, page_file.path.read_bytes(), self.settings)
+            except FileNotFoundError:
+                continue
+            self.conn.execute("UPDATE pages SET page_type = ? WHERE path = ?", (page.page_type, page_file.rel))
+            self.conn.execute("DELETE FROM relations WHERE source_path = ?", (page_file.rel,))
+            self.conn.executemany(
+                """INSERT OR REPLACE INTO relations
+                   (source_path, source_slug, target_slug, relation_type, reason, resolved)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                [(page_file.rel, page.slug, edge.target, edge.type, edge.reason, int(edge.resolved))
+                 for edge in derive(page, resolver, self.vocabulary)])
+        self.conn.execute("INSERT OR REPLACE INTO metadata(key, value) VALUES ('graph_config', ?)",
+                          (self.settings.fingerprint(),))
 
     def _reresolve(self, resolver: Resolver) -> None:
         """After pages appear or disappear, update which edges point at real pages."""
@@ -464,7 +495,7 @@ class Cache:
     def ensure_fresh(self, slug: str) -> bool:
         """Make the cache current for ``slug``, scanning the whole wiki only when needed."""
         rows = self.conn.execute("SELECT path, mtime_ns, size FROM pages WHERE slug = ?", (slug,)).fetchall()
-        if self.needs_full_refresh or not rows:
+        if self.needs_full_refresh or self.needs_rederive or not rows:
             self.refresh()
             return self.page_exists(slug)
         for rel, mtime_ns, size in rows:
@@ -533,14 +564,14 @@ class Cache:
                 (slug, slug, *type_args),
             ).fetchall()
             for source, rtype, reason, title in rows:
-                entry = {"slug": source, "direction": "incoming", "type": INVERSE_LABELS.get(rtype, rtype)}
+                entry = {"slug": source, "direction": "incoming", "type": self.vocabulary.inverse(rtype)}
                 if title and title != source:
                     entry["title"] = title
                 entry["reason"] = reason
                 results.append(entry)
 
         results.sort(key=lambda entry: (entry["direction"] != "outgoing", entry.get("unresolved", False),
-                                        _type_rank(entry["type"]), entry["slug"]))
+                                        self.vocabulary.rank_label(entry["type"]), entry["slug"]))
         return results[:limit] if limit is not None else results
 
     def status(self) -> dict:
@@ -591,13 +622,6 @@ class Cache:
                      AND summary_body_hash != body_hash"""
             )
         }
-
-
-def _type_rank(label: str) -> int:
-    for edge_type, inverse in INVERSE_LABELS.items():
-        if label in (edge_type, inverse):
-            return specificity(edge_type)
-    return len(INVERSE_LABELS)
 
 
 def embedding_text(title: str, heading_path: str, text: str) -> str:

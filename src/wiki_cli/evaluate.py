@@ -146,7 +146,8 @@ def sample(cache: Cache, *, single: int, multi: int, seed: int) -> dict:
         """SELECT DISTINCT r.source_slug, r.target_slug, r.relation_type, r.reason
            FROM relations r
            JOIN pages p ON p.slug = r.target_slug AND p.kind = 'page'
-           WHERE r.resolved = 1 AND r.relation_type NOT IN ('links-to', 'draws-on', 'transcribes')
+           JOIN pages s ON s.slug = r.source_slug AND s.kind = 'page'
+           WHERE r.resolved = 1 AND r.relation_type NOT IN ('links-to', 'embeds')
            ORDER BY r.source_slug, r.target_slug"""
     ).fetchall()
     chosen_pairs = rng.sample(pairs, min(multi, len(pairs)))

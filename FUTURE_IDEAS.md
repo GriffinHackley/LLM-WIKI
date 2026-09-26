@@ -21,6 +21,9 @@ agent can weigh cost when choosing.
 - **Quantized vectors:** store int8 or binary vectors in sqlite-vec to cut the
   ~230 MB of float32 chunk vectors at 30k pages and speed up the ~150 ms exact
   vector scan, rescoring the top candidates with full-precision vectors.
+- **Embed plain text:** send link-stripped chunk text (`[[a|B]]` -> `B`) to the embedding
+  model and reranker instead of raw Markdown. Linking claim IDs in the Politics wiki moved
+  one evaluation question from rank 3 to 4, which suggests the markup is noise.
 - **GPU embedding:** Ollama or ONNX Runtime with DirectML on the AMD RX 7900 XT,
   if CPU embedding time becomes a bottleneck.
 - **Rust implementation:** a single fast binary, if the tool needs distributing

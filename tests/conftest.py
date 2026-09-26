@@ -13,7 +13,8 @@ CONFIG = """\
 pages = ["wiki/**/*.md", "dossiers/*/claims.md"]
 exclude = ["wiki/index.md"]
 raw = ["raw/*.txt"]
-"""
+
+""" + (Path(__file__).parent / "politics_rules.toml").read_text(encoding="utf-8")
 
 FOLDERS = {"person": "people", "organization": "organizations", "place": "places", "event": "events",
            "document": "documents", "topic": "topics", "claim": "claims"}

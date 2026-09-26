@@ -21,7 +21,7 @@ answer quality, by giving it:
 
 | Decision | Choice |
 |---|---|
-| Relationship source | Derived from existing sections and frontmatter; no authored `relations:` and no generated link block |
+| Relationship source | Derived from existing sections and frontmatter by rules in the wiki's `.wiki-cli.toml`; the tool has no built-in knowledge of any wiki's templates |
 | Wiki engine | None. The `wiki` tool integrates with the existing skills |
 | Search scope | All of `wiki/` (except `index.md`), each dossier's `DOSSIER.md`, `claims.md` and `open-questions.md`; `raw/*.txt` as a second tier |
 | Changes to the Politics repo | On a branch, delivered as a pull request |
@@ -79,6 +79,12 @@ current directory to the first `.wiki-cli.toml`. The cache lives in
 
 Edges come from the section a link sits in and from frontmatter. Each edge
 carries a reason drawn from the source line, so routing needs no page reads.
+
+Since Phase 7 the mapping below is not in the code: it is the Politics wiki's
+`[[relations]]` rules in its `.wiki-cli.toml`. Without rules, every link is a
+`links-to` edge with the surrounding sentence as its reason. The `source_path` and
+bare claim-ID rows no longer apply: claim IDs are now `[[EF-049]]` links in the wiki,
+and each document page links its raw text in the body.
 
 | From page type | Where | Edge type | Reason text |
 |---|---|---|---|
@@ -178,6 +184,14 @@ combination within a small margin of the best on tune, then confirm on test.
 - [x] **Phase 6: Integration.** GriffinHackley/Politics pull request #2: `/query` uses `wiki nav`,
   `/ingest` uses `wiki suggest` and `wiki index refresh`, `/lint` uses `wiki unwritten`,
   `wiki orphans` and `wiki check --all`. `wiki` is installed with `uv tool install --editable`.
+- [x] **Phase 7: Wiki-agnostic.** Everything specific to one wiki moved into `.wiki-cli.toml`:
+  `[[relations]]` rules (heading or frontmatter field -> type and inverse), `[summary]` fields and
+  headings, `[page_type]` field or folder mapping, `[check]` and `[suggest]` page types. The
+  config is optional: defaults index every `*.md`, follow `[[wikilinks]]` and `[text](path.md)`
+  links, and treat `raw/**/*.txt` as source text when a `raw/` folder exists. `wiki init`
+  drafts a config from a survey of the repo. Politics declares its rules in its config and
+  links its claim IDs; its relation counts are unchanged except the removed `transcribes`
+  edges, and search quality is within noise (one of 50 questions moved from rank 3 to 4).
 
 Dropped from v1: authored `relations:` frontmatter, the generated link block and
 `rel sync`, the llm-wiki `ingest`/`suggest` wrappers and permission rules, the

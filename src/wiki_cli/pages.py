@@ -11,14 +11,13 @@ from pathlib import Path, PurePosixPath
 from typing import Callable, Iterable
 
 from wiki_cli import frontmatter, links
-from wiki_cli.config import Settings
+from wiki_cli.config import DEFAULT_SUMMARY_FIELDS, DEFAULT_SUMMARY_HEADINGS, Settings
 from wiki_cli.model import ERROR, Issue
-from wiki_cli.vocabulary import MAX_SUMMARY_LENGTH
 
 PAGE = "page"
 RAW = "raw"
 SKIPPED_DIRS = {"node_modules", "__pycache__"}
-SUMMARY_SECTIONS = ("summary", "what this is", "what happened", "claim", "question this page answers", "synthesis")
+MAX_SUMMARY_LENGTH = 300
 
 
 @dataclass(frozen=True)
@@ -37,6 +36,7 @@ class Page:
     data: dict | None  # frontmatter; None when absent or invalid
     body_offset: int
     issues: list[Issue] = field(default_factory=list)
+    settings: Settings | None = None  # the wiki's conventions; None = generic defaults
 
     @property
     def slug(self) -> str:
@@ -51,23 +51,32 @@ class Page:
         value = _string(self.data, "title")
         if value:
             return value.strip()
-        heading = re.search(r"^#[ \t]+(.+?)[ \t]*$", self.body, re.MULTILINE)
+        heading = re.search(r"^#[ \t]+(.+?)[ \t\r]*$", self.body, re.MULTILINE)  # \r: CRLF files
         return heading.group(1) if heading else self.slug.rsplit("/", 1)[-1]
 
     @property
     def page_type(self) -> str | None:
         if self.file.kind == RAW:
             return "raw"
+        if self.settings is not None:
+            return self.settings.page_type_for(self.file.rel, self.data)
         value = _string(self.data, "type")
         return value.strip().lower() if value else None
 
     def summary(self) -> tuple[str | None, bool]:
-        """``(summary, is_fallback)``: a summary section's first paragraph, else the first prose paragraph."""
+        """``(summary, is_fallback)``, from the first of: a frontmatter summary field, a
+        summary heading's first paragraph, or (as a fallback) the first prose paragraph."""
         if self.text is None:
             return None, False
         if self.file.kind == RAW:
             return _truncate(first_paragraph(self.body)), True
-        found = links.section_text(self.body, SUMMARY_SECTIONS)
+        fields = self.settings.summary_fields if self.settings else DEFAULT_SUMMARY_FIELDS
+        headings = self.settings.summary_headings if self.settings else DEFAULT_SUMMARY_HEADINGS
+        for name in fields:
+            value = _string(self.data, name)
+            if value and value.strip():
+                return _truncate(links.plain(value)), False
+        found = links.section_text(self.body, headings)
         if found:
             return _truncate(links.plain(found)), False
         return _truncate(first_paragraph(self.body)), True
@@ -139,7 +148,8 @@ def discover(settings: Settings) -> list[PageFile]:
 def assign_slugs(files: list[tuple[str, str]]) -> dict[str, str]:
     """Obsidian naming: the bare file name when unique, else the path without extension.
 
-    Raw files are ``raw/<stem>`` so they never collide with page slugs.
+    Raw files are their path without extension (``raw/report``), so they never collide
+    with page slugs.
     """
     stems: dict[str, int] = {}
     for rel, kind in files:
@@ -149,12 +159,18 @@ def assign_slugs(files: list[tuple[str, str]]) -> dict[str, str]:
     slugs = {}
     for rel, kind in files:
         if kind == RAW:
-            slugs[rel] = f"raw/{_stem(rel)}"
+            slugs[rel] = _without_extension(rel)
         elif stems[_stem(rel).casefold()] == 1:
             slugs[rel] = _stem(rel)
         else:
             slugs[rel] = rel[:-3]
     return slugs
+
+
+def _without_extension(rel: str) -> str:
+    head, _, name = rel.rpartition("/")
+    base = name.rsplit(".", 1)[0] if "." in name else name
+    return f"{head}/{base}" if head else base
 
 
 def _stem(rel: str) -> str:
@@ -174,12 +190,13 @@ class Resolver:
         self._other_paths: set[str] | None = None
         self._other_names: set[str] = set()
         self.slugs = {slug for slug, _ in slugs}
-        self.by_path = {rel.rsplit(".", 1)[0].casefold(): slug for slug, rel in slugs}
+        self.by_path = {_without_extension(rel).casefold(): slug for slug, rel in slugs}
+        self.by_rel = {rel.casefold(): slug for slug, rel in slugs}
         self.by_stem: dict[str, list[str]] = {}
         self.raw_by_stem: dict[str, str] = {}
         self.by_fold: dict[str, str] = {}
         for slug, rel in slugs:
-            if slug.startswith("raw/") and not rel.lower().endswith(".md"):
+            if not rel.lower().endswith(".md"):
                 # Raw text is reached by extension ("[[x.txt]]") or path, never by bare name,
                 # so it does not collide with the document page of the same name.
                 self.raw_by_stem[_stem(rel).casefold()] = slug
@@ -197,18 +214,28 @@ class Resolver:
         if "/" in target:
             if folded in self.by_path:
                 return self.by_path[folded]
+            if folded in self.by_rel:
+                return self.by_rel[folded]
             # Obsidian also accepts a trailing partial path.
             suffix = [slug for path, slug in self.by_path.items() if path.endswith("/" + folded)]
-            return suffix[0] if len(suffix) == 1 else None
-        candidates = self.by_stem.get(folded, [])
-        if len(candidates) == 1:
-            return candidates[0]
-        # Links to non-Markdown files carry their extension ("[[report.txt]]"); indexed raw
-        # text is keyed without it.
+            if len(suffix) == 1:
+                return suffix[0]
+        else:
+            candidates = self.by_stem.get(folded, [])
+            if len(candidates) == 1:
+                return candidates[0]
+        # Links to non-Markdown files carry their extension ("[[report.txt]]", "[[scan.pdf]]");
+        # indexed raw text is keyed by name without it, so an original resolves to its text.
         stem, dot, extension = target.rpartition(".")
         if dot and stem and "/" not in extension and extension.lower() != "md":
-            return self.raw_by_stem.get(stem.rsplit("/", 1)[-1].casefold()) or self.resolve(stem)
+            name = stem.rsplit("/", 1)[-1].casefold()
+            return self.raw_by_stem.get(name) or (self.resolve(stem) if "/" not in stem else None)
         return None
+
+    def resolve_path(self, target: str) -> str | None:
+        """Resolve a root-relative path (a Markdown link) exactly: never by bare name."""
+        folded = links.normalize(target).casefold()
+        return self.by_path.get(folded) or self.by_rel.get(folded)
 
     def ambiguous(self, target: str) -> bool:
         target = links.normalize(target)
@@ -251,11 +278,11 @@ def resolve(target: str, settings: Settings) -> PageFile:
     raise PageNotFound(f"no indexed page '{target}'")
 
 
-def load(page_file: PageFile) -> Page:
-    return parse(page_file, page_file.path.read_bytes())
+def load(page_file: PageFile, settings: Settings | None = None) -> Page:
+    return parse(page_file, page_file.path.read_bytes(), settings)
 
 
-def parse(page_file: PageFile, data: bytes) -> Page:
+def parse(page_file: PageFile, data: bytes, settings: Settings | None = None) -> Page:
     digest = content_hash(data)
     if data.startswith(codecs.BOM_UTF8):
         data = data[len(codecs.BOM_UTF8):]
@@ -265,9 +292,9 @@ def parse(page_file: PageFile, data: bytes) -> Page:
         text = data.decode("utf-8", errors="replace")
         if page_file.kind == PAGE:
             return Page(page_file, digest, text, None, 0,
-                        issues=[Issue(ERROR, "invalid-encoding", "page is not valid UTF-8")])
+                        issues=[Issue(ERROR, "invalid-encoding", "page is not valid UTF-8")], settings=settings)
     if page_file.kind == RAW:
-        return Page(page_file, digest, text, None, 0)
+        return Page(page_file, digest, text, None, 0, settings=settings)
     try:
         parsed = frontmatter.parse(text)
     except frontmatter.FrontmatterError as exc:
@@ -278,8 +305,9 @@ def parse(page_file: PageFile, data: bytes) -> Page:
         except frontmatter.FrontmatterError:
             parts = None
         body_offset = parts[1] if parts else 0
-        return Page(page_file, digest, text, None, body_offset, issues=[Issue(ERROR, "invalid-frontmatter", str(exc))])
-    return Page(page_file, digest, text, parsed.data, parsed.body_offset)
+        return Page(page_file, digest, text, None, body_offset,
+                    issues=[Issue(ERROR, "invalid-frontmatter", str(exc))], settings=settings)
+    return Page(page_file, digest, text, parsed.data, parsed.body_offset, settings=settings)
 
 
 def first_paragraph(body: str) -> str | None:

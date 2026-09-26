@@ -1,0 +1,97 @@
+# The Politics wiki's conventions, as its .wiki-cli.toml declares them. Tests use this to
+# check that the generic rule format reproduces that wiki's typed relations.
+
+[summary]
+headings = ["Summary", "What this is", "What happened", "Claim", "Question this page answers", "Synthesis"]
+
+[check]
+require_frontmatter = true
+summary_types = ["person", "organization", "place", "event", "document", "topic", "claim"]
+
+[suggest]
+named_types = ["person", "organization", "place", "event", "topic"]
+
+# Most specific first: when a page reaches one target several ways, the earliest type wins.
+[[relations]]
+field = "rests_on"
+type = "rests-on"
+inverse = "premise-of"
+reason = "Premise of this argument."
+
+[[relations]]
+heading = "Rests on"
+page_type = "claim"
+type = "rests-on"
+inverse = "premise-of"
+
+[[relations]]
+heading = "Claims supported"
+page_type = "document"
+type = "supports"
+inverse = "supported-by"
+
+[[relations]]
+heading = "Supports"
+page_type = "claim"
+type = "supports"
+inverse = "supported-by"
+
+[[relations]]
+heading = "Sources"
+page_type = "claim"
+type = "sourced-by"
+inverse = "source-for"
+
+[[relations]]
+heading = "Participants"
+page_type = "event"
+type = "involves"
+inverse = "participant-in"
+
+[[relations]]
+heading = "Location"
+page_type = "event"
+type = "located-at"
+inverse = "location-of"
+
+[[relations]]
+heading = "Events here"
+page_type = "place"
+type = "hosted"
+inverse = "held-at"
+
+[[relations]]
+heading = ["Relationships", "People associated"]
+page_type = ["person", "organization", "place"]
+type = "associated-with"
+inverse = "associated-with"
+
+[[relations]]
+heading = "Entities mentioned"
+page_type = "document"
+type = "mentions"
+inverse = "mentioned-in"
+
+[[relations]]
+heading = "Appearances in sources"
+page_type = ["person", "organization", "place"]
+type = "appears-in"
+inverse = "features"
+
+[[relations]]
+heading = "Sources"
+page_type = "event"
+type = "appears-in"
+inverse = "features"
+
+[[relations]]
+heading = "Key pages"
+page_type = "topic"
+type = "synthesizes"
+inverse = "synthesized-in"
+
+[[relations]]
+field = "sources"
+type = "draws-on"
+inverse = "drawn-on-by"
+reason = "Listed in sources."

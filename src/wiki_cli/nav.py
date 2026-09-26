@@ -161,9 +161,14 @@ class Navigator:
 
         linked: dict[str, dict] = {}
         for entry in self.cache.neighbors(current, include_unresolved=False):
-            if entry["slug"] in visited or entry["slug"] in linked or entry["slug"].startswith("raw/"):
+            if entry["slug"] in visited or entry["slug"] in linked:
                 continue
             linked[entry["slug"]] = entry
+        if linked:
+            marks = ",".join("?" * len(linked))
+            for (raw_slug,) in self.conn.execute(
+                    f"SELECT slug FROM pages WHERE kind != 'page' AND slug IN ({marks})", list(linked)):
+                del linked[raw_slug]  # raw source text is reached by search, not as a next page
         question_scores = self._question_similarity(session, list(linked))
         ranked = sorted(linked, key=lambda slug: (-question_scores.get(slug, 0.0), list(linked).index(slug)))
         shown_linked = ranked[:limit]
