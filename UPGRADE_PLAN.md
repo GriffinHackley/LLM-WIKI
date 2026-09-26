@@ -169,7 +169,8 @@ combination within a small margin of the best on tune, then confirm on test.
   discovery; Obsidian slugs and link parsing; derived relations replacing the
   authored `relations:` field and generated block (removed); summary extraction;
   raw text tier; `check` reworked for this wiki.
-- [ ] **Phase 4: Model selection.** Download candidate models, generate the
+- [x] **Phase 4: Model selection.** Chose bge-small + jina-reranker-v1-turbo-en, reranking 20 passages
+  of 1,200 characters (see `docs/model-selection.md`). Download candidate models, generate the
   evaluation set from the wiki, run the comparison, set the defaults.
 - [ ] **Phase 5: Traversal.** `wiki nav` sessions as above, plus `wiki suggest`.
 - [ ] **Phase 6: Integration.** Pull request on the Politics repo per the section

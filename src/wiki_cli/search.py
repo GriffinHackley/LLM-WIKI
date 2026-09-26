@@ -11,9 +11,9 @@ from wiki_cli.models import Embedder, ModelUnavailable, Reranker, tokens
 
 KEYWORD_K = 50
 VECTOR_K = 50
-RERANK_K = 30
+RERANK_K = 20  # chosen in docs/model-selection.md
 RRF_K = 60
-RERANK_CHARS = 2000  # rerankers read about 512 tokens per pair
+RERANK_CHARS = 1200  # passage length sent to the reranker
 BM25_WEIGHTS = (4.0, 2.0, 1.0)  # title, heading_path, text
 
 # Common words that only dilute an OR query.

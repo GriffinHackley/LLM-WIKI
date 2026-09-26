@@ -27,7 +27,7 @@ pages = ["wiki/**/*.md", "dossiers/*/DOSSIER.md", "dossiers/*/claims.md", "dossi
 exclude = ["wiki/index.md"]
 raw = ["raw/*.txt"]          # searched only with --include-raw
 # embed_model = "BAAI/bge-small-en-v1.5"
-# reranker = "BAAI/bge-reranker-base"
+# reranker = "jinaai/jina-reranker-v1-turbo-en"
 ```
 
 Add `.cache/` to the wiki's `.gitignore`. Commands find the root by walking up
@@ -69,7 +69,7 @@ errors.
 ## Models
 
 `--embed-model` / `WIKI_EMBED_MODEL` and `--reranker` / `WIKI_RERANKER` (or
-`none`) override `.wiki-cli.toml`. Models load from `<root>/.cache/models/`
+`none`) override `.wiki-cli.toml`. Models load from `~/.cache/wiki-cli/models/`
 only; run `wiki models download` once. Without a downloaded model, search falls
 back to keyword-only and says so.
 

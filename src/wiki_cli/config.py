@@ -12,6 +12,7 @@ from wiki_cli.models import DEFAULT_EMBED_MODEL, DEFAULT_RERANKER
 CONFIG_FILENAME = ".wiki-cli.toml"
 CACHE_FILENAME = "wiki.sqlite3"
 DEFAULT_PAGES = ("wiki/**/*.md",)
+DEFAULT_MODELS_DIR = Path.home() / ".cache" / "wiki-cli" / "models"  # shared by every wiki
 
 
 class ConfigError(Exception):
@@ -54,7 +55,7 @@ def load_settings(
     config = _read_config(Path(os.environ.get("WIKI_CONFIG") or resolved / CONFIG_FILENAME))
     cache_path = Path(cache or os.environ.get("WIKI_CACHE") or resolved / ".cache" / CACHE_FILENAME)
     cache_path = cache_path.expanduser().resolve()
-    models_dir = Path(os.environ.get("WIKI_MODELS_DIR") or cache_path.parent / "models").expanduser()
+    models_dir = Path(os.environ.get("WIKI_MODELS_DIR") or DEFAULT_MODELS_DIR).expanduser()
 
     return Settings(
         root=resolved,
