@@ -89,9 +89,10 @@ def test_index_commands(wiki, run):
     wiki.page("a", ("b", "depends-on", "x"))
     wiki.page("b")
     code, stats = run_json(run, "index", "rebuild")
-    assert code == 0 and stats["added"] == 2
+    assert code == 0 and stats["added"] == 2 and stats["embedded"] == 2
     code, status = run_json(run, "index", "status")
-    assert status == {"version": "1", "pages": 2, "relations": 1, "placeholder_summaries": 0, "stale": 0}
+    assert status == {"version": "2", "pages": 2, "relations": 1, "chunks": 4, "placeholder_summaries": 0,
+                      "stale": 0, "pending_embedding": 0, "embed_model": "fake:hash"}
 
 
 def test_text_output(wiki, run):

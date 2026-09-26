@@ -8,11 +8,22 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from pathlib import Path
 from typing import Sequence
 
-from wiki_cli import __version__
+from wiki_cli import __version__, evaluate
 from wiki_cli.cache import Cache, CacheUnavailable
 from wiki_cli.config import ConfigError, Settings, load_settings
+from wiki_cli.models import (
+    EMBEDDING_MODELS,
+    NO_RERANKER,
+    RERANKERS,
+    ModelUnavailable,
+    download,
+    load_embedder,
+    load_reranker,
+)
+from wiki_cli.search import search
 from wiki_cli.model import ERROR, WARNING, Issue
 from wiki_cli.pages import Page, PageNotFound, discover, load, resolve
 from wiki_cli.sync import sync_page
@@ -36,9 +47,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.print_help()
         return EXIT_ERROR
     try:
-        settings = load_settings(args.wiki_root, args.space, args.cache)
+        settings = load_settings(args.wiki_root, args.space, args.cache,
+                                 getattr(args, "embed_model", None), getattr(args, "reranker", None))
         return args.handler(args, settings)
-    except (ConfigError, PageNotFound, CacheUnavailable, UsageError) as exc:
+    except (ConfigError, PageNotFound, CacheUnavailable, UsageError, ModelUnavailable, evaluate.EvalError) as exc:
         print(f"wiki: {exc}", file=sys.stderr)
         return EXIT_ERROR
 
@@ -49,6 +61,10 @@ def build_parser() -> argparse.ArgumentParser:
     common.add_argument("--space", help="local wiki space (default: $LLM_WIKI_SPACE or wiki.toml name)")
     common.add_argument("--cache", help="cache database path (default: <repo>/.cache/wiki.sqlite3)")
     common.add_argument("--format", choices=("text", "json"), default="text")
+
+    models = argparse.ArgumentParser(add_help=False)
+    models.add_argument("--embed-model", help="embedding model (default: $WIKI_EMBED_MODEL or BAAI/bge-small-en-v1.5)")
+    models.add_argument("--reranker", help="reranker model or 'none' (default: $WIKI_RERANKER or BAAI/bge-reranker-base)")
 
     parser = argparse.ArgumentParser(prog="wiki", description="Read-side tooling for llm-wiki.")
     parser.add_argument("--version", action="version", version=f"wiki {__version__}")
@@ -76,13 +92,41 @@ def build_parser() -> argparse.ArgumentParser:
     check.add_argument("--require-summary", action="store_true", help="treat a missing summary as an error")
     check.set_defaults(handler=cmd_check)
 
+    search_parser = commands.add_parser("search", parents=[common, models], help="find the best pages for a question")
+    search_parser.add_argument("question")
+    search_parser.add_argument("--limit", type=_positive_int, default=3)
+    search_parser.add_argument("--keyword-only", action="store_true", help="skip vector search and reranking")
+    search_parser.set_defaults(handler=cmd_search)
+
     index = commands.add_parser("index", help="manage the derived cache").add_subparsers(title="index commands", metavar="<command>")
     for name, handler, help_text in (
-        ("refresh", cmd_index_refresh, "index new, changed, moved, and deleted pages"),
+        ("refresh", cmd_index_refresh, "index new, changed, moved, and deleted pages, then embed them"),
         ("rebuild", cmd_index_rebuild, "delete and recreate the cache"),
-        ("status", cmd_index_status, "report cache counts and staleness"),
     ):
-        index.add_parser(name, parents=[common], help=help_text).set_defaults(handler=handler)
+        sub = index.add_parser(name, parents=[common, models], help=help_text)
+        sub.add_argument("--no-embed", action="store_true", help="skip embedding (keyword search still works)")
+        sub.set_defaults(handler=handler)
+    index.add_parser("status", parents=[common], help="report cache counts and staleness").set_defaults(handler=cmd_index_status)
+
+    model_commands = commands.add_parser("models", help="embedding and reranker models").add_subparsers(
+        title="models commands", metavar="<command>")
+    model_commands.add_parser("list", parents=[common], help="list supported models").set_defaults(handler=cmd_models_list)
+    fetch = model_commands.add_parser("download", parents=[common, models],
+                                      help="download the configured models (the only command that downloads)")
+    fetch.set_defaults(handler=cmd_models_download)
+
+    eval_commands = commands.add_parser("eval", help="search-quality evaluation").add_subparsers(
+        title="eval commands", metavar="<command>")
+    eval_sample = eval_commands.add_parser("sample", parents=[common], help="pick pages to write evaluation questions about")
+    eval_sample.add_argument("--single", type=int, default=40)
+    eval_sample.add_argument("--multi", type=int, default=12)
+    eval_sample.add_argument("--seed", type=int, default=1)
+    eval_sample.set_defaults(handler=cmd_eval_sample)
+    eval_run = eval_commands.add_parser("run", parents=[common, models], help="score search against a question file")
+    eval_run.add_argument("questions", nargs="?", help="question file (default: <repo>/eval/questions.yaml)")
+    eval_run.add_argument("--split", choices=evaluate.SPLITS + ("all",), default="test")
+    eval_run.add_argument("--keyword-only", action="store_true")
+    eval_run.set_defaults(handler=cmd_eval_run)
 
     vocab = commands.add_parser("vocab", parents=[common], help="list relation types")
     vocab.set_defaults(handler=cmd_vocab)
@@ -255,14 +299,150 @@ def _cache_issues(pages: list[Page], settings: Settings, *, verify: bool) -> lis
 
 def cmd_index_refresh(args: argparse.Namespace, settings: Settings) -> int:
     with Cache(settings) as cache:
-        stats = cache.refresh()
-    return _print_stats(args, stats.to_dict())
+        stats = cache.refresh().to_dict()
+        if not args.no_embed:
+            stats.update(_embed(cache, settings, verbose=args.format == "text"))
+    return _print_stats(args, stats)
 
 
 def cmd_index_rebuild(args: argparse.Namespace, settings: Settings) -> int:
     with Cache(settings) as cache:
-        stats = cache.rebuild()
-    return _print_stats(args, stats.to_dict())
+        stats = cache.rebuild().to_dict()
+        if not args.no_embed:
+            stats.update(_embed(cache, settings, verbose=args.format == "text"))
+    return _print_stats(args, stats)
+
+
+def _embed(cache: Cache, settings: Settings, *, verbose: bool) -> dict:
+    """Embed pending pages. A missing model skips embedding instead of failing."""
+    if cache.pending_embeddings() == 0 and cache.embed_model == settings.embed_model:
+        return {"embedded": 0}
+
+    def progress(done: int, total: int) -> None:
+        if verbose:
+            print(f"\rembedding {done}/{total} pages", end="", file=sys.stderr, flush=True)
+
+    try:
+        embedder = load_embedder(settings.embed_model, settings.models_dir)
+        embedded = cache.embed_pending(embedder, progress)
+    except ModelUnavailable as exc:
+        return {"embedded": 0, "embedding_skipped": str(exc)}
+    finally:
+        if verbose:
+            print(file=sys.stderr)
+    return {"embedded": embedded}
+
+
+# -- search ------------------------------------------------------------------
+
+def cmd_search(args: argparse.Namespace, settings: Settings) -> int:
+    with Cache(settings) as cache:
+        cache.refresh()  # cheap when nothing changed; new pages become keyword-searchable
+        embedder = None if args.keyword_only else load_embedder(settings.embed_model, settings.models_dir)
+        reranker = None if args.keyword_only else load_reranker(settings.reranker, settings.models_dir)
+        result = search(cache.conn, args.question, embedder=embedder, reranker=reranker,
+                        embed_model=cache.embed_model, limit=args.limit)
+        pending = cache.pending_embeddings() if embedder else 0
+    notes = list(result.notes)
+    if pending and "vector" in result.modes:
+        notes.append(f"{pending} pages are not embedded yet; run 'wiki index refresh'")
+
+    if args.format == "json":
+        payload = {"results": [hit.to_dict() for hit in result.hits]}
+        if notes:
+            payload["notes"] = notes
+        _print_json(payload)
+        return EXIT_OK
+    if not result.hits:
+        print("no results")
+    for number, hit in enumerate(result.hits, start=1):
+        section = f"  § {hit.section}" if hit.section else ""
+        print(f"{number}. {hit.slug}{section}  ({hit.score:.3f})")
+        if hit.summary:
+            print(f"   {hit.summary}{' [placeholder]' if hit.placeholder else ''}")
+    for note in notes:
+        print(f"note: {note}", file=sys.stderr)
+    return EXIT_OK
+
+
+# -- models ------------------------------------------------------------------
+
+def cmd_models_list(args: argparse.Namespace, settings: Settings) -> int:
+    payload = {
+        "embedding": list(EMBEDDING_MODELS),
+        "reranker": [*RERANKERS, NO_RERANKER],
+        "configured": {"embed_model": settings.embed_model, "reranker": settings.reranker},
+        "models_dir": str(settings.models_dir),
+    }
+    if args.format == "json":
+        _print_json(payload)
+    else:
+        print("embedding models: " + ", ".join(payload["embedding"]))
+        print("rerankers: " + ", ".join(payload["reranker"]))
+        print(f"configured: {settings.embed_model} + {settings.reranker}")
+        print(f"models folder: {settings.models_dir}")
+    return EXIT_OK
+
+
+def cmd_models_download(args: argparse.Namespace, settings: Settings) -> int:
+    for name, is_reranker in ((settings.embed_model, False), (settings.reranker, True)):
+        if args.format == "text":
+            print(f"downloading {name} to {settings.models_dir}", file=sys.stderr)
+        download(name, settings.models_dir, reranker=is_reranker)
+    if args.format == "json":
+        _print_json({"downloaded": [settings.embed_model, settings.reranker], "models_dir": str(settings.models_dir)})
+    return EXIT_OK
+
+
+# -- eval --------------------------------------------------------------------
+
+def cmd_eval_sample(args: argparse.Namespace, settings: Settings) -> int:
+    with Cache(settings) as cache:
+        cache.refresh()
+        _print_json(evaluate.sample(cache, single=args.single, multi=args.multi, seed=args.seed))
+    return EXIT_OK
+
+
+def cmd_eval_run(args: argparse.Namespace, settings: Settings) -> int:
+    path = Path(args.questions) if args.questions else settings.repo_root / "eval" / "questions.yaml"
+    questions = evaluate.load_questions(path)
+    if args.split != "all":
+        questions = [question for question in questions if question.split == args.split]
+    if not questions:
+        raise UsageError(f"no questions in split '{args.split}'")
+
+    embed_model = None if args.keyword_only else settings.embed_model
+    eval_settings = Settings(**{**settings.__dict__, "cache_path": evaluate.eval_cache_path(settings, embed_model)})
+    with Cache(eval_settings) as cache:
+        cache.refresh()
+        embedder = reranker = None
+        if not args.keyword_only:
+            embedder = load_embedder(settings.embed_model, settings.models_dir)
+            reranker = load_reranker(settings.reranker, settings.models_dir)
+            if cache.pending_embeddings() or cache.embed_model != embedder.name:
+                _embed_or_fail(cache, embedder, verbose=args.format == "text")
+        summary = evaluate.run(cache, questions, embedder=embedder, reranker=reranker)
+
+    summary = {"embed_model": embed_model or "none", "reranker": "none" if args.keyword_only else settings.reranker,
+               "split": args.split, **summary}
+    if args.format == "json":
+        _print_json(summary)
+    else:
+        for key, value in summary.items():
+            if key != "misses":
+                print(f"{key}: {value}")
+        for miss in summary["misses"]:
+            print(f"miss {miss['id']}: top {', '.join(miss['top']) or '-'}")
+    return EXIT_OK
+
+
+def _embed_or_fail(cache: Cache, embedder, *, verbose: bool) -> None:
+    def progress(done: int, total: int) -> None:
+        if verbose:
+            print(f"\rembedding {done}/{total} pages", end="", file=sys.stderr, flush=True)
+    cache.embed_pending(embedder, progress)
+    if verbose:
+        print(file=sys.stderr)
 
 
 def cmd_index_status(args: argparse.Namespace, settings: Settings) -> int:

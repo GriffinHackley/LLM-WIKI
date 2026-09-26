@@ -55,6 +55,15 @@ class Wiki:
         return (self.root / f"{slug}.md").read_bytes().decode("utf-8")
 
 
+@pytest.fixture(autouse=True)
+def fake_models(monkeypatch):
+    """Tests never load real models; the fakes are deterministic and instant."""
+    monkeypatch.setenv("WIKI_EMBED_MODEL", "fake:hash")
+    monkeypatch.setenv("WIKI_RERANKER", "fake:overlap")
+    for name in ("LLM_WIKI_ROOT", "LLM_WIKI_SPACE", "WIKI_CACHE", "WIKI_MODELS_DIR"):
+        monkeypatch.delenv(name, raising=False)
+
+
 @pytest.fixture
 def wiki(tmp_path: Path) -> Wiki:
     return Wiki(tmp_path / "repo")

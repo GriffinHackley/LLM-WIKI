@@ -8,18 +8,25 @@ from __future__ import annotations
 import os
 import sqlite3
 from dataclasses import dataclass
+from typing import Callable
 
+from wiki_cli import vec
+from wiki_cli.chunking import chunk_page
 from wiki_cli.config import Settings
+from wiki_cli.models import Embedder
 from wiki_cli.pages import Page, PageFile, content_hash, parse, scan, slug_for
 from wiki_cli.vocabulary import INVERSE_LABELS
 
-SCHEMA_VERSION = "1"
+SCHEMA_VERSION = "2"
+EMBED_BATCH_PAGES = 32
+LARGE_CHANGE = 500  # pages; beyond this, truncate the write-ahead log afterwards
 
 _SCHEMA = """
 CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 
 CREATE TABLE pages (
-    path TEXT PRIMARY KEY,
+    id INTEGER PRIMARY KEY,
+    path TEXT NOT NULL UNIQUE,
     slug TEXT NOT NULL,
     is_page INTEGER NOT NULL,
     mtime_ns INTEGER NOT NULL,
@@ -30,9 +37,22 @@ CREATE TABLE pages (
     page_type TEXT,
     summary TEXT,
     summary_is_placeholder INTEGER NOT NULL DEFAULT 0,
-    summary_body_hash TEXT
+    summary_body_hash TEXT,
+    embedded_hash TEXT
 );
 CREATE INDEX pages_by_slug ON pages(slug);
+
+CREATE TABLE chunks (
+    id INTEGER PRIMARY KEY,
+    page_id INTEGER NOT NULL,
+    ordinal INTEGER NOT NULL,
+    heading_path TEXT NOT NULL,
+    start_offset INTEGER NOT NULL,
+    end_offset INTEGER NOT NULL,
+    UNIQUE (page_id, ordinal)
+);
+
+CREATE VIRTUAL TABLE chunks_fts USING fts5(title, heading_path, text, tokenize = 'porter unicode61');
 
 CREATE TABLE relations (
     source_path TEXT NOT NULL,
@@ -49,7 +69,8 @@ CREATE INDEX relations_by_target ON relations(target_slug);
 CREATE INDEX relations_by_type ON relations(relation_type);
 """
 
-_TABLES = ("relations", "pages", "metadata")
+_TABLES = ("summary_vectors", "chunk_vectors", "chunks_fts", "chunks", "relations", "pages", "metadata")
+_VECTOR_TABLES = ("chunk_vectors", "summary_vectors")
 
 
 class CacheUnavailable(Exception):
@@ -101,6 +122,7 @@ class Cache:
             conn.execute("PRAGMA journal_mode=WAL")
             conn.execute("PRAGMA synchronous=NORMAL")
         conn.execute("PRAGMA busy_timeout=30000")
+        vec.load(conn)
         return conn
 
     def _ensure_schema(self) -> None:
@@ -142,7 +164,17 @@ class Cache:
 
     def rebuild(self) -> RefreshStats:
         self._reset()
-        return self.refresh()
+        stats = self.refresh()
+        self.vacuum()
+        return stats
+
+    def checkpoint(self) -> None:
+        """Fold the write-ahead log back into the database and truncate it (best effort)."""
+        self.conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+
+    def vacuum(self) -> None:
+        self.conn.execute("VACUUM")
+        self.checkpoint()
 
     def refresh(self) -> RefreshStats:
         """Index new, changed, moved, and deleted pages in one transaction."""
@@ -185,6 +217,8 @@ class Cache:
             self.conn.execute("ROLLBACK")
             raise
         self.needs_full_refresh = False
+        if stats.added + stats.changed + stats.removed > LARGE_CHANGE:
+            self.checkpoint()
         return stats
 
     def refresh_file(self, page_file: PageFile) -> None:
@@ -231,15 +265,26 @@ class Cache:
         if previous and not placeholder and not previous[1] and previous[0] == summary and previous[2]:
             summary_body_hash = previous[2]
 
+        # Upsert keeps the page id stable, so vector rowids stay valid.
         self.conn.execute(
-            """INSERT OR REPLACE INTO pages
+            """INSERT INTO pages
                (path, slug, is_page, mtime_ns, size, content_hash, body_hash, title, page_type,
-                summary, summary_is_placeholder, summary_body_hash)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                summary, summary_is_placeholder, summary_body_hash, embedded_hash)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+               ON CONFLICT(path) DO UPDATE SET
+                 slug = excluded.slug, is_page = excluded.is_page, mtime_ns = excluded.mtime_ns,
+                 size = excluded.size, content_hash = excluded.content_hash, body_hash = excluded.body_hash,
+                 title = excluded.title, page_type = excluded.page_type, summary = excluded.summary,
+                 summary_is_placeholder = excluded.summary_is_placeholder,
+                 summary_body_hash = excluded.summary_body_hash, embedded_hash = NULL""",
             (rel, page.slug, int(is_page), stat.st_mtime_ns, stat.st_size, page.content_hash, body_hash,
              page.title, page.page_type, summary, placeholder, summary_body_hash),
         )
+        page_id = self.conn.execute("SELECT id FROM pages WHERE path = ?", (rel,)).fetchone()[0]
+        self._delete_chunks(page_id)
         self.conn.execute("DELETE FROM relations WHERE source_path = ?", (rel,))
+        if is_page and page.text is not None:
+            self._store_chunks(page_id, page, summary)
         if is_page:
             self.conn.executemany(
                 """INSERT OR IGNORE INTO relations
@@ -249,9 +294,134 @@ class Cache:
                  for relation in page.relations],
             )
 
+    def _store_chunks(self, page_id: int, page: Page, summary: str | None) -> None:
+        title = page.title or page.slug
+        for chunk in chunk_page(page.text, page.body_offset, summary):
+            cursor = self.conn.execute(
+                "INSERT INTO chunks (page_id, ordinal, heading_path, start_offset, end_offset) VALUES (?, ?, ?, ?, ?)",
+                (page_id, chunk.ordinal, chunk.heading_path, chunk.start, chunk.end),
+            )
+            self.conn.execute(
+                "INSERT INTO chunks_fts (rowid, title, heading_path, text) VALUES (?, ?, ?, ?)",
+                (cursor.lastrowid, title, chunk.heading_path, chunk.text),
+            )
+
+    def _delete_chunks(self, page_id: int) -> None:
+        chunk_ids = [row[0] for row in self.conn.execute("SELECT id FROM chunks WHERE page_id = ?", (page_id,))]
+        vectors = self.has_vectors
+        if chunk_ids:
+            marks = ",".join("?" * len(chunk_ids))
+            self.conn.execute(f"DELETE FROM chunks_fts WHERE rowid IN ({marks})", chunk_ids)
+            if vectors:
+                self.conn.execute(f"DELETE FROM chunk_vectors WHERE rowid IN ({marks})", chunk_ids)
+            self.conn.execute("DELETE FROM chunks WHERE page_id = ?", (page_id,))
+        if vectors:
+            self.conn.execute("DELETE FROM summary_vectors WHERE rowid = ?", (page_id,))
+
     def _delete(self, rel: str) -> None:
+        row = self.conn.execute("SELECT id FROM pages WHERE path = ?", (rel,)).fetchone()
+        if row:
+            self._delete_chunks(row[0])
         self.conn.execute("DELETE FROM relations WHERE source_path = ?", (rel,))
         self.conn.execute("DELETE FROM pages WHERE path = ?", (rel,))
+
+    # -- vectors -------------------------------------------------------------
+
+    @property
+    def embed_model(self) -> str | None:
+        return self._meta("embed_model")
+
+    @property
+    def has_vectors(self) -> bool:
+        return self.embed_model is not None
+
+    def _ensure_vector_tables(self, embedder: Embedder) -> None:
+        """Create vector tables for ``embedder``; a different model resets all vectors."""
+        if self.embed_model == embedder.name:
+            return
+        embedder.embed_query("ready")  # fail before touching tables if the model is unavailable
+        dims = int(embedder.dims)
+        self.conn.execute("BEGIN IMMEDIATE")
+        try:
+            for table in _VECTOR_TABLES:
+                self.conn.execute(f"DROP TABLE IF EXISTS {table}")
+                self.conn.execute(
+                    f"CREATE VIRTUAL TABLE {table} USING vec0(embedding float[{dims}] distance_metric=cosine)")
+            self.conn.execute("UPDATE pages SET embedded_hash = NULL")
+            self.conn.executemany(
+                "INSERT OR REPLACE INTO metadata(key, value) VALUES (?, ?)",
+                [("embed_model", embedder.name), ("embed_dims", str(dims))],
+            )
+            self.conn.execute("COMMIT")
+        except BaseException:
+            self.conn.execute("ROLLBACK")
+            raise
+
+    def pending_embeddings(self) -> int:
+        return self.conn.execute(
+            """SELECT COUNT(*) FROM pages
+               WHERE is_page = 1 AND (embedded_hash IS NULL OR embedded_hash != content_hash)"""
+        ).fetchone()[0]
+
+    def embed_pending(self, embedder: Embedder, progress: Callable[[int, int], None] | None = None) -> int:
+        """Embed chunks of pages whose vectors are missing or stale. Returns pages embedded."""
+        self._ensure_vector_tables(embedder)
+        total = self.pending_embeddings()
+        done = 0
+        skipped: set[int] = set()
+        while True:
+            exclude = ",".join(str(page_id) for page_id in skipped) or "-1"
+            pages = self.conn.execute(
+                f"""SELECT id, content_hash, COALESCE(title, slug) FROM pages
+                    WHERE is_page = 1 AND (embedded_hash IS NULL OR embedded_hash != content_hash)
+                      AND id NOT IN ({exclude})
+                    ORDER BY id LIMIT ?""",
+                (EMBED_BATCH_PAGES,),
+            ).fetchall()
+            if not pages:
+                break
+            ids = [page_id for page_id, _, _ in pages]
+            marks = ",".join("?" * len(ids))
+            rows = self.conn.execute(
+                f"""SELECT c.id, c.page_id, c.ordinal, c.heading_path, f.text
+                    FROM chunks c JOIN chunks_fts f ON f.rowid = c.id
+                    WHERE c.page_id IN ({marks}) ORDER BY c.page_id, c.ordinal""",
+                ids,
+            ).fetchall()
+            titles = {page_id: title for page_id, _, title in pages}
+            texts = [embedding_text(titles[page_id], heading, text) for _, page_id, _, heading, text in rows]
+            vectors = list(embedder.embed_documents(texts)) if texts else []
+            by_page: dict[int, list[tuple[int, int, bytes]]] = {}
+            for (chunk_id, page_id, ordinal, _, _), vector in zip(rows, vectors):
+                blob = vec.serialize(vector)
+                by_page.setdefault(page_id, []).append((chunk_id, ordinal, blob))
+
+            self.conn.execute("BEGIN IMMEDIATE")
+            try:
+                for page_id, digest, _ in pages:
+                    current = self.conn.execute("SELECT content_hash FROM pages WHERE id = ?", (page_id,)).fetchone()
+                    if not current or current[0] != digest:
+                        skipped.add(page_id)  # changed underneath us; the next run re-queues it
+                        continue
+                    self.conn.execute("DELETE FROM summary_vectors WHERE rowid = ?", (page_id,))
+                    for chunk_id, ordinal, blob in by_page.get(page_id, []):
+                        self.conn.execute("DELETE FROM chunk_vectors WHERE rowid = ?", (chunk_id,))
+                        self.conn.execute(
+                            "INSERT INTO chunk_vectors (rowid, embedding) VALUES (?, ?)", (chunk_id, blob))
+                        if ordinal == 0:
+                            self.conn.execute(
+                                "INSERT INTO summary_vectors (rowid, embedding) VALUES (?, ?)", (page_id, blob))
+                    self.conn.execute("UPDATE pages SET embedded_hash = ? WHERE id = ?", (digest, page_id))
+                    done += 1
+                self.conn.execute("COMMIT")
+            except BaseException:
+                self.conn.execute("ROLLBACK")
+                raise
+            if progress:
+                progress(done, total)
+        if done > LARGE_CHANGE:
+            self.checkpoint()
+        return done
 
     def _hash_of(self, rel: str) -> str:
         return self.conn.execute("SELECT content_hash FROM pages WHERE path = ?", (rel,)).fetchone()[0]
@@ -355,13 +525,18 @@ class Cache:
             if not previous or previous != (stat.st_mtime_ns, stat.st_size):
                 stale += 1
         stale += len(set(cached) - seen)
-        return {
+        status = {
             "version": SCHEMA_VERSION,
             "pages": pages,
             "relations": relations,
+            "chunks": self.conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0],
             "placeholder_summaries": placeholders,
             "stale": stale,
+            "pending_embedding": self.pending_embeddings(),
         }
+        if self.embed_model:
+            status["embed_model"] = self.embed_model
+        return status
 
     def snapshot(self) -> dict[str, tuple[str, set]]:
         """``{path: (content_hash, {(target_uri, type, reason)})}`` for cache verification."""
@@ -387,3 +562,8 @@ class Cache:
             )
         }
 
+
+def embedding_text(title: str, heading_path: str, text: str) -> str:
+    """Text sent to the embedding model and reranker for one chunk."""
+    header = f"{title} > {heading_path}" if heading_path else title
+    return f"{header}\n{text}"
