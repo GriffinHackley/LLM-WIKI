@@ -11,9 +11,9 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
-from wiki_cli import __version__, evaluate
+from wiki_cli import __version__, evaluate, init
 from wiki_cli.cache import Cache, CacheUnavailable
-from wiki_cli.config import ConfigError, Settings, load_settings
+from wiki_cli.config import CONFIG_FILENAME, ConfigError, Settings, load_settings
 from wiki_cli.model import ERROR, WARNING, Issue
 from wiki_cli.models import (
     EMBEDDING_MODELS,
@@ -29,7 +29,6 @@ from wiki_cli.pages import PageNotFound, Resolver, load, resolve, scan_vault
 from wiki_cli.search import search
 from wiki_cli.suggest import suggest
 from wiki_cli.validation import check_corpus, check_page, compare_cache
-from wiki_cli.vocabulary import EDGE_TYPES, INVERSE_LABELS, VOCABULARY_VERSION
 
 EXIT_OK, EXIT_INVALID, EXIT_ERROR = 0, 1, 2
 
@@ -126,7 +125,7 @@ def build_parser() -> argparse.ArgumentParser:
     neighbors.add_argument("slug")
     neighbors.add_argument("--incoming", action="store_true")
     neighbors.add_argument("--outgoing", action="store_true")
-    neighbors.add_argument("--relation", choices=EDGE_TYPES)
+    neighbors.add_argument("--relation", help="only this relation type (see 'wiki vocab')")
     neighbors.add_argument("--limit", type=_positive_int)
     neighbors.set_defaults(handler=cmd_neighbors)
 
@@ -171,6 +170,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     vocab = commands.add_parser("vocab", parents=[common], help="list relation types")
     vocab.set_defaults(handler=cmd_vocab)
+
+    init_parser = commands.add_parser("init", parents=[common],
+                                      help=f"survey the wiki and draft a starter {CONFIG_FILENAME}")
+    init_parser.add_argument("--write", action="store_true", help=f"create {CONFIG_FILENAME} (never overwrites)")
+    init_parser.set_defaults(handler=cmd_init)
     return parser
 
 
@@ -341,6 +345,8 @@ def cmd_orphans(args: argparse.Namespace, settings: Settings) -> int:
 # -- neighbors ---------------------------------------------------------------
 
 def cmd_neighbors(args: argparse.Namespace, settings: Settings) -> int:
+    if args.relation and args.relation not in settings.vocabulary.types:
+        raise UsageError(f"unknown relation '{args.relation}'; see 'wiki vocab'")
     both = not args.incoming and not args.outgoing
     with Cache(settings) as cache:
         if not cache.ensure_fresh(args.slug):
@@ -371,14 +377,14 @@ def cmd_check(args: argparse.Namespace, settings: Settings) -> int:
     files = [page_file for page_file, _ in scanned]
     resolver = Resolver([(page_file.slug, page_file.rel) for page_file in files], others)
     if args.all:
-        pages = [load(page_file) for page_file in files]
+        pages = [load(page_file, settings) for page_file in files]
         issues = check_corpus(pages, resolver)
         issues.extend(_cache_issues(pages, settings, resolver, verify=args.verify_cache))
         checked = sum(1 for page in pages if page.file.kind == "page")
     else:
         if args.verify_cache:
             raise UsageError("--verify-cache requires --all")
-        page = load(resolve(args.target, settings))
+        page = load(resolve(args.target, settings), settings)
         issues = check_page(page, resolver)
         issues.extend(_cache_issues([page], settings, resolver, verify=False))
         checked = 1
@@ -546,12 +552,36 @@ def cmd_eval_run(args: argparse.Namespace, settings: Settings) -> int:
 # -- vocab -------------------------------------------------------------------
 
 def cmd_vocab(args: argparse.Namespace, settings: Settings) -> int:
-    types = [{"type": name, "inverse": INVERSE_LABELS[name]} for name in EDGE_TYPES]
+    vocabulary = settings.vocabulary
+    types = []
+    for name in vocabulary.types:
+        entry = {"type": name, "inverse": vocabulary.inverse(name)}
+        sources = [f"heading '{h}'" for rule in vocabulary.rules if rule.type == name for h in rule.headings]
+        sources += [f"field '{rule.field}'" for rule in vocabulary.rules if rule.type == name and rule.field]
+        entry["from"] = sources or (["block embeds"] if name == "embeds" else ["any other link"])
+        types.append(entry)
     if args.format == "json":
-        _print_json({"version": VOCABULARY_VERSION, "types": types})
+        _print_json({"types": types})
     else:
         for entry in types:
-            print(f"{entry['type']:<16} inverse: {entry['inverse']}")
+            print(f"{entry['type']:<18} inverse: {entry['inverse']:<18} from: {'; '.join(entry['from'])}")
+    return EXIT_OK
+
+
+def cmd_init(args: argparse.Namespace, settings: Settings) -> int:
+    result = init.survey(settings)
+    draft = init.render(result)
+    target = settings.root / CONFIG_FILENAME
+    if args.format == "json":
+        _print_json({**result, "config": draft})
+        return EXIT_OK
+    if args.write:
+        if target.exists():
+            raise UsageError(f"{target} already exists; not overwriting (run without --write to print a draft)")
+        target.write_text(draft, encoding="utf-8")
+        print(f"wrote {target}", file=sys.stderr)
+    else:
+        print(draft, end="")
     return EXIT_OK
 
 

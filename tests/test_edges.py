@@ -1,12 +1,12 @@
 from wiki_cli.edges import derive
-from wiki_cli.pages import Resolver, discover, load, resolve
+from wiki_cli.pages import Resolver, load, resolve, scan_vault
 
 
 def edges_of(wiki, slug):
     settings = wiki.settings()
-    files = discover(settings)
-    resolver = Resolver([(f.slug, f.rel) for f in files])
-    return {edge.target: edge for edge in derive(load(resolve(slug, settings)), resolver)}
+    files, others = scan_vault(settings)
+    resolver = Resolver([(f.slug, f.rel) for f, _ in files], others)
+    return {edge.target: edge for edge in derive(load(resolve(slug, settings), settings), resolver)}
 
 
 def test_document_sections(wiki):
@@ -15,15 +15,15 @@ def test_document_sections(wiki):
     wiki.page("claim", "F-049")
     wiki.page("document", "abc-doc", {
         "Entities mentioned": "- [[charles-babbage]] — Inventor who delayed the demonstration (p. 2)\n- [[ada-lovelace]]",
-        "Claims supported": "- F-049 — Babbage's stated rationale → sourced",
-        "Summary": "Prose linking [[charles-babbage]] again.",
-    }, source_path="raw/abc-doc.html")
+        "Claims supported": "- [[F-049]] — Babbage's stated rationale → sourced",
+        "Summary": "Prose linking [[charles-babbage]] again. Raw file: [[abc-doc.txt]].",
+    })
     wiki.raw_text("abc-doc.txt", "text")
     edges = edges_of(wiki, "abc-doc")
     assert (edges["charles-babbage"].type, edges["charles-babbage"].reason) == ("mentions", "Inventor who delayed the demonstration (p. 2)")
     assert (edges["ada-lovelace"].type, edges["ada-lovelace"].reason) == ("mentions", "Listed under Entities mentioned.")
     assert (edges["F-049"].type, edges["F-049"].reason) == ("supports", "Babbage's stated rationale → sourced")
-    assert (edges["raw/abc-doc"].type, edges["raw/abc-doc"].resolved) == ("transcribes", True)
+    assert (edges["raw/abc-doc"].type, edges["raw/abc-doc"].resolved) == ("links-to", True)
 
 
 def test_multi_link_line_drops_subject_list(wiki):
@@ -61,7 +61,7 @@ def test_quote_embed_and_generic_links(wiki):
     wiki.page("person", "silas-reed", {
         "Documented role": "She met [[ruth-marsh]] on the 22nd. Later she resigned.\n\n![[memo#^q-no-list]]"})
     edges = edges_of(wiki, "silas-reed")
-    assert (edges["memo"].type, edges["memo"].reason) == ("quotes", "Embeds quote q-no-list.")
+    assert (edges["memo"].type, edges["memo"].reason) == ("embeds", "Embeds block q-no-list.")
     assert (edges["ruth-marsh"].type, edges["ruth-marsh"].reason) == (
         "links-to", "Documented role: She met ruth-marsh on the 22nd.")
 
@@ -89,10 +89,13 @@ def test_long_reason_clipped(wiki):
 def test_links_to_existing_attachments_are_not_edges(wiki):
     wiki.write("raw/scan-0001.pdf", raw="%PDF")
     wiki.page("document", "council-memo", {"What this is": "Scan: [[scan-0001.pdf]]. See [[ghost-page]]."})
-    settings = wiki.settings()
-    from wiki_cli.pages import scan_vault
-    files, others = scan_vault(settings)
-    resolver = Resolver([(f.slug, f.rel) for f, _ in files], others)
-    edges = {edge.target: edge for edge in derive(load(resolve("council-memo", settings)), resolver)}
+    edges = edges_of(wiki, "council-memo")
     assert "scan-0001.pdf" not in edges
     assert not edges["ghost-page"].resolved
+
+
+def test_embeds_outrank_field_only_types(wiki):
+    wiki.page("document", "memo")
+    wiki.page("person", "p", {"Documented role": "![[memo#^q-key]]"}, sources=["memo"])
+    edge = edges_of(wiki, "p")["memo"]
+    assert (edge.type, edge.reason) == ("embeds", "Embeds block q-key.")

@@ -13,7 +13,8 @@ CONFIG = """\
 pages = ["wiki/**/*.md", "projects/*/claims.md"]
 exclude = ["wiki/index.md"]
 raw = ["raw/*.txt"]
-"""
+
+""" + (Path(__file__).parent / "pilot_rules.toml").read_text(encoding="utf-8")
 
 FOLDERS = {"person": "people", "organization": "organizations", "place": "places", "event": "events",
            "document": "documents", "topic": "topics", "claim": "claims"}

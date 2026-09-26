@@ -44,10 +44,16 @@ def test_root_found_from_working_directory(wiki, capsys, monkeypatch):
     assert (wiki.root / ".cache" / "wiki.sqlite3").is_file()
 
 
-def test_no_root_is_usage_error(tmp_path, capsys, monkeypatch):
+def test_no_config_uses_current_folder(tmp_path, capsys, monkeypatch):
+    (tmp_path / "notes").mkdir()
+    (tmp_path / "notes" / "a.md").write_text("# A\n\nSee [B](b.md).\n", encoding="utf-8")
+    (tmp_path / "notes" / "b.md").write_text("# B\n", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
-    assert main(["index", "status"]) == 2
-    assert "no wiki root" in capsys.readouterr().err
+    assert main(["neighbors", "a", "--format", "json"]) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["neighbors"] == [{"slug": "b", "direction": "outgoing", "type": "links-to", "title": "B",
+                                    "reason": "A: See B."}]
+    assert (tmp_path / ".cache" / "wiki.sqlite3").is_file()
 
 
 class TestCheck:
@@ -101,13 +107,17 @@ def test_index_commands(wiki, run):
     code, stats = run_json(run, "index", "rebuild")
     assert code == 0 and stats["added"] == 3 and stats["embedded"] == 3
     code, status = run_json(run, "index", "status")
-    assert status == {"version": "3", "pages": 2, "raw": 1, "relations": 1, "unresolved": 0, "chunks": 7,
+    assert status == {"version": "4", "pages": 2, "raw": 1, "relations": 1, "unresolved": 0, "chunks": 7,
                       "stale": 0, "pending_embedding": 0, "embed_model": "fake:hash"}
 
 
 def test_vocab(wiki, run):
     code, result = run_json(run, "vocab")
-    assert code == 0 and result["types"][0] == {"type": "rests-on", "inverse": "premise-of"}
+    assert code == 0 and result["types"][0] == {"type": "rests-on", "inverse": "premise-of",
+                                                "from": ["heading 'rests on'", "field 'rests_on'"]}
+    assert result["types"][-3:] == [{"type": "embeds", "inverse": "embedded-in", "from": ["block embeds"]},
+                                    {"type": "draws-on", "inverse": "drawn-on-by", "from": ["field 'sources'"]},
+                                    {"type": "links-to", "inverse": "linked-from", "from": ["any other link"]}]
 
 
 def test_check_and_unwritten_ignore_existing_attachments(wiki, run):

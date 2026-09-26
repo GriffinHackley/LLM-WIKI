@@ -12,7 +12,6 @@ import re
 from wiki_cli.cache import Cache
 from wiki_cli.pages import PageFile, load
 
-NAMED_TYPES = ("person", "organization", "place", "event", "topic")
 MIN_NAME_LENGTH = 4
 SHARED_MINIMUM = 2
 SIMILAR_LIMIT = 5
@@ -39,7 +38,7 @@ def suggest(cache: Cache, slug: str, *, limit: int = 10) -> list[dict]:
                WHERE r1.source_slug = ? AND r2.source_slug != ? AND r1.resolved = 1 AND r2.resolved = 1
                GROUP BY r2.source_slug HAVING COUNT(*) >= ? ORDER BY COUNT(*) DESC""",
             (slug, slug, SHARED_MINIMUM)):
-        if source in skip or source.startswith("raw/"):
+        if source in skip:
             continue
         entry = found.setdefault(source, {"slug": source, "reasons": []})
         shown = ", ".join(targets.split(", ")[:3]) + (", …" if count > 3 else "")
@@ -78,22 +77,27 @@ def suggest(cache: Cache, slug: str, *, limit: int = 10) -> list[dict]:
 def _named(cache: Cache, slug: str, info: dict, skip: set[str]) -> list[tuple[str, str]]:
     """Entity pages whose title or alias appears in this page (or its raw text) without a link."""
     texts = [_read(cache, info["path"])]
-    raw = cache.conn.execute(
-        """SELECT p.path FROM relations r JOIN pages p ON p.slug = r.target_slug
-           WHERE r.source_slug = ? AND r.relation_type = 'transcribes'""", (slug,)).fetchone()
-    if raw:
-        texts.append(_read(cache, raw[0]))
+    # Raw source text the page links to is searched too: names often appear there first.
+    for (raw_path,) in cache.conn.execute(
+            """SELECT p.path FROM relations r JOIN pages p ON p.slug = r.target_slug
+               WHERE r.source_slug = ? AND p.kind != 'page'""", (slug,)):
+        texts.append(_read(cache, raw_path))
     text = "\n".join(texts)
-    marks = ",".join("?" * len(NAMED_TYPES))
-    candidates = cache.conn.execute(
-        f"SELECT slug, path, title FROM pages WHERE kind = 'page' AND page_type IN ({marks})", NAMED_TYPES).fetchall()
+    named_types = cache.settings.named_types
+    if named_types:
+        marks = ",".join("?" * len(named_types))
+        candidates = cache.conn.execute(
+            f"SELECT slug, path, title FROM pages WHERE kind = 'page' AND page_type IN ({marks})",
+            named_types).fetchall()
+    else:
+        candidates = cache.conn.execute("SELECT slug, path, title FROM pages WHERE kind = 'page'").fetchall()
     found: list[tuple[str, str]] = []
     for other, path, title in candidates:
         if other in skip:
             continue
         names = [title or ""]
         try:
-            data = load(PageFile(cache.settings.root / path, path, other)).data or {}
+            data = load(PageFile(cache.settings.root / path, path, other), cache.settings).data or {}
         except OSError:
             data = {}
         aliases = data.get("aliases")

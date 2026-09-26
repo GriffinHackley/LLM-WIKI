@@ -197,7 +197,7 @@ def test_verify_cache_detects_drift(graph):
         cache.conn.execute("UPDATE relations SET relation_type = 'links-to' WHERE source_slug = 'abc-doc'")
         snapshot = cache.snapshot()
     files = discover(settings)
-    issues = compare_cache([load(f) for f in files], snapshot, Resolver([(f.slug, f.rel) for f in files]))
+    issues = compare_cache([load(f, settings) for f in files], snapshot, Resolver([(f.slug, f.rel) for f in files]))
     assert [(issue.code, issue.slug) for issue in issues] == [("cache-mismatch", "abc-doc")]
 
 

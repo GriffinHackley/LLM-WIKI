@@ -1,26 +1,33 @@
-"""Parse Obsidian links and the sections they sit in."""
+"""Parse links (Obsidian ``[[wikilinks]]`` and Markdown ``[text](path)``) and their sections."""
 
 from __future__ import annotations
 
+import posixpath
 import re
 from dataclasses import dataclass
+from urllib.parse import unquote
 
-_LINK = re.compile(r"(!?)\[\[([^\[\]\n]+?)\]\]")
+_WIKILINK = re.compile(r"(!?)\[\[([^\[\]\n]+?)\]\]")
+_MARKDOWN_LINK = re.compile(r"(!?)\[([^\[\]\n]*)\]\(\s*(<[^<>\n]+>|[^()\s]+)(?:\s+\"[^\"\n]*\")?\s*\)")
+_ANY_LINK = re.compile(_WIKILINK.pattern + "|" + _MARKDOWN_LINK.pattern)
+_SCHEME = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*:")
 _HEADING = re.compile(r"(#{1,6})[ \t]+(.*?)[ \t]*#*[ \t]*")
 _FENCE = re.compile(r"(```|~~~)")
 _INLINE_CODE = re.compile(r"`[^`\n]*`")
-_CLAIM_ID = re.compile(r"\b([A-Z]{2,3}-\d{3})\b")
 _RULE = re.compile(r"\s*(?:-{3,}|\*{3,}|_{3,})\s*")
+_BLOCK_ID = re.compile(r"(?<!\S)\^[A-Za-z0-9-]+(?=\s|$)")
 
 
 @dataclass(frozen=True)
 class Link:
-    target: str  # page part, normalized: no ".md", forward slashes, no "#..."
+    target: str  # normalized: forward slashes, no ".md", no "#..."; Markdown links are root-relative paths
     display: str | None
     anchor: str | None  # heading or ^block after "#"
     embed: bool
     section: str  # lowercase heading of the nearest enclosing section ("" before any)
     line: str  # the full source line
+    raw: str = ""  # the link exactly as written
+    is_path: bool = False  # a Markdown link: target is a path from the wiki root, never a bare name
 
 
 def split_target(inner: str) -> tuple[str, str | None, str | None]:
@@ -36,6 +43,26 @@ def normalize(target: str) -> str:
     if target.lower().endswith(".md"):
         target = target[:-3]
     return target
+
+
+def markdown_target(href: str, source_rel: str | None) -> tuple[str, str | None] | None:
+    """Resolve a Markdown link's href to ``(root-relative target, anchor)``; None if external."""
+    href = href.strip()
+    if href.startswith("<") and href.endswith(">"):
+        href = href[1:-1]
+    if not href or href.startswith("#") or _SCHEME.match(href):
+        return None  # same-page anchor, or an external URL (http:, mailto:, obsidian:, ...)
+    href, _, anchor = href.partition("#")
+    path = unquote(href).replace("\\", "/")
+    if path.startswith("/"):
+        joined = path.lstrip("/")
+    else:
+        base = posixpath.dirname(source_rel) if source_rel else ""
+        joined = posixpath.join(base, path)
+    joined = posixpath.normpath(joined)
+    if joined.startswith("..") or joined in (".", ""):
+        return None  # points outside the wiki
+    return normalize(joined), (unquote(anchor).strip() or None)
 
 
 def iter_lines(body: str):
@@ -61,28 +88,25 @@ def iter_lines(body: str):
         yield line, section, in_fence
 
 
-def extract_links(body: str) -> list[Link]:
-    links: list[Link] = []
+def extract_links(body: str, source_rel: str | None = None) -> list[Link]:
+    """Links outside code, in order. ``source_rel`` resolves relative Markdown links."""
+    found: list[Link] = []
     for line, section, in_code in iter_lines(body):
         if in_code:
             continue
         searchable = _INLINE_CODE.sub(lambda match: " " * len(match.group(0)), line)
-        for match in _LINK.finditer(searchable):
-            target, anchor, display = split_target(match.group(2))
-            if target:
-                links.append(Link(target, display, anchor, bool(match.group(1)), section, line))
-    return links
-
-
-def claim_ids(body: str, sections: set[str]) -> list[tuple[str, str, str]]:
-    """Bare claim IDs in the given sections: ``(id, section, line)``, outside links."""
-    found: list[tuple[str, str, str]] = []
-    for line, section, in_code in iter_lines(body):
-        if in_code or section not in sections:
-            continue
-        without_links = _LINK.sub(" ", line)
-        for match in _CLAIM_ID.finditer(without_links):
-            found.append((match.group(1), section, line))
+        for match in _ANY_LINK.finditer(searchable):
+            raw = line[match.start():match.end()]
+            if match.group(2) is not None:  # [[wikilink]]
+                target, anchor, display = split_target(match.group(2))
+                if target:
+                    found.append(Link(target, display, anchor, bool(match.group(1)), section, line, raw))
+                continue
+            resolved = markdown_target(match.group(5), source_rel)
+            if resolved:
+                target, anchor = resolved
+                display = match.group(4).strip() or None
+                found.append(Link(target, display, anchor, bool(match.group(3)), section, line, raw, is_path=True))
     return found
 
 
@@ -110,13 +134,18 @@ def section_text(body: str, names: tuple[str, ...]) -> str | None:
     return None
 
 
+def strip_links(text: str) -> str:
+    """Remove every link, keeping nothing of it."""
+    return _ANY_LINK.sub(" ", text)
+
+
 def plain(text: str) -> str:
-    """Strip link and emphasis markup for display: ``[[a|B]]`` -> ``B``."""
-    text = _LINK.sub(lambda match: _display(match.group(2)), text)
-    text = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", text)
+    """Strip link and emphasis markup for display: ``[[a|B]]`` -> ``B``, ``[B](a.md)`` -> ``B``."""
+    text = _WIKILINK.sub(lambda match: _display(match.group(2)), text)
+    text = re.sub(r"!?\[([^\]]*)\]\([^)]*\)", r"\1", text)
     text = re.sub(r"<[^>]+>", "", text)
     text = re.sub(r"[*_`]+", "", text)
-    text = re.sub(r"\^q-[\w-]+", "", text)
+    text = _BLOCK_ID.sub("", text)
     return re.sub(r"\s+", " ", text).strip()
 
 

@@ -1,4 +1,9 @@
-"""Deterministic page checks. Never writes anything."""
+"""Deterministic page checks. Never writes anything.
+
+What is checked follows the wiki's `[check]` settings: frontmatter is only required
+when `require_frontmatter = true`, and a summary is only expected on the page types
+listed in `summary_types` ("*" for all).
+"""
 
 from __future__ import annotations
 
@@ -7,37 +12,43 @@ from wiki_cli.edges import derive
 from wiki_cli.model import ERROR, WARNING, Issue
 from wiki_cli.pages import PAGE, Page, Resolver
 
-# Page types expected to open with a summary section.
-SUMMARIZED_TYPES = {"person", "organization", "place", "event", "document", "topic", "claim"}
 MAX_LISTED = 5
 
 
 def check_page(page: Page, resolver: Resolver) -> list[Issue]:
     if page.file.kind != PAGE:
         return []
+    settings = page.settings
     issues = list(page.issues)
     if page.text is None or issues:
         return _locate(issues, page)
-    if page.data is None:
+    if page.data is None and settings is not None and settings.require_frontmatter:
         issues.append(Issue(ERROR, "missing-frontmatter", "page has no YAML frontmatter"))
         return _locate(issues, page)
+    if page.data is not None and settings is not None and settings.require_frontmatter:
+        for key in ("title", settings.page_type_field):
+            if not isinstance(page.data.get(key), str) or not page.data[key].strip():
+                issues.append(Issue(WARNING, "missing-field", f"frontmatter has no '{key}'"))
 
-    for field in ("title", "type"):
-        if not isinstance(page.data.get(field), str) or not page.data[field].strip():
-            issues.append(Issue(WARNING, "missing-field", f"frontmatter has no '{field}'"))
-
-    if page.page_type in SUMMARIZED_TYPES:
+    summary_types = settings.summary_types if settings is not None else ()
+    if "*" in summary_types or (page.page_type and page.page_type in summary_types):
         _, fallback = page.summary()
         if fallback:
+            headings = ", ".join(settings.summary_headings) if settings is not None else "summary"
             issues.append(Issue(WARNING, "missing-summary",
-                                "no Summary / What this is / Claim section; search shows the first paragraph"))
+                                f"no summary field or section ({headings}); search shows the first paragraph"))
 
     ambiguous: set[str] = set()
     unresolved: set[str] = set()
-    for link in links.extract_links(page.body):
-        if resolver.ambiguous(link.target):
+    for link in links.extract_links(page.body, page.file.rel):
+        if link.is_path:
+            found = resolver.resolve_path(link.target)
+        elif resolver.ambiguous(link.target):
             ambiguous.add(link.target)
-        elif resolver.resolve(link.target) is None and not resolver.is_other_file(link.target):
+            continue
+        else:
+            found = resolver.resolve(link.target)
+        if found is None and not resolver.is_other_file(link.target):
             unresolved.add(link.target)
     for target in sorted(ambiguous):
         issues.append(Issue(WARNING, "ambiguous-link", f"[[{target}]] matches several files; link by path"))
