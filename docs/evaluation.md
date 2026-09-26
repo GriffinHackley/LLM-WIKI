@@ -15,7 +15,7 @@ paths. The seed makes the sample reproducible.
 ## 2. Write the questions (AI agent task)
 
 Give an agent this file and `eval-sample.json`. It reads each listed page and
-writes `<repo>/eval/questions.yaml` (outside `wiki/`, committed with the wiki).
+writes `<root>/eval/questions.yaml` (the wiki root, outside `wiki/`, committed with the wiki).
 
 Instructions for the agent:
 
@@ -71,7 +71,7 @@ wiki models download --embed-model BAAI/bge-small-en-v1.5 --reranker BAAI/bge-re
 | `Xenova/ms-marco-MiniLM-L-12-v2` | reranker | 0.12 GB |
 | `jinaai/jina-reranker-v1-turbo-en` | reranker | 0.15 GB |
 
-Models are stored in `<repo>/.cache/models/` (override with `WIKI_MODELS_DIR`).
+Models are stored in `<root>/.cache/models/` (override with `WIKI_MODELS_DIR`).
 
 ## 4. Run
 

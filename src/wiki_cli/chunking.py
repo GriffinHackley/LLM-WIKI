@@ -9,8 +9,6 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from wiki_cli import block
-
 MAX_CHARS = 1600  # about 400 tokens
 OVERLAP_CHARS = 300  # a short trailing paragraph is repeated at the start of the next piece
 CODE_BLOCK_LIMIT = MAX_CHARS * 2  # a fenced block up to this size is never split
@@ -29,7 +27,7 @@ class Chunk:
 
 
 def chunk_page(text: str, body_offset: int, summary: str | None) -> list[Chunk]:
-    body = _mask_block(text[body_offset:])
+    body = text[body_offset:]
     chunks = [Chunk(0, "", body_offset, body_offset, summary or "")]
     for heading_path, start, end in _sections(body):
         for piece_start, piece_end in _pieces(body, start, end):
@@ -38,18 +36,6 @@ def chunk_page(text: str, body_offset: int, summary: str | None) -> list[Chunk]:
                 chunks.append(Chunk(len(chunks), heading_path, body_offset + piece_start,
                                     body_offset + piece_end, piece))
     return chunks
-
-
-def _mask_block(body: str) -> str:
-    """Blank out the generated link block while keeping every offset stable."""
-    try:
-        found = block.find(body)
-    except block.BlockError:
-        return body
-    if not found:
-        return body
-    region = body[found.start:found.end]
-    return body[:found.start] + re.sub(r"[^\r\n]", " ", region) + body[found.end:]
 
 
 def _lines(body: str):
