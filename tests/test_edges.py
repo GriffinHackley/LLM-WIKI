@@ -84,3 +84,15 @@ def test_long_reason_clipped(wiki):
     wiki.page("person", "p", {"Relationships": "- [[q]] — " + "detail " * 60})
     reason = edges_of(wiki, "p")["q"].reason
     assert len(reason) <= 161 and reason.endswith("…")
+
+
+def test_links_to_existing_attachments_are_not_edges(wiki):
+    wiki.write("raw/scan-0001.pdf", raw="%PDF")
+    wiki.page("document", "council-memo", {"What this is": "Scan: [[scan-0001.pdf]]. See [[ghost-page]]."})
+    settings = wiki.settings()
+    from wiki_cli.pages import scan_vault
+    files, others = scan_vault(settings)
+    resolver = Resolver([(f.slug, f.rel) for f, _ in files], others)
+    edges = {edge.target: edge for edge in derive(load(resolve("council-memo", settings)), resolver)}
+    assert "scan-0001.pdf" not in edges
+    assert not edges["ghost-page"].resolved

@@ -16,7 +16,7 @@ from wiki_cli.chunking import chunk_page
 from wiki_cli.config import Settings
 from wiki_cli.edges import derive
 from wiki_cli.models import Embedder
-from wiki_cli.pages import PAGE, Page, PageFile, Resolver, content_hash, parse, scan
+from wiki_cli.pages import PAGE, Page, PageFile, Resolver, content_hash, parse, scan, scan_vault, vault_files
 from wiki_cli.vocabulary import INVERSE_LABELS, specificity
 
 SCHEMA_VERSION = "3"
@@ -185,8 +185,8 @@ class Cache:
                 row[0]: row[1:]
                 for row in self.conn.execute("SELECT path, mtime_ns, size, content_hash, slug FROM pages")
             }
-            files = scan(self.settings)
-            resolver = Resolver([(page_file.slug, page_file.rel) for page_file, _ in files])
+            files, others = scan_vault(self.settings)
+            resolver = Resolver([(page_file.slug, page_file.rel) for page_file, _ in files], others)
             seen: set[str] = set()
             added_hashes: list[str] = []
             for page_file, entry in files:
@@ -215,8 +215,9 @@ class Cache:
                 self._delete(rel)
             stats.removed = len(removed)
             stats.moved = sum(1 for digest in added_hashes if digest in removed_hashes)
-            if stats.added or stats.removed or stats.changed:
-                self._reresolve(resolver)
+            # Always: attachments can appear without any page changing, and the query only
+            # touches unresolved edges or edges whose target vanished.
+            self._reresolve(resolver)
             self.conn.execute("COMMIT")
         except BaseException:
             self.conn.execute("ROLLBACK")
@@ -237,7 +238,8 @@ class Cache:
             else:
                 row = self.conn.execute("SELECT content_hash FROM pages WHERE path = ?", (page_file.rel,)).fetchone()
                 known = self.conn.execute("SELECT slug, path FROM pages").fetchall()
-                resolver = Resolver([*known, (page_file.slug, page_file.rel)])
+                resolver = Resolver([*known, (page_file.slug, page_file.rel)],
+                                    lambda: vault_files(self.settings))  # walked only if a link is unresolved
                 self._index_file(page_file, stat, row[0] if row else None, resolver)
             self.conn.execute("COMMIT")
         except BaseException:
@@ -308,6 +310,11 @@ class Cache:
         ).fetchall()
         for source_path, target, resolved in rows:
             new_target = resolver.resolve(target)
+            if new_target is None and resolver.is_other_file(target):
+                # The target turned out to be an attachment, not a page to write.
+                self.conn.execute("DELETE FROM relations WHERE source_path = ? AND target_slug = ?",
+                                  (source_path, target))
+                continue
             if new_target and new_target in slugs:
                 if new_target != target:
                     clash = self.conn.execute(

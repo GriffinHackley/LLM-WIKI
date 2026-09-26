@@ -227,3 +227,38 @@ def test_lookups_use_indexes(wiki):
         for column in ("source_slug", "target_slug"):
             plan = cache.conn.execute(f"EXPLAIN QUERY PLAN SELECT * FROM relations WHERE {column} = ?", ("x",)).fetchall()
             assert any("USING INDEX" in row[-1] for row in plan), plan
+
+
+def test_attachment_links_leave_unwritten_list(wiki):
+    wiki.page("document", "memo", {"What this is": "Original: [[scan.pdf]]. Also [[ghost]]."})
+    with Cache(wiki.settings()) as cache:
+        cache.refresh()
+        unresolved = lambda: {row[0] for row in cache.conn.execute(  # noqa: E731
+            "SELECT target_slug FROM relations WHERE resolved = 0")}
+        assert unresolved() == {"scan.pdf", "ghost"}
+        wiki.write("raw/scan.pdf", raw="%PDF")  # the attachment arrives later
+        wiki.page("person", "unrelated")  # any page change triggers re-resolution
+        cache.refresh()
+        assert unresolved() == {"ghost"}
+
+
+def test_single_page_refresh_skips_attachment_links(wiki):
+    wiki.write("raw/scan.pdf", raw="%PDF")
+    wiki.page("document", "memo")
+    with Cache(wiki.settings()) as cache:
+        cache.refresh()
+        bump(wiki.page("document", "memo", {"What this is": "Original: [[scan.pdf]]."}))
+        assert cache.ensure_fresh("memo")
+        assert cache.neighbors("memo") == []
+
+
+def test_fixing_invalid_frontmatter_does_not_stale_the_summary(wiki):
+    path = wiki.write("wiki/documents/memo.md", raw=(
+        '---\ntitle: Memo\ntype: document\nheadline: "RE: x" — tail\n---\n# Memo\n\n## What this is\nA memo.\n'))
+    with Cache(wiki.settings()) as cache:
+        cache.refresh()
+        wiki.write("wiki/documents/memo.md", raw=('---\ntitle: Memo\ntype: document\nheadline: "\\"RE: x\\" — tail"\n'
+                                                  '---\n# Memo\n\n## What this is\nA memo.\n'))
+        bump(path)
+        cache.refresh()
+        assert cache.stale_summaries() == {}
