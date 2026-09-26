@@ -13,6 +13,15 @@ SQLite cache.
 
 Requires Python 3.13.
 
+To use `wiki` from any folder (an isolated install that follows this checkout):
+
+```bash
+uv tool install --editable <path-to-this-repo>
+wiki models download   # once: bge-small + jina-reranker-v1-turbo, about 0.2 GB
+```
+
+For development:
+
 ```bash
 python -m venv .venv
 .venv/Scripts/python -m pip install -e ".[test]"
