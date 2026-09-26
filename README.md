@@ -80,6 +80,9 @@ summary_types = ["person"]        # page types that must have a summary ("*" = a
 
 [suggest]
 named_types = ["person", "organization"]  # pages `suggest` matches by name (default: all)
+
+[search]
+results = 3                       # pages from search, nav start and nav search (1-20); --limit overrides
 ```
 
 ## Relations

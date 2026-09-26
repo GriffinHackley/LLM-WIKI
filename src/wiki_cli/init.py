@@ -149,6 +149,10 @@ def render(result: dict) -> str:
         lines += [f'# "{folder}" = "{folder.rstrip("s")}"  # {count} pages' for folder, count in result["folders"]]
         lines.append("")
     lines += [
+        "# Pages returned by `wiki search`, `nav start` and `nav search` (1-20; --limit overrides).",
+        "# [search]",
+        "# results = 3",
+        "",
         "# Relations. Without rules every link is `links-to`, with the sentence around it as the",
         "# reason. Uncomment and name the rules that fit; rules higher up take precedence.",
         "",

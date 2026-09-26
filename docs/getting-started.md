@@ -146,6 +146,14 @@ Open `.wiki-cli.toml` and review four things:
    (`field = "sources"`) work the same way. The [README](../README.md#relations) has
    the full rule syntax.
 
+One more setting you may want: how many pages a search returns. The default is 3, which
+keeps an agent's context small; raise it if your wiki's answers tend to span more pages.
+
+```toml
+[search]
+results = 5     # wiki search, nav start and nav search; 1-20, and --limit overrides it
+```
+
 Every setting is optional, and you can change them at any time: the next command notices,
 and re-derives relations without re-embedding anything (summary settings trigger a full
 rebuild).

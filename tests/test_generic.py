@@ -221,3 +221,25 @@ def test_rules_apply_after_a_file_changes(repo):
         assert cache.ensure_fresh("setup")
         [entry] = cache.neighbors("setup", incoming=False)
         assert (entry["type"], entry["reason"]) == ("step", "new wording")
+
+
+def test_search_results_setting(repo, capsys):
+    for index in range(6):
+        repo.write(f"notes/widget-{index}.md", f"# Widget {index}\n\nThe widget part number {index}.\n")
+
+    def hits(*args):
+        assert run(repo, "search", "widget", "--keyword-only", *args) == 0
+        return len(json.loads(capsys.readouterr().out)["results"])
+
+    assert hits() == 3  # default
+    (repo / ".wiki-cli.toml").write_text("[search]\nresults = 5\n", encoding="utf-8")
+    assert load_settings(repo).search_results == 5
+    assert hits() == 5
+    assert hits("--limit", "2") == 2  # the flag overrides the config
+
+
+@pytest.mark.parametrize("value", ["0", "21", "2.5", "true", '"3"'])
+def test_search_results_setting_rejects_bad_values(repo, value):
+    (repo / ".wiki-cli.toml").write_text(f"[search]\nresults = {value}\n", encoding="utf-8")
+    with pytest.raises(ConfigError, match=r"\[search\] results must be a whole number from 1 to 20"):
+        load_settings(repo)
