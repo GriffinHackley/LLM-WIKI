@@ -54,6 +54,8 @@ def derive(page: Page, resolver: Resolver) -> list[Edge]:
     best: dict[str, Edge] = {}
     for target_text, edge_type, reason in candidates:
         resolved = resolver.resolve(target_text)
+        if resolved is None and resolver.is_other_file(target_text):
+            continue  # an attachment or unindexed note: it exists, but it is not a page
         key = resolved or links.normalize(target_text)
         if not key or key == page.slug:
             continue

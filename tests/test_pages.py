@@ -122,3 +122,26 @@ def test_invalid_frontmatter_reported(wiki):
     page = load(resolve("bad", wiki.settings()))
     assert page.issues[0].code == "invalid-frontmatter"
     assert page.title == "Bad"
+
+
+def test_other_vault_files_are_not_unwritten():
+    resolver = Resolver([("doc-a", "wiki/documents/doc-a.md")],
+                        ["raw/scan-2025.pdf", "raw/photo.jpg", "dossiers/x/PLAN.md", "templates/person.md"])
+    for target in ("scan-2025.pdf", "raw/scan-2025.pdf", "Photo.JPG", "dossiers/x/PLAN", "x/PLAN", "person"):
+        assert resolver.resolve(target) is None
+        assert resolver.is_other_file(target), target
+    for target in ("scan-2025", "ghost-page", "missing.pdf", "raw/other.pdf"):
+        assert not resolver.is_other_file(target), target
+
+
+def test_other_files_callable_is_lazy():
+    calls = []
+    resolver = Resolver([("a", "wiki/a.md")], lambda: calls.append(1) or ["raw/x.pdf"])
+    assert resolver.resolve("a") == "a" and calls == []
+    assert resolver.is_other_file("x.pdf") and resolver.is_other_file("x.pdf") and calls == [1]
+
+
+def test_invalid_frontmatter_is_not_body(wiki):
+    wiki.write("wiki/documents/bad.md", raw='---\nheadline: "RE: x" — trailing\n---\n# Bad\n\nBody.\n')
+    page = load(resolve("bad", wiki.settings()))
+    assert page.body == "# Bad\n\nBody.\n"

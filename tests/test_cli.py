@@ -108,3 +108,13 @@ def test_index_commands(wiki, run):
 def test_vocab(wiki, run):
     code, result = run_json(run, "vocab")
     assert code == 0 and result["types"][0] == {"type": "rests-on", "inverse": "premise-of"}
+
+
+def test_check_and_unwritten_ignore_existing_attachments(wiki, run):
+    wiki.write("raw/scan.pdf", raw="%PDF")
+    wiki.page("document", "memo", {"What this is": "Original: [[scan.pdf]]. See [[ghost]]."})
+    code, result = run_json(run, "check", "memo")
+    [issue] = [i for i in result["issues"] if i["code"] == "unwritten-links"]
+    assert issue["message"] == "1 links to pages not written yet: ghost"
+    code, unwritten = run_json(run, "unwritten")
+    assert [item["target"] for item in unwritten["unwritten"]] == ["ghost"]

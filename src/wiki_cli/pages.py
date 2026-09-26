@@ -8,6 +8,7 @@ import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
+from typing import Callable, Iterable
 
 from wiki_cli import frontmatter, links
 from wiki_cli.config import Settings
@@ -90,7 +91,18 @@ def matches(rel: str, patterns: tuple[str, ...]) -> bool:
 
 def scan(settings: Settings) -> list[tuple[PageFile, os.DirEntry]]:
     """Indexed files with their ``DirEntry`` (whose ``stat()`` is free on Windows), sorted by path."""
+    return scan_vault(settings)[0]
+
+
+def vault_files(settings: Settings) -> list[str]:
+    """Files in the vault that are not indexed (attachments, unindexed notes), as relative paths."""
+    return scan_vault(settings)[1]
+
+
+def scan_vault(settings: Settings) -> tuple[list[tuple[PageFile, os.DirEntry]], list[str]]:
+    """Walk the vault once: indexed files, and every other (non-hidden) file."""
     found: list[tuple[str, str, os.DirEntry]] = []
+    others: list[str] = []
     stack = [(settings.root, "")]
     while stack:
         directory, prefix = stack.pop()
@@ -107,14 +119,17 @@ def scan(settings: Settings) -> list[tuple[PageFile, os.DirEntry]]:
                 continue
             rel = prefix + entry.name
             if matches(rel, settings.exclude):
-                continue
-            if rel.lower().endswith(".md") and matches(rel, settings.pages):
+                others.append(rel)
+            elif rel.lower().endswith(".md") and matches(rel, settings.pages):
                 found.append((rel, PAGE, entry))
             elif matches(rel, settings.raw):
                 found.append((rel, RAW, entry))
+            else:
+                others.append(rel)
     found.sort(key=lambda item: item[0])
     slugs = assign_slugs([(rel, kind) for rel, kind, _ in found])
-    return [(PageFile(Path(entry.path), rel, slugs[rel], kind), entry) for rel, kind, entry in found]
+    files = [(PageFile(Path(entry.path), rel, slugs[rel], kind), entry) for rel, kind, entry in found]
+    return files, sorted(others)
 
 
 def discover(settings: Settings) -> list[PageFile]:
@@ -150,7 +165,14 @@ def _stem(rel: str) -> str:
 class Resolver:
     """Resolve link targets to slugs the way Obsidian does."""
 
-    def __init__(self, slugs: list[tuple[str, str]]):  # (slug, rel)
+    def __init__(self, slugs: list[tuple[str, str]],
+                 others: Iterable[str] | Callable[[], Iterable[str]] | None = None):
+        """``slugs``: indexed ``(slug, rel)`` pairs. ``others``: every other file in the vault
+        (or a callable returning them, evaluated only if needed): links to these exist in
+        Obsidian but are not pages."""
+        self._others_source = others
+        self._other_paths: set[str] | None = None
+        self._other_names: set[str] = set()
         self.slugs = {slug for slug, _ in slugs}
         self.by_path = {rel.rsplit(".", 1)[0].casefold(): slug for slug, rel in slugs}
         self.by_stem: dict[str, list[str]] = {}
@@ -192,6 +214,23 @@ class Resolver:
         target = links.normalize(target)
         return "/" not in target and len(self.by_stem.get(target.casefold(), [])) > 1
 
+    def is_other_file(self, target: str) -> bool:
+        """True when the link points at a vault file that is not indexed (a PDF, an image,
+        an unindexed note): it exists, so it is not a page waiting to be written."""
+        if self._other_paths is None:
+            source = self._others_source() if callable(self._others_source) else (self._others_source or ())
+            self._other_paths = set()
+            for rel in source:
+                key = rel[:-3] if rel.lower().endswith(".md") else rel
+                self._other_paths.add(key.casefold())
+                self._other_names.add(key.rsplit("/", 1)[-1].casefold())
+        folded = links.normalize(target).casefold()
+        if folded in self._other_paths:
+            return True
+        if "/" not in folded:
+            return folded in self._other_names
+        return any(path.endswith("/" + folded) for path in self._other_paths)
+
 
 def resolve(target: str, settings: Settings) -> PageFile:
     """Resolve a slug or a path to an indexed file."""
@@ -232,7 +271,14 @@ def parse(page_file: PageFile, data: bytes) -> Page:
     try:
         parsed = frontmatter.parse(text)
     except frontmatter.FrontmatterError as exc:
-        return Page(page_file, digest, text, None, 0, issues=[Issue(ERROR, "invalid-frontmatter", str(exc))])
+        # Unparseable YAML between intact "---" delimiters is still frontmatter, not body:
+        # keep it out of the body so fixing the YAML doesn't look like a body edit.
+        try:
+            parts = frontmatter.split(text)
+        except frontmatter.FrontmatterError:
+            parts = None
+        body_offset = parts[1] if parts else 0
+        return Page(page_file, digest, text, None, body_offset, issues=[Issue(ERROR, "invalid-frontmatter", str(exc))])
     return Page(page_file, digest, text, parsed.data, parsed.body_offset)
 
 

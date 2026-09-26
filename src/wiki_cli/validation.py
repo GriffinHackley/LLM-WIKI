@@ -37,7 +37,7 @@ def check_page(page: Page, resolver: Resolver) -> list[Issue]:
     for link in links.extract_links(page.body):
         if resolver.ambiguous(link.target):
             ambiguous.add(link.target)
-        elif resolver.resolve(link.target) is None:
+        elif resolver.resolve(link.target) is None and not resolver.is_other_file(link.target):
             unresolved.add(link.target)
     for target in sorted(ambiguous):
         issues.append(Issue(WARNING, "ambiguous-link", f"[[{target}]] matches several files; link by path"))

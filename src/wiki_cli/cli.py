@@ -25,7 +25,7 @@ from wiki_cli.models import (
     load_reranker,
 )
 from wiki_cli.nav import DEFAULT_MAX_PAGES, NavError, Navigator
-from wiki_cli.pages import PageNotFound, Resolver, discover, load, resolve
+from wiki_cli.pages import PageNotFound, Resolver, load, resolve, scan_vault
 from wiki_cli.search import search
 from wiki_cli.suggest import suggest
 from wiki_cli.validation import check_corpus, check_page, compare_cache
@@ -367,8 +367,9 @@ def cmd_neighbors(args: argparse.Namespace, settings: Settings) -> int:
 # -- check -------------------------------------------------------------------
 
 def cmd_check(args: argparse.Namespace, settings: Settings) -> int:
-    files = discover(settings)
-    resolver = Resolver([(page_file.slug, page_file.rel) for page_file in files])
+    scanned, others = scan_vault(settings)
+    files = [page_file for page_file, _ in scanned]
+    resolver = Resolver([(page_file.slug, page_file.rel) for page_file in files], others)
     if args.all:
         pages = [load(page_file) for page_file in files]
         issues = check_corpus(pages, resolver)
