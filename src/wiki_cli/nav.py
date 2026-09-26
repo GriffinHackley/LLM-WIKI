@@ -404,8 +404,16 @@ class Navigator:
         rows = substantial or [row for row in rows if row[3] - row[2] >= MIN_SECTION_CHARS] or rows
         ids = [row[0] for row in rows]
         marks = ",".join("?" * len(ids))
+        if self._vectors_usable(session):
+            # The question's vector was stored at `nav start`, so this loads no model. The reranker
+            # picked the same section on 51 of 68 evaluation answer pages, with no clear winner on
+            # the rest, and costs about 0.6 s per read (docs/navigation.md).
+            best = self.conn.execute(
+                f"""SELECT rowid FROM chunk_vectors WHERE rowid IN ({marks})
+                    ORDER BY vec_distance_cosine(embedding, ?) LIMIT 1""", (*ids, session.query_vector)).fetchone()
+            if best:
+                return next(row for row in rows if row[0] == best[0])
         if self.reranker is not None and len(rows) > 1:
-            # The cross-encoder judges relevance far better than vector similarity (docs/model-selection.md).
             texts = dict(self.conn.execute(
                 f"SELECT rowid, heading_path || char(10) || text FROM chunks_fts WHERE rowid IN ({marks})", ids))
             try:
@@ -415,12 +423,6 @@ class Navigator:
             else:
                 best = max(range(len(rows)), key=lambda index: (scores[index], -index))  # ties: earlier section
                 return rows[best]
-        if self._vectors_usable(session):
-            best = self.conn.execute(
-                f"""SELECT rowid FROM chunk_vectors WHERE rowid IN ({marks})
-                    ORDER BY vec_distance_cosine(embedding, ?) LIMIT 1""", (*ids, session.query_vector)).fetchone()
-            if best:
-                return next(row for row in rows if row[0] == best[0])
         query = keyword_query(session.question)
         if query:
             best = self.conn.execute(
