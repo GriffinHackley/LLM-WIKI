@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import math
+import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -44,6 +45,10 @@ RERANKERS = (
 
 FAKE_EMBEDDER = "fake:hash"
 FAKE_RERANKER = "fake:overlap"
+
+
+# Windows without Developer Mode cannot symlink; the Hugging Face cache still works.
+os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
 
 
 class ModelUnavailable(Exception):

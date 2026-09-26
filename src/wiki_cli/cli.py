@@ -24,8 +24,10 @@ from wiki_cli.models import (
     load_embedder,
     load_reranker,
 )
+from wiki_cli.nav import DEFAULT_MAX_PAGES, NavError, Navigator
 from wiki_cli.pages import PageNotFound, Resolver, discover, load, resolve
 from wiki_cli.search import search
+from wiki_cli.suggest import suggest
 from wiki_cli.validation import check_corpus, check_page, compare_cache
 from wiki_cli.vocabulary import EDGE_TYPES, INVERSE_LABELS, VOCABULARY_VERSION
 
@@ -74,6 +76,51 @@ def build_parser() -> argparse.ArgumentParser:
     search_parser.add_argument("--include-raw", action="store_true", help="also search raw source text")
     search_parser.add_argument("--keyword-only", action="store_true", help="skip vector search and reranking")
     search_parser.set_defaults(handler=cmd_search)
+
+    nav = commands.add_parser("nav", help="guided traversal: search, read sections, follow relations").add_subparsers(
+        title="nav commands", metavar="<command>")
+    nav_start = nav.add_parser("start", parents=[common, models], help="search and open a session")
+    nav_start.add_argument("question")
+    nav_start.add_argument("--max-pages", type=_positive_int, default=DEFAULT_MAX_PAGES)
+    nav_start.add_argument("--limit", type=_positive_int, default=3)
+    nav_start.set_defaults(handler=cmd_nav_start)
+    nav_read = nav.add_parser("read", parents=[common, models], help="read the best section of a page")
+    nav_read.add_argument("session")
+    nav_read.add_argument("slug")
+    nav_read.add_argument("--why", required=True, help="a few sentences: the open question and why this page")
+    part = nav_read.add_mutually_exclusive_group()
+    part.add_argument("--section", help="read this section instead of the best match")
+    part.add_argument("--full", action="store_true", help="read the whole page")
+    nav_read.set_defaults(handler=cmd_nav_read)
+    nav_candidates = nav.add_parser("candidates", parents=[common, models], help="next pages to consider")
+    nav_candidates.add_argument("session")
+    nav_candidates.add_argument("--limit", type=_positive_int, default=8)
+    nav_candidates.set_defaults(handler=cmd_nav_candidates)
+    nav_search = nav.add_parser("search", parents=[common, models], help="search again for an open question")
+    nav_search.add_argument("session")
+    nav_search.add_argument("question")
+    nav_search.add_argument("--limit", type=_positive_int, default=3)
+    nav_search.set_defaults(handler=cmd_nav_search)
+    nav_end = nav.add_parser("end", parents=[common, models], help="close the session, recording cited pages")
+    nav_end.add_argument("session")
+    nav_end.add_argument("--cited", default="", help="comma-separated slugs the answer cites")
+    nav_end.set_defaults(handler=cmd_nav_end)
+    nav_log = nav.add_parser("log", parents=[common, models], help="show a session's steps")
+    nav_log.add_argument("session")
+    nav_log.set_defaults(handler=cmd_nav_log)
+
+    suggest_parser = commands.add_parser("suggest", parents=[common],
+                                         help="pages a page names but does not link, shares sources with, or resembles")
+    suggest_parser.add_argument("slug")
+    suggest_parser.add_argument("--limit", type=_positive_int, default=10)
+    suggest_parser.set_defaults(handler=cmd_suggest)
+
+    unwritten = commands.add_parser("unwritten", parents=[common], help="link targets with no page, most-linked first")
+    unwritten.add_argument("--limit", type=_positive_int, default=50)
+    unwritten.set_defaults(handler=cmd_unwritten)
+
+    orphans = commands.add_parser("orphans", parents=[common], help="pages nothing relates to")
+    orphans.set_defaults(handler=cmd_orphans)
 
     neighbors = commands.add_parser("neighbors", parents=[common], help="a page's typed relations (no page bodies)")
     neighbors.add_argument("slug")
@@ -163,6 +210,131 @@ def cmd_search(args: argparse.Namespace, settings: Settings) -> int:
             print(f"   {hit.summary}")
     for note in notes:
         print(f"note: {note}", file=sys.stderr)
+    return EXIT_OK
+
+
+# -- nav ---------------------------------------------------------------------
+
+def _navigate(args: argparse.Namespace, settings: Settings, step) -> int:
+    """Run one navigation step. A refused step exits 1 with a stable error code."""
+    with Cache(settings) as cache:
+        navigator = Navigator(cache, embedder=load_embedder(settings.embed_model, settings.models_dir),
+                              reranker=load_reranker(settings.reranker, settings.models_dir))
+        try:
+            result = step(navigator)
+        except NavError as exc:
+            if args.format == "json":
+                _print_json({"error": exc.code, "message": str(exc)})
+            else:
+                print(f"wiki: {exc}", file=sys.stderr)
+            return EXIT_INVALID
+    if args.format == "json":
+        _print_json(result)
+    else:
+        _print_nav_text(result)
+    return EXIT_OK
+
+
+def cmd_nav_start(args, settings):
+    return _navigate(args, settings, lambda nav: nav.start(args.question, max_pages=args.max_pages, limit=args.limit))
+
+
+def cmd_nav_read(args, settings):
+    return _navigate(args, settings, lambda nav: nav.read(args.session, args.slug, args.why,
+                                                          section=args.section, full=args.full))
+
+
+def cmd_nav_candidates(args, settings):
+    return _navigate(args, settings, lambda nav: nav.candidates(args.session, limit=args.limit))
+
+
+def cmd_nav_search(args, settings):
+    return _navigate(args, settings, lambda nav: nav.requery(args.session, args.question, limit=args.limit))
+
+
+def cmd_nav_end(args, settings):
+    cited = [slug.strip() for slug in args.cited.split(",") if slug.strip()]
+    return _navigate(args, settings, lambda nav: nav.end(args.session, cited))
+
+
+def cmd_nav_log(args, settings):
+    return _navigate(args, settings, lambda nav: nav.log(args.session))
+
+
+def _print_nav_text(result: dict) -> None:
+    if "content" in result:
+        print(f"== {result['slug']} § {result['section']}  ({result['pages_left']} pages left)")
+        print(result["content"])
+        print(f"-- sections: {'; '.join(result['sections'])}")
+        return
+    if "results" in result:
+        print(f"session {result['session']}")
+        for number, hit in enumerate(result["results"], start=1):
+            section = f"  § {hit['section']}" if hit.get("section") else ""
+            print(f"{number}. {hit['slug']}{section}")
+            if hit.get("summary"):
+                print(f"   {hit['summary']}")
+        return
+    if "linked" in result:
+        for group in ("linked", "similar", "earlier"):
+            for item in result[group]:
+                detail = item.get("relation") or group
+                reason = f" — {item['reason']}" if item.get("reason") else ""
+                print(f"[{detail}] {item['slug']}{reason}")
+                if item.get("summary"):
+                    print(f"   {item['summary']}")
+        if result.get("more_linked"):
+            print(f"(+{result['more_linked']} more linked pages)")
+        return
+    print(json.dumps(result, ensure_ascii=False, indent=1))
+
+
+# -- suggest / unwritten / orphans ---------------------------------------------
+
+def cmd_suggest(args: argparse.Namespace, settings: Settings) -> int:
+    with Cache(settings) as cache:
+        if not cache.ensure_fresh(args.slug):
+            raise PageNotFound(f"no indexed page '{args.slug}'")
+        results = suggest(cache, args.slug, limit=args.limit)
+    if args.format == "json":
+        _print_json({"page": args.slug, "suggestions": results})
+    else:
+        if not results:
+            print(f"{args.slug}: no suggestions")
+        for item in results:
+            print(f"{item['slug']}: {' '.join(item['reasons'])}")
+    return EXIT_OK
+
+
+def cmd_unwritten(args: argparse.Namespace, settings: Settings) -> int:
+    with Cache(settings) as cache:
+        cache.refresh()
+        rows = cache.conn.execute(
+            """SELECT target_slug, COUNT(DISTINCT source_slug), GROUP_CONCAT(DISTINCT source_slug)
+               FROM relations WHERE resolved = 0 GROUP BY target_slug
+               ORDER BY COUNT(DISTINCT source_slug) DESC, target_slug LIMIT ?""", (args.limit,)).fetchall()
+    items = [{"target": target, "linked_from": sorted(sources.split(","))} for target, _, sources in rows]
+    if args.format == "json":
+        _print_json({"unwritten": items})
+    else:
+        for item in items:
+            print(f"{item['target']} ({len(item['linked_from'])}): {', '.join(item['linked_from'])}")
+    return EXIT_OK
+
+
+def cmd_orphans(args: argparse.Namespace, settings: Settings) -> int:
+    with Cache(settings) as cache:
+        cache.refresh()
+        rows = cache.conn.execute(
+            """SELECT p.slug, p.path FROM pages p WHERE p.kind = 'page' AND NOT EXISTS (
+                   SELECT 1 FROM relations r WHERE r.target_slug = p.slug AND r.resolved = 1
+                   AND r.source_slug != p.slug AND r.relation_type != 'transcribes')
+               ORDER BY p.path""").fetchall()
+    if args.format == "json":
+        _print_json({"orphans": [{"slug": slug, "path": path} for slug, path in rows]})
+    else:
+        for slug, path in rows:
+            print(f"{slug}  ({path})")
     return EXIT_OK
 
 
