@@ -1,7 +1,7 @@
 # wiki-cli
 
 Read-side tooling for [llm-wiki](https://github.com/geronimo-iia/llm-wiki):
-typed page relations now; hybrid search and guided traversal in later phases.
+typed page relations and hybrid search now; guided traversal in a later phase.
 See [UPGRADE_PLAN.md](UPGRADE_PLAN.md) for the design and
 [FUTURE_IDEAS.md](FUTURE_IDEAS.md) for deferred ideas.
 
@@ -39,7 +39,10 @@ as a `superseded-by` relation. Run `wiki vocab` for the list with inverse labels
 | `wiki rel sync <slug> \| --all [--dry-run]` | Regenerate the managed link block from frontmatter |
 | `wiki rel neighbors <slug> [--incoming] [--outgoing] [--relation T] [--limit N]` | Related pages as compact routing metadata |
 | `wiki check <slug> \| --all [--verify-cache] [--strict] [--no-warnings] [--require-summary]` | Validate relations, summaries, and link blocks (no writes) |
-| `wiki index refresh \| rebuild \| status` | Manage the derived SQLite cache |
+| `wiki index refresh \| rebuild [--no-embed] \| status` | Manage the derived SQLite cache and embeddings |
+| `wiki search "<question>" [--limit 3] [--keyword-only]` | Best pages for a question: keyword + vector search, fused and reranked |
+| `wiki models list \| download` | Supported models; `download` is the only command that downloads |
+| `wiki eval sample \| run` | Search-quality evaluation (see [docs/evaluation.md](docs/evaluation.md)) |
 | `wiki vocab` | List relation types |
 
 All commands accept `--format json` (compact, deterministic) and `--wiki-root`,
@@ -54,6 +57,10 @@ runtime errors.
 - **Cache:** `--cache`, else `WIKI_CACHE`, else `<repo>/.cache/wiki.sqlite3`.
   Add `.cache/` to the wiki repo's `.gitignore`. The cache is disposable;
   `wiki index rebuild` recreates it from frontmatter.
+- **Models:** `--embed-model` / `WIKI_EMBED_MODEL` (default `BAAI/bge-small-en-v1.5`)
+  and `--reranker` / `WIKI_RERANKER` (default `BAAI/bge-reranker-base`, or `none`).
+  Models load from `<repo>/.cache/models/` only; run `wiki models download` once.
+  Without a downloaded model, search falls back to keyword-only and says so.
 - **Exclusions:** `[ingest] exclude` and `skip_no_frontmatter` from `wiki.toml`
   are honored, matching llm-wiki's page discovery.
 

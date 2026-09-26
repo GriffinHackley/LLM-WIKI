@@ -475,13 +475,20 @@ libraries are imported lazily: only `search`, `nav start`, `nav search`,
 ### Selection by evaluation
 
 Embedding candidates: `bge-small-en-v1.5` (baseline), `nomic-embed-text-v1.5`
-(middle), `Qwen3-Embedding-0.6B` (high end, tested on a page subset because CPU
-embedding is slow). All three are supported by fastembed 0.8.1 (verified in
-Phase 1); `snowflake-arctic-embed-m-v2.0` is not, so it is dropped.
+(middle), `Qwen3-Embedding-0.6B-Q` (high end; the int8 build, 1.1 GB instead of
+2.4 GB). All are supported by fastembed 0.8.1; `snowflake-arctic-embed-m-v2.0` is
+not, so it is dropped. fastembed does not add query/document prefixes, so the tool
+applies each model's documented prefixes itself.
 
-Reranker candidates: `bge-reranker-base`, `jina-reranker-v2-base-multilingual`,
-`ms-marco-MiniLM-L-12-v2` (all in fastembed). `bge-reranker-v2-m3` is not in
-fastembed and is dropped unless the other candidates underperform.
+Reranker candidates: `bge-reranker-base`, `ms-marco-MiniLM-L-12-v2`,
+`jina-reranker-v1-turbo-en` (all Apache 2.0 or MIT, all in fastembed).
+`jina-reranker-v2-base-multilingual` is excluded: its licence (CC-BY-NC) forbids
+commercial use. `bge-reranker-v2-m3` is not in fastembed.
+
+Nothing downloads implicitly: `wiki models download` is the only command that
+fetches models, and every other command loads models with `local_files_only`.
+fastembed is pinned (0.8.1), which pins the model files it downloads. If a model
+is missing, search falls back to keyword-only with a note.
 
 Choose the smallest model within a small margin of the best score. If a candidate
 is not available in `fastembed`, it is evaluated with sentence-transformers in the
@@ -573,6 +580,22 @@ Phase 1 measurements (30,000 pages, 100,000 relations, Ryzen 7 9800X3D, Windows 
 | `check --all` | 5.2 s |
 | `rel sync --all`, first run writing 30k blocks | 158 s (one-off) |
 | cache size | 41 MB |
+
+Phase 2 measurements (same corpus, 4 sections per page = 150,000 chunks, vectors at
+384 dimensions from a hash embedder, so model inference is excluded):
+
+| Operation | Measured |
+|---|---|
+| keyword search (FTS5 BM25) | 15 ms p50 |
+| keyword + exact vector search (sqlite-vec) | 144 ms p50 |
+| store 150k chunk vectors | 31 s (plus model time) |
+| `index rebuild` without embedding, files read before | 15 s |
+| `wiki rel neighbors` (CLI process, cold) | 128 ms median |
+| cache size with vectors | 505 MB (about 275 MB float32 vectors) |
+
+Real model cost (embedding all pages once, and per-query embedding plus
+reranking) is measured by `wiki eval run` once models are downloaded. Quantized
+vectors are listed in `FUTURE_IDEAS.md` in case size or vector latency matters.
 
 The gap between the two rebuild times comes from the first read of freshly
 written files. Real-time antivirus scanning is the likely cause (not verified).

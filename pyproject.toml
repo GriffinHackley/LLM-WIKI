@@ -7,7 +7,12 @@ name = "wiki-cli"
 version = "0.1.0"
 description = "Read-side tooling for llm-wiki: typed relations, search, and guided traversal."
 requires-python = ">=3.13"
-dependencies = ["PyYAML>=6"]
+dependencies = [
+    "PyYAML>=6",
+    "sqlite-vec>=0.1.9",
+    # Pinned: fastembed versions pin which model files are downloaded.
+    "fastembed==0.8.1",
+]
 
 [project.optional-dependencies]
 test = ["pytest>=8"]

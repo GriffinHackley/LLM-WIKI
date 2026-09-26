@@ -18,6 +18,9 @@ agent can weigh cost when choosing.
   models loaded, if per-call model load time at `search` proves too slow.
 - **LanceDB migration:** if the corpus grows well past about 1M chunks and
   sqlite-vec's exact search becomes slow.
+- **Quantized vectors:** store int8 or binary vectors in sqlite-vec to cut the
+  ~230 MB of float32 chunk vectors at 30k pages and speed up the ~150 ms exact
+  vector scan, rescoring the top candidates with full-precision vectors.
 - **GPU embedding:** Ollama or ONNX Runtime with DirectML on the AMD RX 7900 XT,
   if CPU embedding time becomes a bottleneck.
 - **Rust implementation:** a single fast binary, if the tool needs distributing

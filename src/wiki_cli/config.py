@@ -7,6 +7,8 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
+from wiki_cli.models import DEFAULT_EMBED_MODEL, DEFAULT_RERANKER
+
 DEFAULT_WIKI_ROOT = Path.home() / "llm-wiki" / "wiki"
 CACHE_FILENAME = "wiki.sqlite3"
 
@@ -23,12 +25,17 @@ class Settings:
     cache_path: Path
     exclude: tuple[str, ...] = ()
     skip_no_frontmatter: bool = True
+    embed_model: str = DEFAULT_EMBED_MODEL
+    reranker: str = DEFAULT_RERANKER
+    models_dir: Path | None = None
 
 
 def load_settings(
     wiki_root: str | os.PathLike | None = None,
     space: str | None = None,
     cache: str | os.PathLike | None = None,
+    embed_model: str | None = None,
+    reranker: str | None = None,
 ) -> Settings:
     """Build settings from arguments, environment, and the repo's ``wiki.toml``.
 
@@ -46,6 +53,8 @@ def load_settings(
 
     resolved_space = space or os.environ.get("LLM_WIKI_SPACE") or toml.get("name") or None
     cache_value = cache or os.environ.get("WIKI_CACHE") or repo_root / ".cache" / CACHE_FILENAME
+    cache_path = Path(cache_value).expanduser().resolve()
+    models_dir = Path(os.environ.get("WIKI_MODELS_DIR") or cache_path.parent / "models").expanduser()
     exclude = ingest.get("exclude", [])
     skip = ingest.get("skip_no_frontmatter", True)
 
@@ -53,9 +62,12 @@ def load_settings(
         wiki_root=root,
         repo_root=repo_root,
         space=str(resolved_space) if resolved_space else None,
-        cache_path=Path(cache_value).expanduser().resolve(),
+        cache_path=cache_path,
         exclude=tuple(str(pattern) for pattern in exclude) if isinstance(exclude, list) else (),
         skip_no_frontmatter=bool(skip),
+        embed_model=embed_model or os.environ.get("WIKI_EMBED_MODEL") or DEFAULT_EMBED_MODEL,
+        reranker=reranker or os.environ.get("WIKI_RERANKER") or DEFAULT_RERANKER,
+        models_dir=models_dir,
     )
 
 
