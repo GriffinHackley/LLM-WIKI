@@ -1,5 +1,4 @@
 from wiki_cli import frontmatter
-from wiki_cli.block import END_MARKER, START_MARKER
 from wiki_cli.chunking import CODE_BLOCK_LIMIT, MAX_CHARS, chunk_page
 
 
@@ -39,12 +38,6 @@ def test_offsets_point_into_page_text():
     text, chunks = chunks_of("# A\n\nAlpha text.\n\n# B\n\nBeta text.\n")
     for chunk in chunks[1:]:
         assert text[chunk.start:chunk.end].strip() == chunk.text
-
-
-def test_generated_block_is_excluded():
-    _, chunks = chunks_of(f"Prose.\n\n{START_MARKER}\n[[other/page]]\n{END_MARKER}\n")
-    assert all("other/page" not in c.text for c in chunks)
-    assert chunks[1].text == "Prose."
 
 
 def test_long_section_is_split_with_size_cap():

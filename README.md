@@ -1,12 +1,13 @@
 # wiki-cli
 
-Read-side tooling for [llm-wiki](https://github.com/geronimo-iia/llm-wiki):
-typed page relations and hybrid search now; guided traversal in a later phase.
-See [UPGRADE_PLAN.md](UPGRADE_PLAN.md) for the design and
+Search and navigation tools for an Obsidian wiki maintained by an LLM, built for
+the Politics wiki. Agents find the best starting page without reading the index,
+see where each page leads through typed relations with reasons, and read only
+the sections they need. See [UPGRADE_PLAN.md](UPGRADE_PLAN.md) for the design and
 [FUTURE_IDEAS.md](FUTURE_IDEAS.md) for deferred ideas.
 
-llm-wiki stays the write-side engine. This tool never modifies frontmatter; it
-only edits its own generated link block at the end of a page body.
+The tool never edits wiki pages. Everything it builds lives in a disposable
+SQLite cache.
 
 ## Install
 
@@ -17,52 +18,60 @@ python -m venv .venv
 .venv/Scripts/python -m pip install -e ".[test]"
 ```
 
-## Relations
+## Configure the wiki
 
-Declare relations in page frontmatter:
+Put `.wiki-cli.toml` in the wiki's root folder:
 
-```yaml
-relations:
-  - target: wiki://sp-wiki/tms/save-pipeline
-    type: depends-on
-    reason: "Uses this pipeline to persist mitigation changes."
+```toml
+pages = ["wiki/**/*.md", "dossiers/*/DOSSIER.md", "dossiers/*/claims.md", "dossiers/*/open-questions.md"]
+exclude = ["wiki/index.md"]
+raw = ["raw/*.txt"]          # searched only with --include-raw
+# embed_model = "BAAI/bge-small-en-v1.5"
+# reranker = "BAAI/bge-reranker-base"
 ```
 
-Types: `depends-on`, `implements`, `implemented-by`, `used-by`, `configures`,
-`tested-by`, `documents`, `related-to`. llm-wiki's `superseded_by` field is read
-as a `superseded-by` relation. Run `wiki vocab` for the list with inverse labels.
+Add `.cache/` to the wiki's `.gitignore`. Commands find the root by walking up
+from the current folder; `--root` or `WIKI_ROOT` overrides that, and
+`WIKI_CONFIG` points at a different config file.
+
+## Relations
+
+Relations are derived from what the pages already say, so there is nothing
+extra to write. The section a link sits in sets its type, and the rest of the
+list line becomes its reason:
+
+```markdown
+## Entities mentioned
+- [[mike-johnson]] — Speaker who delayed the oath (p. 2)
+```
+
+becomes `abc-doc -> mentions -> mike-johnson` with reason "Speaker who delayed
+the oath (p. 2)". Frontmatter `sources:`, `rests_on:` and `source_path:`, bare
+claim IDs under `## Claims supported`, and quote embeds also become edges. Run
+`wiki vocab` for every type and its inverse label.
 
 ## Commands
 
 | Command | Purpose |
 |---|---|
-| `wiki rel sync <slug> \| --all [--dry-run]` | Regenerate the managed link block from frontmatter |
-| `wiki rel neighbors <slug> [--incoming] [--outgoing] [--relation T] [--limit N]` | Related pages as compact routing metadata |
-| `wiki check <slug> \| --all [--verify-cache] [--strict] [--no-warnings] [--require-summary]` | Validate relations, summaries, and link blocks (no writes) |
-| `wiki index refresh \| rebuild [--no-embed] \| status` | Manage the derived SQLite cache and embeddings |
-| `wiki search "<question>" [--limit 3] [--keyword-only]` | Best pages for a question: keyword + vector search, fused and reranked |
+| `wiki search "<question>" [--limit 3] [--include-raw] [--keyword-only]` | Best pages for a question: keyword + vector search, fused and reranked |
+| `wiki neighbors <slug> [--incoming] [--outgoing] [--relation T] [--limit N]` | A page's typed relations with reasons, no page bodies |
+| `wiki check <slug> \| --all [--verify-cache] [--strict] [--no-warnings]` | Frontmatter, summaries, ambiguous and unwritten links, stale summaries |
+| `wiki index refresh \| rebuild [--no-embed] \| status` | Manage the cache and embeddings |
 | `wiki models list \| download` | Supported models; `download` is the only command that downloads |
 | `wiki eval sample \| run` | Search-quality evaluation (see [docs/evaluation.md](docs/evaluation.md)) |
-| `wiki vocab` | List relation types |
+| `wiki vocab` | Relation types |
 
-All commands accept `--format json` (compact, deterministic) and `--wiki-root`,
-`--space`, `--cache`. Exit codes: 0 success, 1 validation failures, 2 usage or
-runtime errors.
+All commands accept `--format json` (compact, deterministic), `--root` and
+`--cache`. Exit codes: 0 success, 1 validation failures, 2 usage or runtime
+errors.
 
-## Configuration
+## Models
 
-- **Wiki root:** `--wiki-root`, else `LLM_WIKI_ROOT`, else `~/llm-wiki/wiki`.
-- **Local space:** `--space`, else `LLM_WIKI_SPACE`, else `name` in the repo's
-  `wiki.toml`. When none is set, every target is treated as local.
-- **Cache:** `--cache`, else `WIKI_CACHE`, else `<repo>/.cache/wiki.sqlite3`.
-  Add `.cache/` to the wiki repo's `.gitignore`. The cache is disposable;
-  `wiki index rebuild` recreates it from frontmatter.
-- **Models:** `--embed-model` / `WIKI_EMBED_MODEL` (default `BAAI/bge-small-en-v1.5`)
-  and `--reranker` / `WIKI_RERANKER` (default `BAAI/bge-reranker-base`, or `none`).
-  Models load from `<repo>/.cache/models/` only; run `wiki models download` once.
-  Without a downloaded model, search falls back to keyword-only and says so.
-- **Exclusions:** `[ingest] exclude` and `skip_no_frontmatter` from `wiki.toml`
-  are honored, matching llm-wiki's page discovery.
+`--embed-model` / `WIKI_EMBED_MODEL` and `--reranker` / `WIKI_RERANKER` (or
+`none`) override `.wiki-cli.toml`. Models load from `<root>/.cache/models/`
+only; run `wiki models download` once. Without a downloaded model, search falls
+back to keyword-only and says so.
 
 ## Tests and benchmark
 
@@ -70,6 +79,3 @@ runtime errors.
 .venv/Scripts/python -m pytest
 .venv/Scripts/python benchmarks/bench_synthetic.py --pages 30000 --relations 100000
 ```
-
-The Obsidian / llm-wiki compatibility check is manual: see
-[compat/README.md](compat/README.md).

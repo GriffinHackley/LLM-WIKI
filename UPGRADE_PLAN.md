@@ -165,7 +165,7 @@ combination within a small margin of the best on tune, then confirm on test.
 
 - [x] **Phase 1:** relations cache, `check`, `neighbors`, `index` (v1 format).
 - [x] **Phase 2:** chunking, FTS5, embeddings, reranking, `search`, `eval`.
-- [ ] **Phase 3: Adapt to the Politics wiki.** `.wiki-cli.toml` and root
+- [x] **Phase 3: Adapt to the Politics wiki.** `.wiki-cli.toml` and root
   discovery; Obsidian slugs and link parsing; derived relations replacing the
   authored `relations:` field and generated block (removed); summary extraction;
   raw text tier; `check` reworked for this wiki.
@@ -180,18 +180,21 @@ Dropped from v1: authored `relations:` frontmatter, the generated link block and
 Obsidian / llm-wiki compatibility check, summary backfill, and the
 `Related pages` migration. None apply to this wiki.
 
-## Performance (synthetic, 30,000 pages, 150,000 chunks)
+## Performance (synthetic, 30,000 pages, 100,000 relations, 209,000 chunks)
 
 | Operation | Measured |
 |---|---|
-| keyword search | 15 ms |
-| keyword + vector search (database cost only) | 144 ms |
-| `wiki rel neighbors` (CLI process, cold) | 128 ms |
-| no-change refresh | 0.22 s |
-| cache size with 384-dim vectors | 505 MB |
+| keyword search | 17 ms |
+| keyword + vector search (database cost only) | 190 ms |
+| `wiki neighbors` (CLI process, cold) | 122 ms |
+| no-change refresh | 0.36 s |
+| refresh after 100 changed pages | 1.0 s |
+| `check --all` | 5.0 s |
+| cache size with 384-dim vectors | 606 MB |
 
-The Politics wiki is about 450 pages plus 101 raw text files, far below this
-scale. Real model costs are measured in Phase 4.
+The Politics wiki (414 pages plus 101 raw text files, 2,656 derived relations)
+indexes in about 1 second without embeddings. Real model costs are measured in
+Phase 4.
 
 ## Open decisions
 

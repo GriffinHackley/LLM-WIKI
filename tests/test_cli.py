@@ -2,13 +2,14 @@ import json
 
 import pytest
 
+from conftest import bump
 from wiki_cli.cli import main
 
 
 @pytest.fixture
 def run(wiki, capsys):
     def invoke(*args):
-        code = main([*args, "--wiki-root", str(wiki.root), "--cache", str(wiki.cache_path)])
+        code = main([*args, "--root", str(wiki.root)])
         captured = capsys.readouterr()
         return code, captured.out, captured.err
     return invoke
@@ -20,89 +21,90 @@ def run_json(run, *args):
     return code, json.loads(out)
 
 
-def test_sync_check_neighbors_round_trip(wiki, run):
-    wiki.page("store")
-    wiki.page("tms/pipeline", ("store", "depends-on", "Persists to the store."))
-
-    code, check = run_json(run, "check", "tms/pipeline")
-    assert code == 1 and check["issues"][0]["code"] == "missing-block"
-
-    code, sync = run_json(run, "rel", "sync", "--all")
-    assert code == 0 and sync == {"updated": ["tms/pipeline.md"], "unchanged": 1}
-
-    code, check = run_json(run, "check", "--all", "--verify-cache", "--no-warnings")
-    assert code == 0 and check["ok"] and check["errors"] == 0
-
-    code, result = run_json(run, "rel", "neighbors", "store")
-    assert result == {"page": "store", "neighbors": [
-        {"slug": "tms/pipeline", "direction": "incoming", "type": "depends-on", "inverse": "used-by",
-         "reason": "Persists to the store."}]}
+def test_neighbors(wiki, run):
+    wiki.page("person", "mike-johnson", {"Relationships": "- [[adelita-grijalva]] — administered her oath"})
+    wiki.page("person", "adelita-grijalva")
+    code, result = run_json(run, "neighbors", "adelita-grijalva")
+    assert code == 0 and result == {"page": "adelita-grijalva", "neighbors": [
+        {"slug": "mike-johnson", "direction": "incoming", "type": "associated-with", "reason": "administered her oath"}]}
+    code, out, _ = run("neighbors", "mike-johnson")
+    assert out.strip() == "-> associated-with  adelita-grijalva  administered her oath"
 
 
-def test_sync_is_idempotent_via_cli(wiki, run):
-    wiki.page("b")
-    wiki.page("a", ("b", "depends-on", "x"))
-    run("rel", "sync", "a")
-    code, result = run_json(run, "rel", "sync", "a")
-    assert code == 0 and result == {"updated": [], "unchanged": 1}
+def test_neighbors_unknown_page(wiki, run):
+    code, _, err = run("neighbors", "nobody")
+    assert code == 2 and "nobody" in err
 
 
-def test_sync_failure_exit_code(wiki, run):
-    wiki.write("a", {"title": "a", "relations": [{"target": "nope", "type": "depends-on", "reason": "x"}]})
-    code, result = run_json(run, "rel", "sync", "a")
-    assert code == 1
-    assert result["issues"][0]["code"] == "noncanonical-target"
+def test_root_found_from_working_directory(wiki, capsys, monkeypatch):
+    wiki.page("person", "p")
+    monkeypatch.chdir(wiki.root / "wiki")
+    assert main(["index", "refresh", "--no-embed", "--format", "json"]) == 0
+    assert json.loads(capsys.readouterr().out)["added"] == 1
+    assert (wiki.root / ".cache" / "wiki.sqlite3").is_file()
 
 
-def test_strict_fails_on_warnings(wiki, run):
-    wiki.page("a")
-    assert run("check", "a")[0] == 0
-    assert run("check", "a", "--strict")[0] == 1
+def test_no_root_is_usage_error(tmp_path, capsys, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    assert main(["index", "status"]) == 2
+    assert "no wiki root" in capsys.readouterr().err
 
 
-def test_unknown_page_is_usage_error(wiki, run):
-    code, _, err = run("rel", "neighbors", "missing")
-    assert code == 2 and "missing" in err
+class TestCheck:
+    def codes(self, run, *args):
+        code, result = run_json(run, "check", *args)
+        return code, sorted(issue["code"] for issue in result["issues"])
 
+    def test_clean_page(self, wiki, run):
+        wiki.page("person", "a", {"Relationships": "- [[b]] — colleague"})
+        wiki.page("person", "b")
+        assert self.codes(run, "a") == (0, [])
 
-def test_verify_cache_requires_all(wiki, run):
-    wiki.page("a")
-    assert run("check", "a", "--verify-cache")[0] == 2
+    def test_errors_and_warnings(self, wiki, run):
+        wiki.write("wiki/documents/bad.md", raw='---\nheadline: "RE: x" — tail\n---\n# Bad\n')
+        wiki.write("wiki/people/nofront.md", raw="# No frontmatter\n")
+        wiki.write("dossiers/a/claims.md", {"title": "A"})
+        wiki.write("dossiers/b/claims.md", {"title": "B"})
+        wiki.page("person", "linker", {"Timeline": "See [[claims]] and [[ghost-1]], [[ghost-2]]."}, summary=None)
+        assert self.codes(run, "bad") == (1, ["invalid-frontmatter"])
+        assert self.codes(run, "nofront") == (1, ["missing-frontmatter"])
+        assert self.codes(run, "linker") == (0, ["ambiguous-link", "missing-summary", "unwritten-links"])
+        code, result = run_json(run, "check", "linker")
+        unwritten = next(i for i in result["issues"] if i["code"] == "unwritten-links")
+        assert unwritten["message"] == "2 links to pages not written yet: ghost-1, ghost-2"
 
+    def test_strict_and_no_warnings(self, wiki, run):
+        wiki.page("person", "a", summary=None)
+        assert run("check", "a")[0] == 0
+        assert run("check", "a", "--strict")[0] == 1
+        code, result = run_json(run, "check", "a", "--no-warnings")
+        assert result["issues"] == [] and result["warnings"] == 1
 
-def test_verify_cache_without_cache_fails(wiki, run):
-    wiki.page("a")
-    code, result = run_json(run, "check", "--all", "--verify-cache")
-    assert code == 1 and result["issues"][0]["code"] == "cache-mismatch"
+    def test_all_with_cache_verification_and_stale_summary(self, wiki, run):
+        path = wiki.page("person", "a", {"Documented role": "Old."}, summary="Same.")
+        code, result = run_json(run, "check", "--all", "--verify-cache")
+        assert code == 1 and result["issues"][0]["code"] == "cache-mismatch"  # no cache yet
+        run("index", "refresh")
+        bump(wiki.page("person", "a", {"Documented role": "New."}, summary="Same."))
+        run("index", "refresh")
+        assert self.codes(run, "--all", "--verify-cache") == (0, ["summary-stale"])
 
-
-def test_check_all_reports_stale_summary(wiki, run):
-    wiki.page("a", summary="S.")
-    run("index", "refresh")
-    wiki.write("a", {"title": "a", "summary": "S."}, body="Completely new body.\n")
-    run("index", "refresh")
-    code, result = run_json(run, "check", "--all")
-    assert "summary-stale" in [issue["code"] for issue in result["issues"]]
+    def test_verify_cache_requires_all(self, wiki, run):
+        wiki.page("person", "a")
+        assert run("check", "a", "--verify-cache")[0] == 2
 
 
 def test_index_commands(wiki, run):
-    wiki.page("a", ("b", "depends-on", "x"))
-    wiki.page("b")
+    wiki.page("person", "a", {"Relationships": "- [[b]] — colleague"})
+    wiki.page("person", "b")
+    wiki.raw_text("src.txt", "Raw.")
     code, stats = run_json(run, "index", "rebuild")
-    assert code == 0 and stats["added"] == 2 and stats["embedded"] == 2
+    assert code == 0 and stats["added"] == 3 and stats["embedded"] == 3
     code, status = run_json(run, "index", "status")
-    assert status == {"version": "2", "pages": 2, "relations": 1, "chunks": 4, "placeholder_summaries": 0,
+    assert status == {"version": "3", "pages": 2, "raw": 1, "relations": 1, "unresolved": 0, "chunks": 7,
                       "stale": 0, "pending_embedding": 0, "embed_model": "fake:hash"}
-
-
-def test_text_output(wiki, run):
-    wiki.page("b")
-    wiki.page("a", ("b", "depends-on", "Needs b."))
-    run("rel", "sync", "a")
-    code, out, _ = run("rel", "neighbors", "a")
-    assert code == 0 and out.strip() == "-> depends-on      b  Needs b."
 
 
 def test_vocab(wiki, run):
     code, result = run_json(run, "vocab")
-    assert code == 0 and result["types"][0] == {"type": "depends-on", "inverse": "used-by"}
+    assert code == 0 and result["types"][0] == {"type": "rests-on", "inverse": "premise-of"}

@@ -1,165 +1,162 @@
-import os
 import sqlite3
 import threading
 import time
 
 import pytest
 
+from conftest import bump
 from wiki_cli import cache as cache_module
 from wiki_cli.cache import Cache, CacheUnavailable
-from wiki_cli.pages import discover, load
+from wiki_cli.pages import Resolver, discover, load
 from wiki_cli.validation import compare_cache
-
-
-def bump(path):
-    """Force a distinct mtime so change detection does not depend on clock resolution."""
-    stat = path.stat()
-    os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000_000))
 
 
 @pytest.fixture
 def graph(wiki):
-    wiki.page("pipeline", ("store", "depends-on", "Persists to the store."))
-    wiki.page("editor", ("pipeline", "depends-on", "Saves through the pipeline."),
-              ("widget", "implemented-by", "Concrete widget."),
-              ("wiki-other", "related-to", "Other."))
-    wiki.page("widget")
-    wiki.page("store")
-    wiki.page("tests/editor", ("editor", "tested-by", "Wrong direction but valid."))
-    wiki.write("editor-old", {"title": "old", "summary": "Old.", "superseded_by": "editor"})
+    wiki.page("person", "mike-johnson", {"Relationships": "- [[adelita-grijalva]] — administered her oath",
+                                         "Appearances in sources": "- [[abc-doc]] — quoted (p. 2)"})
+    wiki.page("person", "adelita-grijalva")
+    wiki.page("document", "abc-doc", {"Entities mentioned": "- [[mike-johnson]] — Speaker\n- [[unwritten-person]]"})
+    wiki.page("event", "swearing-in", {"Participants": "- [[mike-johnson]] — presided"})
     return wiki
 
 
-def slugs(results, direction=None):
+def pairs(results, direction=None):
     return [(r["slug"], r["type"]) for r in results if direction is None or r["direction"] == direction]
 
 
-def test_neighbors_outgoing_and_incoming(graph):
+def test_neighbors_both_directions(graph):
     with Cache(graph.settings()) as cache:
-        assert cache.ensure_fresh("editor")
-        results = cache.neighbors("editor")
-    assert slugs(results, "outgoing") == [
-        ("pipeline", "depends-on"), ("widget", "implemented-by"), ("wiki-other", "related-to")]
-    incoming = [r for r in results if r["direction"] == "incoming"]
-    assert [(r["slug"], r["type"], r["inverse"]) for r in incoming] == [
-        ("editor-old", "superseded-by", "supersedes"), ("tests/editor", "tested-by", "tests")]
-    unresolved = next(r for r in results if r["slug"] == "wiki-other")
-    assert unresolved["unresolved"] is True
+        assert cache.ensure_fresh("mike-johnson")
+        results = cache.neighbors("mike-johnson")
+    assert pairs(results, "outgoing") == [("adelita-grijalva", "associated-with"), ("abc-doc", "appears-in")]
+    assert pairs(results, "incoming") == [("swearing-in", "participant-in"), ("abc-doc", "mentioned-in")]
+    incoming_doc = next(r for r in results if r["direction"] == "incoming" and r["slug"] == "abc-doc")
+    assert incoming_doc["reason"] == "Speaker"
 
 
-def test_neighbors_filters_and_limit(graph):
+def test_unresolved_targets_marked_and_last(graph):
     with Cache(graph.settings()) as cache:
         cache.refresh()
-        assert slugs(cache.neighbors("editor", incoming=False, relation_type="depends-on")) == [("pipeline", "depends-on")]
-        assert slugs(cache.neighbors("pipeline", outgoing=False)) == [("editor", "depends-on")]
-        assert len(cache.neighbors("editor", limit=2)) == 2
+        results = cache.neighbors("abc-doc", incoming=False)
+        assert results[-1] == {"slug": "unwritten-person", "direction": "outgoing", "type": "mentions",
+                               "reason": "Listed under Entities mentioned.", "unresolved": True}
+        assert "unwritten-person" not in pairs(cache.neighbors("abc-doc", include_unresolved=False))
 
 
-def test_external_targets_are_marked(wiki):
-    wiki.write("a", {"title": "a", "relations": [{"target": "wiki://other/x", "type": "related-to", "reason": "r"}]})
+def test_filters_and_limit(graph):
+    with Cache(graph.settings()) as cache:
+        cache.refresh()
+        assert pairs(cache.neighbors("mike-johnson", incoming=False, relation_type="appears-in")) == [
+            ("abc-doc", "appears-in")]
+        assert len(cache.neighbors("mike-johnson", limit=2)) == 2
+
+
+def test_titles_included_when_different(wiki):
+    wiki.page("document", "abc-doc", title="ABC News, 2025-10-20")
+    wiki.page("person", "p", {"Appearances in sources": "- [[abc-doc]] — quoted"})
     with Cache(wiki.settings()) as cache:
         cache.refresh()
-        [entry] = cache.neighbors("a")
-    assert entry == {"slug": "x", "direction": "outgoing", "type": "related-to", "reason": "r",
-                     "external": True, "target": "wiki://other/x"}
+        [entry] = cache.neighbors("p")
+    assert entry["title"] == "ABC News, 2025-10-20"
 
 
-def test_same_slug_in_another_space_is_not_incoming(wiki):
-    wiki.page("x")
-    wiki.write("a", {"title": "a", "relations": [{"target": "wiki://other/x", "type": "related-to", "reason": "r"}]})
+def test_writing_a_page_resolves_links_to_it(graph):
+    with Cache(graph.settings()) as cache:
+        cache.refresh()
+        graph.page("person", "unwritten-person")
+        cache.refresh()
+        entry = next(r for r in cache.neighbors("abc-doc", incoming=False) if r["slug"] == "unwritten-person")
+        assert "unresolved" not in entry
+        assert pairs(cache.neighbors("unwritten-person", outgoing=False)) == [("abc-doc", "mentioned-in")]
+
+
+def test_deleting_a_page_unresolves_links(graph):
+    with Cache(graph.settings()) as cache:
+        cache.refresh()
+        (graph.root / "wiki" / "people" / "adelita-grijalva.md").unlink()
+        cache.refresh()
+        entry = next(r for r in cache.neighbors("mike-johnson") if r["slug"] == "adelita-grijalva")
+        assert entry["unresolved"] is True
+
+
+def test_duplicate_name_changes_slugs(wiki):
+    wiki.write("dossiers/a/claims.md", {"title": "A claims"})
+    wiki.page("person", "p", {"Timeline": "See [[claims]]."})
     with Cache(wiki.settings()) as cache:
         cache.refresh()
-        assert cache.neighbors("x") == []
+        assert "unresolved" not in cache.neighbors("p")[0]
+        wiki.write("dossiers/b/claims.md", {"title": "B claims"})
+        cache.refresh()
+        assert cache.page_exists("dossiers/a/claims") and not cache.page_exists("claims")
+        assert cache.neighbors("p")[0]["unresolved"] is True  # [[claims]] is now ambiguous
 
 
 def test_incremental_refresh(graph):
-    settings = graph.settings()
-    with Cache(settings) as cache:
-        first = cache.refresh()
-        assert first.added == 6
-        assert cache.refresh().unchanged == 6
-
-        graph.page("new", ("store", "depends-on", "x"))
-        widget = graph.root / "widget.md"
-        graph.page("widget", ("store", "used-by", "changed"))
-        bump(widget)
-        (graph.root / "store.md").rename(graph.root / "moved-store.md")
-        (graph.root / "editor-old.md").unlink()
+    with Cache(graph.settings()) as cache:
+        assert cache.refresh().added == 4
+        assert cache.refresh().unchanged == 4
+        graph.page("person", "new")
+        swearing = graph.page("event", "swearing-in", {"Participants": "- [[adelita-grijalva]] — sworn in"})
+        bump(swearing)
+        (graph.root / "wiki" / "documents" / "abc-doc.md").rename(graph.root / "wiki" / "documents" / "abc-doc-2.md")
         stats = cache.refresh()
-
-    assert stats.added == 2  # new + moved-store
-    assert stats.changed == 1
-    assert stats.removed == 2  # store + editor-old
-    assert stats.moved == 1
+    assert (stats.added, stats.changed, stats.removed, stats.moved) == (2, 1, 1, 1)
 
 
-def test_touched_file_with_same_content_is_not_reparsed(graph, monkeypatch):
+def test_touched_file_is_not_reparsed(graph, monkeypatch):
     with Cache(graph.settings()) as cache:
         cache.refresh()
-        bump(graph.root / "widget.md")
+        bump(graph.root / "wiki" / "people" / "mike-johnson.md")
         monkeypatch.setattr(cache_module, "parse", lambda *a, **k: pytest.fail("unchanged content was reparsed"))
         stats = cache.refresh()
-    assert stats.touched == 1 and stats.changed == 0
+    assert stats.touched == 1
 
 
-def test_ensure_fresh_refreshes_single_changed_page(graph):
+def test_ensure_fresh_refreshes_one_changed_page(graph, monkeypatch):
     with Cache(graph.settings()) as cache:
         cache.refresh()
-        graph.page("editor", ("store", "configures", "Now configures."))
-        bump(graph.root / "editor.md")
-        assert cache.ensure_fresh("editor")
-        assert slugs(cache.neighbors("editor", incoming=False)) == [("store", "configures")]
+        path = graph.page("person", "mike-johnson", {"Relationships": "- [[swearing-in]] — presided"})
+        bump(path)
+        monkeypatch.setattr(Cache, "refresh", lambda self: pytest.fail("full scan for one changed page"))
+        assert cache.ensure_fresh("mike-johnson")
+        assert pairs(cache.neighbors("mike-johnson", incoming=False)) == [("swearing-in", "associated-with")]
 
 
 def test_ensure_fresh_after_rebuild_does_not_rescan(graph, monkeypatch):
     with Cache(graph.settings()) as cache:
         cache.rebuild()
         monkeypatch.setattr(Cache, "refresh", lambda self: pytest.fail("full refresh after rebuild"))
-        assert cache.ensure_fresh("editor")
+        assert cache.ensure_fresh("mike-johnson")
 
 
-def test_ensure_fresh_finds_new_page(graph):
-    with Cache(graph.settings()) as cache:
-        cache.refresh()
-        graph.page("brand-new")
-        assert cache.ensure_fresh("brand-new")
-        assert not cache.ensure_fresh("never-existed")
-
-
-def test_schema_version_mismatch_rebuilds(graph):
+def test_schema_mismatch_rebuilds(graph):
     settings = graph.settings()
     with Cache(settings) as cache:
         cache.refresh()
         cache.conn.execute("UPDATE metadata SET value = 'old' WHERE key = 'schema_version'")
     with Cache(settings) as cache:
-        assert cache.rebuilt
-        assert cache.status()["pages"] == 0
-        cache.ensure_fresh("editor")
-        assert cache.status()["pages"] == 6
+        assert cache.rebuilt and cache.status()["pages"] == 0
 
 
-def test_readonly_requires_current_cache(graph):
+def test_readonly_requires_existing_cache(graph):
     with pytest.raises(CacheUnavailable):
         Cache(graph.settings(), readonly=True)
 
 
 def test_rollback_on_interrupted_refresh(graph, monkeypatch):
-    settings = graph.settings()
-    with Cache(settings) as cache:
+    with Cache(graph.settings()) as cache:
         cache.refresh()
         before = cache.snapshot()
-        graph.page("editor", ("store", "configures", "changed"))
-        graph.page("widget", ("store", "configures", "changed"))
-        bump(graph.root / "editor.md")
-        bump(graph.root / "widget.md")
-        real_store = Cache._store
-        calls = []
+        for slug in ("mike-johnson", "adelita-grijalva"):
+            bump(graph.page("person", slug, {"Timeline": "Changed."}))
+        real_store, calls = Cache._store, []
 
-        def failing_store(self, page, stat):
+        def failing_store(self, page, stat, resolver):
             calls.append(page.slug)
             if len(calls) == 2:
                 raise RuntimeError("interrupted")
-            real_store(self, page, stat)
+            real_store(self, page, stat, resolver)
 
         monkeypatch.setattr(Cache, "_store", failing_store)
         with pytest.raises(RuntimeError):
@@ -168,17 +165,14 @@ def test_rollback_on_interrupted_refresh(graph, monkeypatch):
 
 
 def test_concurrent_reader_sees_consistent_state(wiki):
-    for i in range(200):
-        wiki.page(f"p{i}", (f"p{(i + 1) % 200}", "depends-on", "next"))
+    for i in range(150):
+        wiki.page("person", f"p{i}", {"Relationships": f"- [[p{(i + 1) % 150}]] — next"})
     settings = wiki.settings()
     with Cache(settings) as cache:
         cache.refresh()
-    for i in range(200):
-        wiki.page(f"p{i}", (f"p{(i + 1) % 200}", "depends-on", "next"), (f"p{(i + 2) % 200}", "used-by", "n2"))
-        bump(wiki.root / f"p{i}.md")
-
-    counts = []
-    done = threading.Event()
+    for i in range(150):
+        bump(wiki.page("person", f"p{i}", {"Relationships": f"- [[p{(i + 1) % 150}]] — next\n- [[p{(i + 2) % 150}]] — two"}))
+    counts, done = [], threading.Event()
 
     def reader():
         conn = sqlite3.connect(settings.cache_path, timeout=30)
@@ -193,70 +187,43 @@ def test_concurrent_reader_sees_consistent_state(wiki):
         cache.refresh()
     done.set()
     thread.join()
-    assert counts and set(counts) <= {200, 400}
+    assert counts and set(counts) <= {150, 300}
 
 
 def test_verify_cache_detects_drift(graph):
     settings = graph.settings()
     with Cache(settings) as cache:
         cache.refresh()
-        cache.conn.execute("UPDATE relations SET reason = 'tampered' WHERE source_slug = 'editor'")
+        cache.conn.execute("UPDATE relations SET relation_type = 'links-to' WHERE source_slug = 'abc-doc'")
         snapshot = cache.snapshot()
-    corpus = [load(page_file, "sp") for page_file in discover(settings)]
-    issues = compare_cache(corpus, snapshot, "sp")
-    assert [(issue.code, issue.slug) for issue in issues] == [("cache-mismatch", "editor")]
+    files = discover(settings)
+    issues = compare_cache([load(f) for f in files], snapshot, Resolver([(f.slug, f.rel) for f in files]))
+    assert [(issue.code, issue.slug) for issue in issues] == [("cache-mismatch", "abc-doc")]
 
 
 def test_summary_staleness(wiki):
-    wiki.page("a", summary="Original.")
-    settings = wiki.settings()
-    with Cache(settings) as cache:
+    wiki.page("person", "a", {"Documented role": "Original role."}, summary="Same summary.")
+    with Cache(wiki.settings()) as cache:
         cache.refresh()
-        assert cache.stale_summaries() == {}
-
-        wiki.write("a", {"title": "a", "summary": "Original."}, body="Body rewritten entirely.\n")
-        bump(wiki.root / "a.md")
+        bump(wiki.page("person", "a", {"Documented role": "Rewritten role."}, summary="Same summary."))
         cache.refresh()
-        assert "a.md" in cache.stale_summaries()
-
-        wiki.write("a", {"title": "a", "summary": "Updated."}, body="Body rewritten entirely.\n")
-        bump(wiki.root / "a.md")
+        assert "wiki/people/a.md" in cache.stale_summaries()
+        bump(wiki.page("person", "a", {"Documented role": "Rewritten role."}, summary="New summary."))
         cache.refresh()
         assert cache.stale_summaries() == {}
 
 
-def test_relation_edit_alone_does_not_stale_summary(wiki):
-    wiki.page("a", summary="S.")
+def test_raw_files_indexed_but_not_in_graph(wiki):
+    wiki.raw_text("src.txt", "Raw source text.")
     with Cache(wiki.settings()) as cache:
         cache.refresh()
-        wiki.page("a", ("b", "depends-on", "x"), summary="S.")
-        bump(wiki.root / "a.md")
-        cache.refresh()
-        assert cache.stale_summaries() == {}
-
-
-def test_placeholder_summary_stored(wiki):
-    wiki.write("a", {"title": "a"}, body="First paragraph here.\n")
-    with Cache(wiki.settings()) as cache:
-        cache.refresh()
-        row = cache.conn.execute("SELECT summary, summary_is_placeholder FROM pages").fetchone()
-        assert row == ("First paragraph here.", 1)
-        assert cache.status()["placeholder_summaries"] == 1
-
-
-def test_files_without_frontmatter_are_not_pages(wiki):
-    wiki.write("plain", raw="# no frontmatter\n")
-    wiki.page("a", ("plain", "depends-on", "x"))
-    with Cache(wiki.settings()) as cache:
-        cache.refresh()
-        assert cache.status()["pages"] == 1
-        assert cache.neighbors("a")[0]["unresolved"] is True
-        assert not cache.ensure_fresh("plain")
+        status = cache.status()
+        assert (status["pages"], status["raw"]) == (0, 1)
+        assert cache.neighbors("raw/src") == []
 
 
 def test_lookups_use_indexes(wiki):
     with Cache(wiki.settings()) as cache:
         for column in ("source_slug", "target_slug"):
-            plan = cache.conn.execute(
-                f"EXPLAIN QUERY PLAN SELECT * FROM relations WHERE {column} = ?", ("x",)).fetchall()
+            plan = cache.conn.execute(f"EXPLAIN QUERY PLAN SELECT * FROM relations WHERE {column} = ?", ("x",)).fetchall()
             assert any("USING INDEX" in row[-1] for row in plan), plan

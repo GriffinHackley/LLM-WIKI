@@ -1,51 +1,65 @@
-"""Controlled relationship vocabulary.
+"""Relationship types derived from page structure, and how to derive them."""
 
-This module is the single source of truth. ``schemas/relations.schema.json``
-duplicates the enum; a test asserts the two stay in sync.
-"""
+VOCABULARY_VERSION = 2
 
-VOCABULARY_VERSION = 1
-
-# Types an author may declare in a page's ``relations`` list.
-RELATION_TYPES = (
-    "depends-on",
-    "implements",
-    "implemented-by",
-    "used-by",
-    "configures",
-    "tested-by",
-    "documents",
-    "related-to",
+# Edge types, most specific first. When one page reaches a target by several
+# routes, the earliest type in this tuple wins.
+EDGE_TYPES = (
+    "rests-on",
+    "supports",
+    "sourced-by",
+    "involves",
+    "located-at",
+    "hosted",
+    "associated-with",
+    "mentions",
+    "appears-in",
+    "synthesizes",
+    "transcribes",
+    "quotes",
+    "draws-on",
+    "links-to",
 )
-
-# Types derived from other llm-wiki frontmatter fields, never declared in ``relations``.
-SUPERSEDED_BY = "superseded-by"
-DERIVED_TYPES = (SUPERSEDED_BY,)
 
 # Label shown for an edge when viewed from its target page.
 INVERSE_LABELS = {
-    "depends-on": "used-by",
-    "implements": "implemented-by",
-    "implemented-by": "implements",
-    "used-by": "depends-on",
-    "configures": "configured-by",
-    "tested-by": "tests",
-    "documents": "documented-by",
-    "related-to": "related-to",
-    SUPERSEDED_BY: "supersedes",
+    "rests-on": "premise-of",
+    "supports": "supported-by",
+    "sourced-by": "source-for",
+    "involves": "participant-in",
+    "located-at": "location-of",
+    "hosted": "held-at",
+    "associated-with": "associated-with",
+    "mentions": "mentioned-in",
+    "appears-in": "features",
+    "synthesizes": "synthesized-in",
+    "transcribes": "text-of",
+    "quotes": "quoted-in",
+    "draws-on": "drawn-on-by",
+    "links-to": "linked-from",
 }
 
-# Pairs that contradict each other when declared from one page to the same target.
-CONTRADICTORY_PAIRS = (
-    frozenset({"implements", "implemented-by"}),
-    frozenset({"depends-on", "used-by"}),
-)
+# Section headings (lowercase) whose links carry a specific type, by page type.
+# "*" applies to every page type.
+SECTION_EDGES: dict[str, dict[str, str]] = {
+    "document": {"entities mentioned": "mentions", "claims supported": "supports"},
+    "person": {"relationships": "associated-with", "people associated": "associated-with",
+               "appearances in sources": "appears-in"},
+    "organization": {"people associated": "associated-with", "relationships": "associated-with",
+                     "appearances in sources": "appears-in"},
+    "place": {"people associated": "associated-with", "events here": "hosted",
+              "appearances in sources": "appears-in"},
+    "event": {"participants": "involves", "location": "located-at", "sources": "appears-in"},
+    "claim": {"sources": "sourced-by", "rests on": "rests-on", "supports": "supports"},
+    "topic": {"key pages": "synthesizes"},
+}
 
-FALLBACK_TYPE = "related-to"
-RELATION_FIELDS = ("target", "type", "reason")
+# Sections where bare claim IDs (EF-049) count as links to claim pages.
+CLAIM_ID_SECTIONS = {"claims supported", "rests on", "supports"}
 
-# Lint thresholds; exceeding them produces warnings, not errors.
+MAX_SUMMARY_LENGTH = 300
 MAX_REASON_LENGTH = 160
-MAX_SUMMARY_LENGTH = 250
-MAX_OUTGOING = 12
-MAX_INCOMING = 50
+
+
+def specificity(edge_type: str) -> int:
+    return EDGE_TYPES.index(edge_type) if edge_type in EDGE_TYPES else len(EDGE_TYPES)

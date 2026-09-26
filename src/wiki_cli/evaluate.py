@@ -79,7 +79,7 @@ def run(
     reranker: Reranker | None,
 ) -> dict:
     missing = sorted({slug for q in questions for slug in q.answers
-                      if not cache.conn.execute("SELECT 1 FROM pages WHERE slug = ? AND is_page = 1", (slug,)).fetchone()})
+                      if not cache.conn.execute("SELECT 1 FROM pages WHERE slug = ? AND kind = 'page'", (slug,)).fetchone()})
     if missing:
         raise EvalError(f"answer pages not in the wiki: {', '.join(missing)}")
 
@@ -139,14 +139,14 @@ def sample(cache: Cache, *, single: int, multi: int, seed: int) -> dict:
     rng = random.Random(seed)
     pages = cache.conn.execute(
         """SELECT slug, path, COALESCE(title, slug), summary, summary_is_placeholder
-           FROM pages WHERE is_page = 1 ORDER BY slug"""
+           FROM pages WHERE kind = 'page' AND page_type NOT IN ('meta', 'index') ORDER BY slug"""
     ).fetchall()
     chosen = rng.sample(pages, min(single, len(pages)))
     pairs = cache.conn.execute(
         """SELECT DISTINCT r.source_slug, r.target_slug, r.relation_type, r.reason
            FROM relations r
-           JOIN pages p ON p.slug = r.target_slug AND p.is_page = 1
-           WHERE r.source_slug != r.target_slug
+           JOIN pages p ON p.slug = r.target_slug AND p.kind = 'page'
+           WHERE r.resolved = 1 AND r.relation_type NOT IN ('links-to', 'draws-on', 'transcribes')
            ORDER BY r.source_slug, r.target_slug"""
     ).fetchall()
     chosen_pairs = rng.sample(pairs, min(multi, len(pairs)))

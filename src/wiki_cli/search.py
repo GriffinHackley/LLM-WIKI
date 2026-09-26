@@ -32,9 +32,13 @@ class Hit:
     section: str
     score: float
     chunk_id: int
+    page_type: str | None = None
 
     def to_dict(self) -> dict:
-        result = {"slug": self.slug, "title": self.title, "score": round(self.score, 4)}
+        result = {"slug": self.slug, "title": self.title}
+        if self.page_type:
+            result["type"] = self.page_type
+        result["score"] = round(self.score, 4)
         if self.summary:
             result["summary"] = self.summary
         if self.placeholder:
@@ -68,6 +72,7 @@ def search(
     embed_model: str | None,
     limit: int = 3,
     exclude: frozenset[str] = frozenset(),
+    include_raw: bool = False,
 ) -> SearchResult:
     result = SearchResult(hits=[])
     rankings: list[list[int]] = []
@@ -105,7 +110,7 @@ def search(
     if not fused:
         return result
 
-    candidates = _load_chunks(conn, [chunk_id for chunk_id, _ in fused], exclude)
+    candidates = _load_chunks(conn, [chunk_id for chunk_id, _ in fused], exclude, include_raw)
     candidates = [candidate for candidate in candidates if candidate is not None][:RERANK_K]
     rrf = dict(fused)
     scores = None
@@ -131,6 +136,7 @@ def search(
                 section=candidate["heading"],
                 score=score,
                 chunk_id=candidate["chunk_id"],
+                page_type=candidate["type"],
             )
     result.hits = sorted(best.values(), key=lambda hit: (-hit.score, hit.slug))[:limit]
     return result
@@ -144,22 +150,24 @@ def reciprocal_rank_fusion(rankings: list[list[int]], k: int = RRF_K) -> list[tu
     return sorted(scores.items(), key=lambda pair: (-pair[1], pair[0]))
 
 
-def _load_chunks(conn: sqlite3.Connection, chunk_ids: list[int], exclude: frozenset[str]) -> list[dict | None]:
+def _load_chunks(conn: sqlite3.Connection, chunk_ids: list[int], exclude: frozenset[str],
+                 include_raw: bool) -> list[dict | None]:
     if not chunk_ids:
         return []
     marks = ",".join("?" * len(chunk_ids))
+    kind_filter = "" if include_raw else " AND p.kind = 'page'"
     rows = conn.execute(
         f"""SELECT c.id, p.slug, COALESCE(p.title, p.slug), p.summary, p.summary_is_placeholder,
-                   c.heading_path, f.text
+                   c.heading_path, f.text, p.page_type
             FROM chunks c
             JOIN pages p ON p.id = c.page_id
             JOIN chunks_fts f ON f.rowid = c.id
-            WHERE c.id IN ({marks}) AND p.is_page = 1""",
+            WHERE c.id IN ({marks}){kind_filter}""",
         chunk_ids,
     ).fetchall()
     by_id = {
         row[0]: {"chunk_id": row[0], "slug": row[1], "title": row[2], "summary": row[3],
-                 "placeholder": bool(row[4]), "heading": row[5], "text": row[6]}
+                 "placeholder": bool(row[4]), "heading": row[5], "text": row[6], "type": row[7]}
         for row in rows if row[1] not in exclude
     }
     return [by_id.get(chunk_id) for chunk_id in chunk_ids]
