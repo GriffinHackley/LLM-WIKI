@@ -59,7 +59,7 @@ Page content is sent to Claude for this step. Embeddings and search stay local.
 Nothing downloads implicitly. Each download is explicit:
 
 ```bash
-wiki models download --embed-model BAAI/bge-small-en-v1.5 --reranker BAAI/bge-reranker-base
+wiki models download --embed-model BAAI/bge-small-en-v1.5 --reranker jinaai/jina-reranker-v1-turbo-en
 ```
 
 | Model | Kind | Download |
@@ -71,12 +71,12 @@ wiki models download --embed-model BAAI/bge-small-en-v1.5 --reranker BAAI/bge-re
 | `Xenova/ms-marco-MiniLM-L-12-v2` | reranker | 0.12 GB |
 | `jinaai/jina-reranker-v1-turbo-en` | reranker | 0.15 GB |
 
-Models are stored in `<root>/.cache/models/` (override with `WIKI_MODELS_DIR`).
+Models are stored once per user in `~/.cache/wiki-cli/models/` (override with `WIKI_MODELS_DIR`).
 
 ## 4. Run
 
 ```bash
-wiki eval run --split tune --embed-model BAAI/bge-small-en-v1.5 --reranker BAAI/bge-reranker-base
+wiki eval run --split tune --embed-model BAAI/bge-small-en-v1.5 --reranker jinaai/jina-reranker-v1-turbo-en
 wiki eval run --split tune --keyword-only
 ```
 

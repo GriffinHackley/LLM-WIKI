@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Protocol, Sequence
 
 DEFAULT_EMBED_MODEL = "BAAI/bge-small-en-v1.5"
-DEFAULT_RERANKER = "BAAI/bge-reranker-base"
+DEFAULT_RERANKER = "jinaai/jina-reranker-v1-turbo-en"  # chosen in docs/model-selection.md
 NO_RERANKER = "none"
 
 _QWEN_QUERY = "Instruct: Given a question, retrieve wiki passages that answer the question\nQuery:"
