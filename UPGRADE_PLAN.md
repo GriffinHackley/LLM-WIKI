@@ -179,8 +179,9 @@ combination within a small margin of the best on tune, then confirm on test.
   of 1,200 characters (see `docs/model-selection.md`). Download candidate models, generate the
   evaluation set from the wiki, run the comparison, set the defaults.
 - [x] **Phase 5: Traversal.** `wiki nav` sessions as above, plus `wiki suggest`, `wiki unwritten`
-  and `wiki orphans` for `/ingest` and `/lint`. The default section is chosen by the reranker;
-  reads include the page summary.
+  and `wiki orphans` for `/ingest` and `/lint`. The default section is the closest by stored
+  vectors (no model load; the reranker agreed on 51 of 68 evaluation pages); reads include the
+  page summary.
 - [x] **Phase 6: Integration.** GriffinHackley/Politics pull request #2: `/query` uses `wiki nav`,
   `/ingest` uses `wiki suggest` and `wiki index refresh`, `/lint` uses `wiki unwritten`,
   `wiki orphans` and `wiki check --all`. `wiki` is installed with `uv tool install --editable`.
@@ -213,6 +214,17 @@ Obsidian / llm-wiki compatibility check, summary backfill, and the
 The Politics wiki (414 pages plus 101 raw text files, 2,656 derived relations)
 indexes in about 1 second without embeddings. Real model costs are measured in
 Phase 4.
+
+Commands on the Politics wiki (CPU, median of 3 fresh processes). Model-free commands
+cost about 140 ms, almost all Python start-up and imports. Models run directly with
+onnxruntime; importing fastembed for inference cost another 0.5 s per command.
+
+| Command | Before | Now |
+|---|---|---|
+| `neighbors`, `nav candidates`, `index status`, `search --keyword-only` | 150 ms | 150 ms |
+| `search` (embed query, rerank 20 passages) | 1.36 s | 0.98 s |
+| `nav start` | 1.36 s | 1.00 s |
+| `nav read` (section chosen from stored vectors) | 0.97 s | 0.15 s |
 
 ## Open decisions
 

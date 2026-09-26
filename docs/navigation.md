@@ -22,9 +22,12 @@ wiki nav read a41f0c situation-room-meeting-2025-11-12 \
 ```
 
 Returns the page summary, the section that best matches the question (`content`),
-the page's other sections, and `pages_left`. The section is chosen by the reranker
-among sections of at least 200 characters (falling back to vector or keyword
-similarity when no reranker is available); a read takes under a second. Ask for `--section "<heading>"` or `--full` when the match
+the page's other sections, and `pages_left`. The section is the one among sections
+of at least 200 characters whose stored vector is closest to the question's vector,
+saved at `nav start`, so a read loads no model and takes about 150 ms. Without
+embeddings the reranker chooses, then keyword match. On the Politics evaluation set
+the reranker picked the same section on 51 of 68 answer pages, with no clear winner
+on the rest. Ask for `--section "<heading>"` or `--full` when the match
 is not enough; other parts of a page already read do not count against the limit.
 
 ```bash

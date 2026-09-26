@@ -61,6 +61,16 @@ def test_read_returns_best_section_and_section_list(nav):
     assert (result["pages_read"], result["pages_left"]) == (1, 5)
 
 
+def test_read_picks_section_from_stored_vectors_without_the_reranker(nav):
+    class Refuses(OverlapReranker):
+        def score(self, query, documents):
+            raise AssertionError("nav read should not run the reranker when vectors exist")
+
+    session = start(nav, "Which officials were reportedly present, and which member was being lobbied?")["session"]
+    nav.reranker = Refuses()
+    assert nav.read(session, "situation-room-meeting", WHY)["section"] == "Participants"
+
+
 def test_read_specific_section_and_full(nav):
     session = start(nav)["session"]
     assert "Officials met" in nav.read(session, "situation-room-meeting", WHY, section="What happened")["content"]
