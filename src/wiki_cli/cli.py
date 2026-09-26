@@ -49,6 +49,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         settings = load_settings(args.root, args.cache,
                                  getattr(args, "embed_model", None), getattr(args, "reranker", None))
+        if settings.root_note:
+            print(f"note: {settings.root_note}", file=sys.stderr)
         return args.handler(args, settings)
     except (ConfigError, PageNotFound, CacheUnavailable, UsageError, ModelUnavailable, evaluate.EvalError) as exc:
         print(f"wiki: {exc}", file=sys.stderr)
@@ -57,7 +59,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     common = argparse.ArgumentParser(add_help=False)
-    common.add_argument("--root", help="wiki root (default: $WIKI_ROOT, else the nearest .wiki-cli.toml upward)")
+    common.add_argument("--root", help="wiki root (default: $WIKI_ROOT, else the nearest .wiki-cli.toml upward, "
+                        "else the enclosing git repository, else the current folder)")
     common.add_argument("--cache", help="cache database path (default: <root>/.cache/wiki.sqlite3)")
     common.add_argument("--format", choices=("text", "json"), default="text")
 
