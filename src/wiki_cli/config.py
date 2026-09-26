@@ -17,6 +17,7 @@ from wiki_cli.vocabulary import RelationRule, RuleError, Vocabulary, parse_rules
 
 CONFIG_FILENAME = ".wiki-cli.toml"
 CACHE_FILENAME = "wiki.sqlite3"
+DERIVATION_VERSION = "2"  # bump when edge or reason extraction changes: edges are re-derived
 DEFAULT_PAGES = ("**/*.md",)
 DEFAULT_RAW = ("raw/**/*.txt",)
 DEFAULT_MODELS_DIR = Path.home() / ".cache" / "wiki-cli" / "models"  # shared by every wiki
@@ -62,7 +63,7 @@ class Settings:
 
     def fingerprint(self) -> str:
         """Settings that change derived edges or page types; a change re-derives them."""
-        return repr((self.vocabulary.fingerprint(), self.page_type_field, self.type_folders))
+        return repr((DERIVATION_VERSION, self.vocabulary.fingerprint(), self.page_type_field, self.type_folders))
 
     def summary_fingerprint(self) -> str:
         return repr((self.summary_fields, self.summary_headings))

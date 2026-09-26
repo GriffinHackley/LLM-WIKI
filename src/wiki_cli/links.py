@@ -16,6 +16,7 @@ _FENCE = re.compile(r"(```|~~~)")
 _INLINE_CODE = re.compile(r"`[^`\n]*`")
 _RULE = re.compile(r"\s*(?:-{3,}|\*{3,}|_{3,})\s*")
 _BLOCK_ID = re.compile(r"(?<!\S)\^[A-Za-z0-9-]+(?=\s|$)")
+_LIST_ITEM = re.compile(r"\s*(?:[-*+]|\d+[.)])\s+")
 
 
 @dataclass(frozen=True)
@@ -28,6 +29,7 @@ class Link:
     line: str  # the full source line
     raw: str = ""  # the link exactly as written
     is_path: bool = False  # a Markdown link: target is a path from the wiki root, never a bare name
+    context: str = ""  # the whole paragraph, list item or table row, with wrapped lines joined
 
 
 def split_target(inner: str) -> tuple[str, str | None, str | None]:
@@ -88,10 +90,35 @@ def iter_lines(body: str):
         yield line, section, in_fence
 
 
+def _with_context(body: str):
+    """``iter_lines`` plus each line's block: its paragraph, list item or table row, with
+    hard-wrapped continuation lines joined, so a sentence split across lines stays whole."""
+    rows = list(iter_lines(body))
+    blocks: list[list[str]] = []
+    block_of: list[int | None] = []
+    current: int | None = None
+    for line, _, in_code in rows:
+        if in_code or not line.strip() or _HEADING.fullmatch(line) or _RULE.fullmatch(line):
+            current = None
+            block_of.append(None)
+            continue
+        table_row = line.lstrip().startswith("|")
+        if current is None or table_row or _LIST_ITEM.match(line):
+            blocks.append([line.rstrip()])
+            current = len(blocks) - 1
+        else:
+            blocks[current].append(line.strip())
+        block_of.append(current)
+        if table_row:
+            current = None
+    for (line, section, in_code), block in zip(rows, block_of):
+        yield line, section, in_code, line if block is None else " ".join(blocks[block])
+
+
 def extract_links(body: str, source_rel: str | None = None) -> list[Link]:
     """Links outside code, in order. ``source_rel`` resolves relative Markdown links."""
     found: list[Link] = []
-    for line, section, in_code in iter_lines(body):
+    for line, section, in_code, context in _with_context(body):
         if in_code:
             continue
         searchable = _INLINE_CODE.sub(lambda match: " " * len(match.group(0)), line)
@@ -100,13 +127,15 @@ def extract_links(body: str, source_rel: str | None = None) -> list[Link]:
             if match.group(2) is not None:  # [[wikilink]]
                 target, anchor, display = split_target(match.group(2))
                 if target:
-                    found.append(Link(target, display, anchor, bool(match.group(1)), section, line, raw))
+                    found.append(Link(target, display, anchor, bool(match.group(1)), section, line, raw,
+                                      context=context))
                 continue
             resolved = markdown_target(match.group(5), source_rel)
             if resolved:
                 target, anchor = resolved
                 display = match.group(4).strip() or None
-                found.append(Link(target, display, anchor, bool(match.group(3)), section, line, raw, is_path=True))
+                found.append(Link(target, display, anchor, bool(match.group(3)), section, line, raw, is_path=True,
+                                  context=context))
     return found
 
 

@@ -99,3 +99,33 @@ def test_embeds_outrank_field_only_types(wiki):
     wiki.page("person", "p", {"Documented role": "![[memo#^q-key]]"}, sources=["memo"])
     edge = edges_of(wiki, "p")["memo"]
     assert (edge.type, edge.reason) == ("embeds", "Embeds block q-key.")
+
+
+def test_reason_joins_hard_wrapped_lines(wiki):
+    wiki.page("topic", "t", {"Background": "Written by [[ada]]. She wrote the [[scheduler]] design and\n"
+                                           "reviews every change to it."})
+    edges = edges_of(wiki, "t")
+    assert edges["scheduler"].reason == "Background: She wrote the scheduler design and reviews every change to it."
+    assert edges["ada"].reason == "Background: Written by ada."
+
+
+def test_list_item_keeps_a_link_inside_its_sentence(wiki):
+    wiki.page("topic", "t", {"Background": "- Demo date fixed for March on the [[engine]].\n- Co-lead: [[ada]]\n"
+                                           "- [[bob]] and the [[scheduler]] team — reviewers"})
+    edges = edges_of(wiki, "t")
+    assert edges["engine"].reason == "Demo date fixed for March on the engine."
+    assert edges["ada"].reason == "Co-lead"
+    assert edges["scheduler"].reason == "the scheduler team — reviewers"
+
+
+def test_reason_finds_the_link_not_an_earlier_mention_of_its_name(wiki):
+    wiki.page("topic", "t", {"Background": "The report (commission-report-1994) came first. Then the "
+                                           "[[commission]] recommended separate gates."})
+    assert edges_of(wiki, "t")["commission"].reason == "Background: Then the commission recommended separate gates."
+
+
+def test_long_sentence_reason_ends_at_the_link(wiki):
+    lead = "In a long and winding sentence that keeps going " * 4
+    wiki.page("topic", "t", {"Background": f"{lead}the minister [[bob]] said it plainly."})
+    reason = edges_of(wiki, "t")["bob"].reason
+    assert reason.startswith("Background: …") and "the minister bob" in reason and len(reason) <= 160

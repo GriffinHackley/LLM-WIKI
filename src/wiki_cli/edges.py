@@ -20,6 +20,7 @@ from wiki_cli.vocabulary import EMBEDS, LINKS_TO, MAX_REASON_LENGTH, Vocabulary
 
 _LIST_PREFIX = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+")
 _LEADING_SEPARATOR = re.compile(r"^[\s—–:;,.-]+")
+_TRAILING_SEPARATOR = re.compile(r"[—–:;,-]\s*$")
 _LINK_TEXT = r"(?:!?\[\[[^\[\]\n]+?\]\]|!?\[[^\[\]\n]*\]\([^()\n]*\))"
 _LEADING_LINKS = re.compile(rf"^(?:\s*{_LINK_TEXT}\s*(?:[,;&/]|\band\b)?\s*)+")
 _ONLY_LINKS = re.compile(rf"{_LINK_TEXT}|[\s—–:;,.\-]")
@@ -109,35 +110,51 @@ def _reason(link: links.Link, edge_type: str) -> str:
         return listed
     if edge_type != LINKS_TO:
         return f"Listed under {link.section.capitalize()}." if link.section else "Linked."
-    fragment = _fragment(link)
     heading = link.section.capitalize() if link.section else "Body"
+    fragment = _fragment(link, max(MAX_REASON_LENGTH - len(heading) - 3, 60))
     return f"{heading}: {fragment}" if fragment else f"Linked under {heading}."
 
 
 def _list_reason(link: links.Link) -> str:
-    """For a list item, the line with the link itself removed: its role or description."""
-    if not _LIST_PREFIX.match(link.line):
+    """For a list item, its role or description: the item without its leading links."""
+    context = link.context or link.line
+    if not _LIST_PREFIX.match(context):
         return ""
-    text = _LIST_PREFIX.sub("", link.line)
+    text = _LIST_PREFIX.sub("", context)
     # A leading run of links is the item's subject list ("[[a]], [[b]] — role"); drop it whole.
+    # A link inside the description ("Demo fixed on the [[engine]].") stays, as its name.
     text = _LEADING_LINKS.sub("", text)
-    if link.raw:
-        text = text.replace(link.raw, "", 1)
+    trimmed = text.rstrip(" .")
+    if link.raw and trimmed.endswith(link.raw) and _TRAILING_SEPARATOR.search(trimmed[:-len(link.raw)]):
+        text = trimmed[:-len(link.raw)]  # a link after a separator ("Co-lead: [[a]]") is the subject too
     if not _ONLY_LINKS.sub("", text):
         return ""  # nothing left but other links and separators: no description
-    return _LEADING_SEPARATOR.sub("", links.plain(text))
+    return _LEADING_SEPARATOR.sub("", links.plain(text)).rstrip(" —–:;,-")
 
 
-def _fragment(link: links.Link) -> str:
-    """The sentence around the link, in plain text."""
-    text = links.plain(_LIST_PREFIX.sub("", link.line))
-    label = link.display or link.target.rsplit("/", 1)[-1]
-    position = text.find(label)
+def _fragment(link: links.Link, budget: int) -> str:
+    """The sentence around the link, in plain text, showing the link within ``budget`` characters."""
+    source = _LIST_PREFIX.sub("", link.context or link.line)
+    text = links.plain(source)
+    # Locate the link itself, not its name: the name can occur earlier (inside a longer slug).
+    at = source.find(link.raw) if link.raw else -1
+    if at >= 0:
+        position = len(links.plain(source[:at]))
+    else:
+        position = text.find(link.display or link.target.rsplit("/", 1)[-1])
     if position < 0:
         return text[:MAX_REASON_LENGTH]
-    start = text.rfind(". ", 0, position) + 2 if text.rfind(". ", 0, position) >= 0 else 0
+    before = text.rfind(". ", 0, position + 1)  # + 1: the link may start right after ". "
+    start = before + 2 if before >= 0 else 0
     end = text.find(". ", position)
-    return text[start:end + 1 if end >= 0 else len(text)].strip()
+    lead = ""
+    link_end = position + len(links.plain(link.raw)) if link.raw else position
+    if link_end - start > budget:
+        # The clipped reason would stop before the link: keep as much as fits before it instead.
+        cut = link_end - budget + 2  # room for the ellipsis
+        start = text.find(" ", cut, position) + 1 or position
+        lead = "…"
+    return lead + text[start:end + 1 if end >= 0 else len(text)].strip()
 
 
 def _clip(text: str) -> str:
