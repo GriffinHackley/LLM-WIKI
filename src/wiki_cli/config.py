@@ -23,8 +23,10 @@ DEFAULT_RAW = ("raw/**/*.txt",)
 DEFAULT_MODELS_DIR = Path.home() / ".cache" / "wiki-cli" / "models"  # shared by every wiki
 DEFAULT_SUMMARY_FIELDS = ("summary", "description")
 DEFAULT_SUMMARY_HEADINGS = ("summary",)
+DEFAULT_SEARCH_RESULTS = 3
+MAX_SEARCH_RESULTS = 20  # search reranks 20 passages (search.RERANK_K), so it never returns more pages
 _TOP_LEVEL = {"pages", "exclude", "raw", "embed_model", "reranker", "relations", "summary", "page_type",
-              "check", "suggest"}
+              "check", "suggest", "search"}
 
 
 class ConfigError(Exception):
@@ -49,6 +51,7 @@ class Settings:
     summary_types: tuple[str, ...] = ()  # page types expected to have a summary; "*" = all
     require_frontmatter: bool = False
     named_types: tuple[str, ...] = ()  # page types `suggest` matches by name; empty = all
+    search_results: int = DEFAULT_SEARCH_RESULTS  # pages returned by search, nav start and nav search
     vocabulary: Vocabulary = field(default_factory=Vocabulary, compare=False)
     root_note: str | None = field(default=None, compare=False)  # set when no config chose the root
 
@@ -126,6 +129,9 @@ def load_settings(
     page_type = _table(config, "page_type")
     check = _table(config, "check")
     suggest = _table(config, "suggest")
+    results = _table(config, "search").get("results", DEFAULT_SEARCH_RESULTS)
+    if isinstance(results, bool) or not isinstance(results, int) or not 1 <= results <= MAX_SEARCH_RESULTS:
+        raise ConfigError(f"{CONFIG_FILENAME}: [search] results must be a whole number from 1 to {MAX_SEARCH_RESULTS}")
     folders = page_type.get("folders", {})
     if not isinstance(folders, dict) or not all(isinstance(v, str) for v in folders.values()):
         raise ConfigError(f"{CONFIG_FILENAME}: [page_type] folders must map folder paths to type names")
@@ -150,6 +156,7 @@ def load_settings(
         summary_types=tuple(t.lower() for t in _patterns(check, "summary_types", (), "[check] summary_types")),
         require_frontmatter=bool(check.get("require_frontmatter", False)),
         named_types=tuple(t.lower() for t in _patterns(suggest, "named_types", (), "[suggest] named_types")),
+        search_results=results,
         vocabulary=Vocabulary(rules),
         root_note=root_note,
     )

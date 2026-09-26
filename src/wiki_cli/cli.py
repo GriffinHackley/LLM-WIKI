@@ -74,7 +74,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     search_parser = commands.add_parser("search", parents=[common, models], help="find the best pages for a question")
     search_parser.add_argument("question")
-    search_parser.add_argument("--limit", type=_positive_int, default=3)
+    search_parser.add_argument("--limit", type=_positive_int, help="pages to return (default: [search] results in .wiki-cli.toml, else 3)")
     search_parser.add_argument("--include-raw", action="store_true", help="also search raw source text")
     search_parser.add_argument("--keyword-only", action="store_true", help="skip vector search and reranking")
     search_parser.set_defaults(handler=cmd_search)
@@ -84,7 +84,7 @@ def build_parser() -> argparse.ArgumentParser:
     nav_start = nav.add_parser("start", parents=[common, models], help="search and open a session")
     nav_start.add_argument("question")
     nav_start.add_argument("--max-pages", type=_positive_int, default=DEFAULT_MAX_PAGES)
-    nav_start.add_argument("--limit", type=_positive_int, default=3)
+    nav_start.add_argument("--limit", type=_positive_int, help="pages to return (default: [search] results in .wiki-cli.toml, else 3)")
     nav_start.set_defaults(handler=cmd_nav_start)
     nav_read = nav.add_parser("read", parents=[common, models], help="read the best section of a page")
     nav_read.add_argument("session")
@@ -101,7 +101,7 @@ def build_parser() -> argparse.ArgumentParser:
     nav_search = nav.add_parser("search", parents=[common, models], help="search again for an open question")
     nav_search.add_argument("session")
     nav_search.add_argument("question")
-    nav_search.add_argument("--limit", type=_positive_int, default=3)
+    nav_search.add_argument("--limit", type=_positive_int, help="pages to return (default: [search] results in .wiki-cli.toml, else 3)")
     nav_search.set_defaults(handler=cmd_nav_search)
     nav_end = nav.add_parser("end", parents=[common, models], help="close the session, recording cited pages")
     nav_end.add_argument("session")
@@ -196,7 +196,8 @@ def cmd_search(args: argparse.Namespace, settings: Settings) -> int:
         embedder = None if args.keyword_only else load_embedder(settings.embed_model, settings.models_dir)
         reranker = None if args.keyword_only else load_reranker(settings.reranker, settings.models_dir)
         result = search(cache.conn, args.question, embedder=embedder, reranker=reranker,
-                        embed_model=cache.embed_model, limit=args.limit, include_raw=args.include_raw)
+                        embed_model=cache.embed_model, limit=args.limit or settings.search_results,
+                        include_raw=args.include_raw)
         pending = cache.pending_embeddings() if embedder else 0
     notes = list(result.notes)
     if pending and "vector" in result.modes:
@@ -243,7 +244,8 @@ def _navigate(args: argparse.Namespace, settings: Settings, step) -> int:
 
 
 def cmd_nav_start(args, settings):
-    return _navigate(args, settings, lambda nav: nav.start(args.question, max_pages=args.max_pages, limit=args.limit))
+    return _navigate(args, settings, lambda nav: nav.start(args.question, max_pages=args.max_pages,
+                                                               limit=args.limit or settings.search_results))
 
 
 def cmd_nav_read(args, settings):
@@ -256,7 +258,8 @@ def cmd_nav_candidates(args, settings):
 
 
 def cmd_nav_search(args, settings):
-    return _navigate(args, settings, lambda nav: nav.requery(args.session, args.question, limit=args.limit))
+    return _navigate(args, settings, lambda nav: nav.requery(args.session, args.question,
+                                                                 limit=args.limit or settings.search_results))
 
 
 def cmd_nav_end(args, settings):
