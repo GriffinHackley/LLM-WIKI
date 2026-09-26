@@ -175,8 +175,9 @@ combination within a small margin of the best on tune, then confirm on test.
 - [x] **Phase 5: Traversal.** `wiki nav` sessions as above, plus `wiki suggest`, `wiki unwritten`
   and `wiki orphans` for `/ingest` and `/lint`. The default section is chosen by the reranker;
   reads include the page summary.
-- [ ] **Phase 6: Integration.** Pull request on the Politics repo per the section
-  above.
+- [x] **Phase 6: Integration.** GriffinHackley/Politics pull request #2: `/query` uses `wiki nav`,
+  `/ingest` uses `wiki suggest` and `wiki index refresh`, `/lint` uses `wiki unwritten`,
+  `wiki orphans` and `wiki check --all`. `wiki` is installed with `uv tool install --editable`.
 
 Dropped from v1: authored `relations:` frontmatter, the generated link block and
 `rel sync`, the llm-wiki `ingest`/`suggest` wrappers and permission rules, the
