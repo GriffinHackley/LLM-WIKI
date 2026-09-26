@@ -172,7 +172,9 @@ combination within a small margin of the best on tune, then confirm on test.
 - [x] **Phase 4: Model selection.** Chose bge-small + jina-reranker-v1-turbo-en, reranking 20 passages
   of 1,200 characters (see `docs/model-selection.md`). Download candidate models, generate the
   evaluation set from the wiki, run the comparison, set the defaults.
-- [ ] **Phase 5: Traversal.** `wiki nav` sessions as above, plus `wiki suggest`.
+- [x] **Phase 5: Traversal.** `wiki nav` sessions as above, plus `wiki suggest`, `wiki unwritten`
+  and `wiki orphans` for `/ingest` and `/lint`. The default section is chosen by the reranker;
+  reads include the page summary.
 - [ ] **Phase 6: Integration.** Pull request on the Politics repo per the section
   above.
 

@@ -71,7 +71,8 @@ CREATE INDEX chunks_by_page ON chunks(page_id);
 CREATE VIRTUAL TABLE chunks_fts USING fts5(title, heading_path, text, tokenize = 'porter unicode61');
 """
 
-_TABLES = ("summary_vectors", "chunk_vectors", "chunks_fts", "chunks", "relations", "pages", "metadata")
+_TABLES = ("nav_frontier", "nav_events", "nav_sessions", "summary_vectors", "chunk_vectors", "chunks_fts", "chunks",
+           "relations", "pages", "metadata")
 _VECTOR_TABLES = ("chunk_vectors", "summary_vectors")
 
 

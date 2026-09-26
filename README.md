@@ -3,7 +3,7 @@
 Search and navigation tools for an Obsidian wiki maintained by an LLM, built for
 the Politics wiki. Agents find the best starting page without reading the index,
 see where each page leads through typed relations with reasons, and read only
-the sections they need. See [UPGRADE_PLAN.md](UPGRADE_PLAN.md) for the design and
+the sections they need, within a page limit. See [UPGRADE_PLAN.md](UPGRADE_PLAN.md) for the design and
 [FUTURE_IDEAS.md](FUTURE_IDEAS.md) for deferred ideas.
 
 The tool never edits wiki pages. Everything it builds lives in a disposable
@@ -55,6 +55,10 @@ claim IDs under `## Claims supported`, and quote embeds also become edges. Run
 | Command | Purpose |
 |---|---|
 | `wiki search "<question>" [--limit 3] [--include-raw] [--keyword-only]` | Best pages for a question: keyword + vector search, fused and reranked |
+| `wiki nav start \| read \| candidates \| search \| end \| log` | Guided traversal sessions (see [docs/navigation.md](docs/navigation.md)) |
+| `wiki suggest <slug>` | Pages a page names but does not link, shares linked pages with, or resembles |
+| `wiki unwritten [--limit N]` | Link targets with no page, most-linked first |
+| `wiki orphans` | Pages nothing relates to |
 | `wiki neighbors <slug> [--incoming] [--outgoing] [--relation T] [--limit N]` | A page's typed relations with reasons, no page bodies |
 | `wiki check <slug> \| --all [--verify-cache] [--strict] [--no-warnings]` | Frontmatter, summaries, ambiguous and unwritten links, stale summaries |
 | `wiki index refresh \| rebuild [--no-embed] \| status` | Manage the cache and embeddings |
