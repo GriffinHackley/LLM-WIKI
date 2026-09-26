@@ -10,8 +10,12 @@ requires-python = ">=3.13"
 dependencies = [
     "PyYAML>=6",
     "sqlite-vec>=0.1.9",
-    # Pinned: fastembed versions pin which model files are downloaded.
+    # Pinned: fastembed versions pin which model files are downloaded. It is used only to
+    # download; models.py runs the files with onnxruntime and tokenizers, matching 0.8.1.
     "fastembed==0.8.1",
+    "onnxruntime>=1.20",
+    "tokenizers>=0.20",
+    "numpy>=2",
 ]
 
 [project.optional-dependencies]
