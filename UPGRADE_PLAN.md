@@ -69,6 +69,10 @@ uncommitted, and always rebuildable.
 Follow `llm-wiki`'s rule exactly: a slug is the page's path relative to `wiki/`,
 without the `.md` extension, and may contain folders (`concepts/scaling-laws`).
 
+- Like llm-wiki (`skip_no_frontmatter = true`), `.md` files without frontmatter
+  are not pages and are ignored. `[ingest] exclude` globs from `wiki.toml` are
+  honored.
+- The local space defaults to `name` in the repo's `wiki.toml`.
 - The wiki uses flat files only. Bundle pages (`x/index.md`) are not used; `check`
   warns if one appears, because Obsidian cannot resolve bundle slugs.
 - `check` errors when two slugs differ only in case (Windows and Obsidian treat
@@ -166,30 +170,36 @@ CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 -- schema_version, wiki_root, space, embedding_model, embedding_revision,
 -- embedding_dims, reranker_model, reranker_revision
 
+-- Keyed by path, not slug: colliding slugs (x.md vs x/index.md, or case
+-- variants) must both be tracked for change detection; check reports them.
 CREATE TABLE pages (
-  id INTEGER PRIMARY KEY,
-  slug TEXT NOT NULL UNIQUE,
-  path TEXT NOT NULL UNIQUE,
+  path TEXT PRIMARY KEY,
+  slug TEXT NOT NULL,
+  is_page INTEGER NOT NULL,   -- 0 for .md files llm-wiki skips (no frontmatter)
   mtime_ns INTEGER NOT NULL,
   size INTEGER NOT NULL,
   content_hash TEXT NOT NULL,
+  body_hash TEXT,             -- body without the generated block
   title TEXT,
   page_type TEXT,
   summary TEXT,
   summary_is_placeholder INTEGER NOT NULL,
-  summary_body_hash TEXT,     -- body hash when summary last changed
-  embedded_hash TEXT          -- content hash when vectors were last written
+  summary_body_hash TEXT      -- body hash when summary last changed
+  -- Phase 2 adds an integer id (for vector rowids) and embedded_hash
 );
+CREATE INDEX pages_by_slug ON pages(slug);
 
 CREATE TABLE relations (
+  source_path TEXT NOT NULL,
   source_slug TEXT NOT NULL,
   target_uri TEXT NOT NULL,
   target_space TEXT NOT NULL,
   target_slug TEXT NOT NULL,
   relation_type TEXT NOT NULL,
   reason TEXT NOT NULL,
-  PRIMARY KEY (source_slug, target_uri, relation_type)
+  PRIMARY KEY (source_path, target_uri, relation_type)
 );
+CREATE INDEX relations_by_source ON relations(source_slug);
 CREATE INDEX relations_by_target ON relations(target_slug);
 CREATE INDEX relations_by_type ON relations(relation_type);
 
@@ -464,11 +474,14 @@ libraries are imported lazily: only `search`, `nav start`, `nav search`,
 
 ### Selection by evaluation
 
-Embedding candidates: `bge-small-en-v1.5` (baseline), `nomic-embed-text-v1.5` or
-`snowflake-arctic-embed-m-v2.0` (middle), `Qwen3-Embedding-0.6B` (high end, tested
-on a page subset because CPU embedding is slow).
+Embedding candidates: `bge-small-en-v1.5` (baseline), `nomic-embed-text-v1.5`
+(middle), `Qwen3-Embedding-0.6B` (high end, tested on a page subset because CPU
+embedding is slow). All three are supported by fastembed 0.8.1 (verified in
+Phase 1); `snowflake-arctic-embed-m-v2.0` is not, so it is dropped.
 
-Reranker candidates: `bge-reranker-base`, `bge-reranker-v2-m3`.
+Reranker candidates: `bge-reranker-base`, `jina-reranker-v2-base-multilingual`,
+`ms-marco-MiniLM-L-12-v2` (all in fastembed). `bge-reranker-v2-m3` is not in
+fastembed and is dropped unless the other candidates underperform.
 
 Choose the smallest model within a small margin of the best score. If a candidate
 is not available in `fastembed`, it is evaluated with sentence-transformers in the
@@ -546,6 +559,24 @@ targets (to confirm):
 
 Record cache size and query latency. Optimizations must not move canonical state
 out of frontmatter.
+
+Phase 1 measurements (30,000 pages, 100,000 relations, Ryzen 7 9800X3D, Windows 11):
+
+| Operation | Measured |
+|---|---|
+| `wiki rel neighbors` (CLI process, cold) | 111 ms median |
+| neighbors lookup in-process | 0.09 ms p50 |
+| `index refresh` with no changes | 0.20 s |
+| `index refresh` with 100 changed pages | 1.4 s |
+| `index rebuild`, files already read once | 7.4 s |
+| `index rebuild`, files never read before | 89 s |
+| `check --all` | 5.2 s |
+| `rel sync --all`, first run writing 30k blocks | 158 s (one-off) |
+| cache size | 41 MB |
+
+The gap between the two rebuild times comes from the first read of freshly
+written files. Real-time antivirus scanning is the likely cause (not verified).
+Only a first rebuild after a clone should pay it.
 
 ## Phases
 
