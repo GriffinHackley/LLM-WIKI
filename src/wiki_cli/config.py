@@ -17,7 +17,7 @@ from wiki_cli.vocabulary import RelationRule, RuleError, Vocabulary, parse_rules
 
 CONFIG_FILENAME = ".wiki-cli.toml"
 CACHE_FILENAME = "wiki.sqlite3"
-DERIVATION_VERSION = "2"  # bump when edge or reason extraction changes: edges are re-derived
+DERIVATION_VERSION = "3"  # bump when edge or reason extraction changes: edges are re-derived
 DEFAULT_PAGES = ("**/*.md",)
 DEFAULT_RAW = ("raw/**/*.txt",)
 DEFAULT_MODELS_DIR = Path.home() / ".cache" / "wiki-cli" / "models"  # shared by every wiki
