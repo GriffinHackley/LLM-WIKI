@@ -111,8 +111,9 @@ def test_reason_joins_hard_wrapped_lines(wiki):
 
 def test_list_item_keeps_a_link_inside_its_sentence(wiki):
     wiki.page("topic", "t", {"Background": "- Demo date fixed for March on the [[engine]].\n- Co-lead: [[ada]]\n"
-                                           "- [[bob]] and the [[scheduler]] team — reviewers"})
+                                           "- [[bob]] and the [[scheduler]] team — reviewers\n- [[carol]]"})
     edges = edges_of(wiki, "t")
+    assert edges["carol"].reason == "Listed under Background."
     assert edges["engine"].reason == "Demo date fixed for March on the engine."
     assert edges["ada"].reason == "Co-lead"
     assert edges["scheduler"].reason == "the scheduler team — reviewers"

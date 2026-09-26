@@ -108,7 +108,8 @@ def _reason(link: links.Link, edge_type: str) -> str:
     listed = _list_reason(link)
     if listed:
         return listed
-    if edge_type != LINKS_TO:
+    if edge_type != LINKS_TO or (_LIST_PREFIX.match(link.context or link.line) and link.section):
+        # A typed link, or a bare list item ("- [[ada]]"): the heading says more than the item.
         return f"Listed under {link.section.capitalize()}." if link.section else "Linked."
     heading = link.section.capitalize() if link.section else "Body"
     fragment = _fragment(link, max(MAX_REASON_LENGTH - len(heading) - 3, 60))
