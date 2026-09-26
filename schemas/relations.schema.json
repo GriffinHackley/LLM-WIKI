@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "wiki-cli/relations.schema.json",
+  "title": "Page relations",
+  "description": "Typed, directional relations from this page. Merge into a page type schema under properties.relations. Keep the enum in sync with wiki_cli/vocabulary.py (enforced by tests).",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["target", "type", "reason"],
+    "properties": {
+      "target": {
+        "type": "string",
+        "description": "Canonical wiki://<space>/<slug> URI. The slug may contain folders and must not end in .md.",
+        "pattern": "^wiki://[A-Za-z0-9][A-Za-z0-9._-]*/[^/\\s\\[\\]|#^\\\\]+(/[^/\\s\\[\\]|#^\\\\]+)*$"
+      },
+      "type": {
+        "type": "string",
+        "enum": [
+          "depends-on",
+          "implements",
+          "implemented-by",
+          "used-by",
+          "configures",
+          "tested-by",
+          "documents",
+          "related-to"
+        ]
+      },
+      "reason": {
+        "type": "string",
+        "description": "Why following this edge is useful.",
+        "minLength": 1,
+        "pattern": "\\S"
+      }
+    }
+  }
+}
