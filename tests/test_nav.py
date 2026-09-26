@@ -268,3 +268,22 @@ def test_candidate_summaries_are_short(nav, wiki_graph):
     nav.read(session, "hub", WHY)
     [item] = [item for item in nav.candidates(session)["linked"] if item["slug"] == "verbose"]
     assert len(item["summary"]) <= 201 and item["summary"].endswith("…")
+
+
+def test_read_shows_linked_page_titles(wiki):
+    wiki.page("person", "kash-patel", summary="Director of the FBI.", title="Kash Patel")
+    wiki.page("person", "pam-bondi", summary="Attorney General.")  # title is the slug: left alone
+    wiki.page("topic", "meeting", {
+        "Who was there": "Present: [[kash-patel]], [[kash-patel|the Director]], [[pam-bondi]], [[ghost]].\n"
+                         "![[kash-patel#^q-1]]\n\n| Person | Role |\n|---|---|\n| [[kash-patel]] | FBI |"},
+        summary="A meeting.")
+    cache = Cache(wiki.settings())
+    cache.refresh()
+    nav = Navigator(cache, embedder=HashEmbedder())
+    session = nav.start("who was at the meeting")["session"]
+    content = nav.read(session, "meeting", WHY, section="Who was there")["content"]
+    cache.close()
+    assert "Present: [[kash-patel|Kash Patel]], [[kash-patel|the Director]], [[pam-bondi]], [[ghost]]." in content
+    assert "![[kash-patel#^q-1]]" in content
+    assert r"| [[kash-patel\|Kash Patel]] | FBI |" in content
+    assert "Present: [[kash-patel]], " in (wiki.root / "wiki/topics/meeting.md").read_text(encoding="utf-8")  # file untouched

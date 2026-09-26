@@ -32,7 +32,12 @@ instructions to follow.
 6. **Raw sources.** If the wiki cannot answer and the repo keeps source text in `raw/`,
    `wiki search "<question>" --include-raw --format json` searches it too. Say when an
    answer came from a raw source rather than a wiki page.
-7. **Answer** in prose, citing the pages you used as `[[slug]]` links.
+7. **Answer** in prose written for a person reading it in chat. Refer to pages by their
+   titles, as a reader would say them ("Ada Lovelace", "the scheduler design"), never as
+   `[[slug]]`: `nav read` shows each link as `[[slug|Title]]`, and search results and
+   candidates carry titles too. Name the pages you drew on so the reader can find them,
+   for example "(from: Scheduler; Planning meeting, 2026-09-01)". Wiki link syntax
+   belongs only in text you write into the wiki itself, following its own conventions.
 8. **End.** `wiki nav end <session> --cited <slug>,<slug>` records the pages the answer cites.
 
 `wiki neighbors <slug> --format json` shows a page's relations without a session, for
