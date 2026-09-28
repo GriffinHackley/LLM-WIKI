@@ -1,3 +1,5 @@
+from test_generic import repo  # noqa: F401  (fixture)
+from wiki_cli.config import load_settings
 from wiki_cli.edges import derive
 from wiki_cli.pages import Resolver, load, resolve, scan_vault
 
@@ -130,3 +132,27 @@ def test_long_sentence_reason_ends_at_the_link(wiki):
     wiki.page("topic", "t", {"Background": f"{lead}the minister [[bob]] said it plainly."})
     reason = edges_of(wiki, "t")["bob"].reason
     assert reason.startswith("Background: …") and "the minister bob" in reason and len(reason) <= 160
+
+
+def test_citation_in_parentheses_is_not_the_subject(wiki):
+    wiki.page("person", "mike-johnson", {
+        "Relationships": "- [[randy-fine]] — administered his oath ([[crec-doc]], p. 2)"})
+    edges = edges_of(wiki, "mike-johnson")
+    assert edges["randy-fine"].type == "associated-with"
+    assert edges["crec-doc"].type == "links-to"  # a citation supports the line; it is not its subject
+
+
+def test_field_relation_borrows_the_citing_sentence(repo):
+    (repo / ".wiki-cli.toml").write_text(
+        '[[relations]]\nfield = "sources"\ntype = "draws-on"\ninverse = "drawn-on-by"\n', encoding="utf-8")
+    repo.write("report.md", "# Report\n")
+    repo.write("other.md", "# Other\n")
+    repo.write("ada.md", "---\nsources: [report, other]\n---\n# Ada\n\n"
+                         "Ada signed the treaty in March ([[report]], p. 4).\n")
+    settings = load_settings(repo)
+    files, others = scan_vault(settings)
+    resolver = Resolver([(f.slug, f.rel) for f, _ in files], others)
+    edges = {edge.target: edge for edge in derive(load(resolve("ada", settings), settings), resolver)}
+    assert edges["report"].type == "draws-on"
+    assert edges["report"].reason == "Ada: Ada signed the treaty in March (report, p. 4)."
+    assert edges["other"].reason == "Listed in sources."  # cited nowhere in the body

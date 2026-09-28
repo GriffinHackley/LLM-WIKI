@@ -52,7 +52,7 @@ drifts (Politics' `/lint` has a step just for drift), and it costs about 11k tok
 read. `wiki list [--type T] [--format json]` prints slug, title, type and summary for
 every page, from the cache, so it can never drift.
 
-## Phase 1: Presets, `research` preset, `wiki new`, `wiki guide`, `wiki list`
+## Phase 1 (done): Presets, `research` preset, `wiki new`, `wiki guide`, `wiki list`
 
 `wiki new [folder] [--preset research|code|<folder>]` turns an empty folder into a wiki,
 or adds what is missing to an existing one. This phase builds the preset mechanism and

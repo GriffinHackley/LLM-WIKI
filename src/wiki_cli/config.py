@@ -17,7 +17,7 @@ from wiki_cli.vocabulary import RelationRule, RuleError, Vocabulary, parse_rules
 
 CONFIG_FILENAME = ".wiki-cli.toml"
 CACHE_FILENAME = "wiki.sqlite3"
-DERIVATION_VERSION = "3"  # bump when edge or reason extraction changes: edges are re-derived
+DERIVATION_VERSION = "4"  # bump when edge or reason extraction changes: edges are re-derived
 DEFAULT_PAGES = ("**/*.md",)
 DEFAULT_RAW = ("raw/**/*.txt",)
 DEFAULT_MODELS_DIR = Path.home() / ".cache" / "wiki-cli" / "models"  # shared by every wiki
@@ -26,11 +26,22 @@ DEFAULT_SUMMARY_HEADINGS = ("summary",)
 DEFAULT_SEARCH_RESULTS = 3
 MAX_SEARCH_RESULTS = 20  # search reranks 20 passages (search.RERANK_K), so it never returns more pages
 _TOP_LEVEL = {"pages", "exclude", "raw", "embed_model", "reranker", "relations", "summary", "page_type",
-              "check", "suggest", "search"}
+              "check", "suggest", "search", "preset", "types", "guides"}
+_TYPE_KEYS = {"description", "folder", "template"}
 
 
 class ConfigError(Exception):
     pass
+
+
+@dataclass(frozen=True)
+class PageType:
+    """A page type the wiki declares in `[types.<name>]`: what it is, where its pages live,
+    and the template new pages start from."""
+    name: str
+    description: str = ""
+    folder: str | None = None
+    template: str | None = None
 
 
 @dataclass(frozen=True)
@@ -52,6 +63,9 @@ class Settings:
     require_frontmatter: bool = False
     named_types: tuple[str, ...] = ()  # page types `suggest` matches by name; empty = all
     search_results: int = DEFAULT_SEARCH_RESULTS  # pages returned by search, nav start and nav search
+    preset: str | None = None  # the preset `wiki new` made the wiki from; picks guide variants
+    types: tuple[PageType, ...] = ()  # declared page types; empty = any type is fine
+    guides_dir: str | None = None  # folder of the wiki's own guides, overriding the built-in ones
     vocabulary: Vocabulary = field(default_factory=Vocabulary, compare=False)
     root_note: str | None = field(default=None, compare=False)  # set when no config chose the root
 
@@ -135,8 +149,16 @@ def load_settings(
     folders = page_type.get("folders", {})
     if not isinstance(folders, dict) or not all(isinstance(v, str) for v in folders.values()):
         raise ConfigError(f"{CONFIG_FILENAME}: [page_type] folders must map folder paths to type names")
-    type_folders = tuple(sorted(((k.strip("/"), v.strip().lower()) for k, v in folders.items()),
-                                key=lambda pair: -len(pair[0])))
+    types = _types(_table(config, "types"))
+    by_folder = {k.strip("/"): v.strip().lower() for k, v in folders.items()}
+    by_folder.update({page_type.folder: page_type.name for page_type in types if page_type.folder})
+    type_folders = tuple(sorted(by_folder.items(), key=lambda pair: -len(pair[0])))
+    preset = config.get("preset")
+    if preset is not None and not isinstance(preset, str):
+        raise ConfigError(f"{CONFIG_FILENAME}: 'preset' must be a string")
+    guides_dir = _table(config, "guides").get("dir")
+    if guides_dir is not None and not isinstance(guides_dir, str):
+        raise ConfigError(f"{CONFIG_FILENAME}: [guides] dir must be a folder path")
 
     return Settings(
         root=resolved,
@@ -157,9 +179,29 @@ def load_settings(
         require_frontmatter=bool(check.get("require_frontmatter", False)),
         named_types=tuple(t.lower() for t in _patterns(suggest, "named_types", (), "[suggest] named_types")),
         search_results=results,
+        preset=preset,
+        types=types,
+        guides_dir=guides_dir.strip("/") if guides_dir else None,
         vocabulary=Vocabulary(rules),
         root_note=root_note,
     )
+
+
+def _types(table: dict) -> tuple[PageType, ...]:
+    found = []
+    for name, entry in table.items():
+        where = f"{CONFIG_FILENAME}: [types.{name}]"
+        if not isinstance(entry, dict):
+            raise ConfigError(f"{where} must be a table")
+        unknown = set(entry) - _TYPE_KEYS
+        if unknown:
+            raise ConfigError(f"{where}: unknown key(s) {', '.join(sorted(unknown))}")
+        if not all(isinstance(value, str) for value in entry.values()):
+            raise ConfigError(f"{where}: {', '.join(sorted(_TYPE_KEYS))} must be strings")
+        folder = entry.get("folder", "").strip().strip("/")
+        found.append(PageType(name.strip().lower(), entry.get("description", "").strip(), folder or None,
+                              entry.get("template", "").strip() or None))
+    return tuple(found)
 
 
 def _table(config: dict, key: str) -> dict:
