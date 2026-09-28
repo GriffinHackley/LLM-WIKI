@@ -19,7 +19,7 @@ from dataclasses import dataclass
 
 from wiki_cli import links
 from wiki_cli.pages import RAW, Page, Resolver
-from wiki_cli.vocabulary import EMBEDS, LINKS_TO, MAX_REASON_LENGTH, Vocabulary
+from wiki_cli.vocabulary import EMBEDS, LINKS_TO, MAX_REASON_LENGTH, REFERS_TO_CODE, Vocabulary
 
 _LIST_PREFIX = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+")
 _LEADING_SEPARATOR = re.compile(r"^[\s—–:;,.-]+")
@@ -78,7 +78,14 @@ def derive(page: Page, resolver: Resolver, vocabulary: Vocabulary | None = None)
                 target = links.split_target(match.group(1))[0]
                 candidates.append(_Candidate(target, LINKS_TO, f"Frontmatter: {key}."))
 
+    code_refs: dict[str, Edge] = {}
     for link in links.extract_links(page.body, page.file.rel):
+        if link.is_code:
+            # A file in the code repo, not a page: always "resolved" here; `wiki check` tells
+            # whether the file still exists.
+            code_refs.setdefault(link.target, Edge(link.target, REFERS_TO_CODE,
+                                                   _clip(_reason(link, LINKS_TO)), True))
+            continue
         if link.embed and link.anchor and link.anchor.startswith("^"):
             candidates.append(_Candidate(link.target, EMBEDS, f"Embeds block {link.anchor[1:]}.", link.is_path))
             continue
@@ -107,6 +114,7 @@ def derive(page: Page, resolver: Resolver, vocabulary: Vocabulary | None = None)
                 borrowable.discard(key)
     for key in borrowable & body_reasons.keys():
         best[key] = Edge(key, best[key].type, body_reasons[key], best[key].resolved)
+    best.update(code_refs)
     return sorted(best.values(), key=lambda edge: (vocabulary.specificity(edge.type), edge.target))
 
 

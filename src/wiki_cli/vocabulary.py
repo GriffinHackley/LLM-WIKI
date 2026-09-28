@@ -28,7 +28,8 @@ from dataclasses import dataclass
 
 EMBEDS = "embeds"
 LINKS_TO = "links-to"
-BUILTIN_INVERSES = {EMBEDS: "embedded-in", LINKS_TO: "linked-from"}
+REFERS_TO_CODE = "refers-to-code"  # a `code:` link to a file in the code repo a code wiki describes
+BUILTIN_INVERSES = {EMBEDS: "embedded-in", REFERS_TO_CODE: "referred-to-by", LINKS_TO: "linked-from"}
 
 MAX_REASON_LENGTH = 160
 _TYPE_NAME = re.compile(r"[a-z][a-z0-9-]*")
@@ -119,7 +120,7 @@ class Vocabulary:
         # plain links.
         heading_types = [rule.type for rule in rules if rule.headings]
         field_only = [rule.type for rule in rules if rule.field and rule.type not in heading_types]
-        self.types = tuple(dict.fromkeys(heading_types + [EMBEDS] + field_only + [LINKS_TO]))
+        self.types = tuple(dict.fromkeys(heading_types + [EMBEDS] + field_only + [REFERS_TO_CODE, LINKS_TO]))
         self.field_rules = tuple(rule for rule in rules if rule.field)
 
     def heading_type(self, page_type: str | None, heading: str) -> str | None:

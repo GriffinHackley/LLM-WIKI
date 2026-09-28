@@ -196,7 +196,7 @@ no longer warns forever), a tip on where contradictions collect, a fix so that l
 endings alone no longer make a summary stale, and a `.gitattributes` entry keeping the
 hook's line endings LF. The hook refuses edits to `raw/` and pages with check errors.
 
-## Phase 4: `code` preset
+## Phase 4 (done): `code` preset
 
 A wiki describing a codebase. It differs from a research wiki in more than its types:
 its source is the code, which keeps changing, so the main risk is pages going stale.
@@ -263,6 +263,17 @@ redirect and `AGENTS.md` section), documents three modules and one decision of t
 changing a covered file in this repo makes its page show in `wiki stale`; following
 `wiki guide sync` brings it back to clean; and `wiki new --preset code` without `--code`,
 or with a path inside a repo, refuses with a clear message.
+
+Result: on a clone of this repo, `wiki new --preset code --code <clone>` made a wiki beside
+it and printed the redirect, the `AGENTS.md` section and the Claude settings for the
+clone. Working from the clone, following the guides documented Search, Navigation
+sessions, Scaffold and the derived-relations decision, with `code:` links and typed
+relations. Changing `search.py` showed the Search page in `wiki stale` as uncommitted,
+then as changed after the commit; following `wiki guide sync` updated the page and
+`verified:`, and `wiki stale` came back clean. The refusals (no `--code`, a folder inside
+the repo, a wiki inside the code repo) all work. Also added: a `code` variant of the
+query guide (read the code when the wiki cannot answer), preset-aware next steps, and
+`not-verified` / `covers-nothing` / `missing-code-file` / `code-repo` checks.
 
 ## Phase 5: Install
 

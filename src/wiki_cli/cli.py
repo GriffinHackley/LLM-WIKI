@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
-from wiki_cli import __version__, evaluate, guide, init, scaffold
+from wiki_cli import __version__, codebase, evaluate, guide, init, scaffold
 from wiki_cli.cache import Cache, CacheUnavailable
 from wiki_cli.config import CONFIG_FILENAME, ConfigError, Settings, load_settings
 from wiki_cli.model import ERROR, WARNING, Issue
@@ -183,6 +183,7 @@ def build_parser() -> argparse.ArgumentParser:
     new.add_argument("--preset", default=scaffold.DEFAULT_PRESET,
                      help=f"{' or '.join(scaffold.presets())}, or a preset folder (default: {scaffold.DEFAULT_PRESET})")
     new.add_argument("--agent", choices=scaffold.AGENTS, help="also write this agent's adapter files")
+    new.add_argument("--code", help="code preset: the top folder of the code's git repository (required)")
     new.add_argument("--git-hook", action="store_true",
                      help="install a pre-commit hook: no edits to raw/, and 'wiki check --all' must pass")
     new.add_argument("--format", choices=("text", "json"), default="text")
@@ -191,6 +192,10 @@ def build_parser() -> argparse.ArgumentParser:
     guide_parser = commands.add_parser("guide", parents=[common], help="print a workflow's steps for an agent")
     guide_parser.add_argument("name", nargs="?", help="the workflow (omit to list them)")
     guide_parser.set_defaults(handler=cmd_guide)
+
+    stale = commands.add_parser("stale", parents=[common],
+                                help="code wikis: pages whose covered code changed since they were verified")
+    stale.set_defaults(handler=cmd_stale)
 
     list_parser = commands.add_parser("list", parents=[common], help="every page, with its type and summary")
     list_parser.add_argument("--type", dest="page_type", help="only pages of this type")
@@ -340,7 +345,8 @@ def _print_nav_text(result: dict) -> None:
 # -- new / guide / list ----------------------------------------------------------
 
 def cmd_new(args: argparse.Namespace) -> int:
-    result = scaffold.scaffold(Path(args.folder), args.preset, args.agent, git_hook=args.git_hook)
+    result = scaffold.scaffold(Path(args.folder), args.preset, args.agent, git_hook=args.git_hook,
+                               code=Path(args.code) if args.code else None)
     if args.format == "json":
         _print_json(result)
         return EXIT_OK
@@ -357,11 +363,20 @@ def cmd_new(args: argparse.Namespace) -> int:
         print(f"note: {note}")
     for item in result["add"]:
         print(f"\nadd to {item['file']}:\n{item['text'].rstrip()}")
+    if result.get("code_setup"):
+        print(f"\nin the code repo ({result['code_repo']}), so the agent working on the code keeps the wiki:")
+        for item in result["code_setup"]:
+            print(f"\nadd to {item['file']} ({item['why']}):\n{item['text'].rstrip()}")
     steps = []
     if result["models_missing"]:
         steps.append("wiki models download    (once per machine, about 0.2 GB; search works by keyword until then)")
-    steps.append("put a source in raw/, then ask your agent to ingest it (AGENTS.md tells it how)")
-    steps.append("ask your agent questions about the wiki; 'wiki guide' lists the workflows it follows")
+    if result.get("code_repo"):
+        steps.append("add the lines above to the code repo, so the agent working on the code keeps the wiki")
+        steps.append("from the code repo, ask your agent to document a module ('wiki guide ingest'), and to sync "
+                     "the wiki after code changes ('wiki guide sync')")
+    else:
+        steps.append("put a source in raw/, then ask your agent to ingest it (AGENTS.md tells it how)")
+        steps.append("ask your agent questions about the wiki; 'wiki guide' lists the workflows it follows")
     print("\nnext:")
     for number, step in enumerate(steps, start=1):
         print(f"  {number}. {step}")
@@ -391,6 +406,48 @@ def cmd_guide(args: argparse.Namespace, settings: Settings | None) -> int:
         _print_json({"guide": args.name, "text": text})
     else:
         print(text, end="")
+    return EXIT_OK
+
+
+def cmd_stale(args: argparse.Namespace, settings: Settings) -> int:
+    try:
+        repo = codebase.repo(settings)
+        head = codebase.head(repo)
+    except codebase.CodeRepoError as exc:
+        raise UsageError(str(exc)) from exc
+    scanned, _ = scan_vault(settings)
+    stale, unverified = [], []
+    for page_file, _ in scanned:
+        if page_file.kind != "page":
+            continue
+        page = load(page_file, settings)
+        globs = codebase.covers(page)
+        if not globs:
+            continue
+        verified = codebase.verified(page)
+        if not verified:
+            unverified.append(page.slug)
+            continue
+        result = codebase.staleness(repo, page.slug, page_file.rel, globs, verified)
+        if result.changed or result.uncommitted or result.problem:
+            stale.append(result)
+    if args.format == "json":
+        _print_json({"code_repo": str(repo), "head": head, "stale": [item.to_dict() for item in stale],
+                     "unverified": unverified})
+        return EXIT_OK
+    print(f"code repo {repo} at {head[:12]}")
+    if not stale and not unverified:
+        print("every page with covers: is up to date")
+    for item in stale:
+        print(f"{item.slug}  (verified {item.verified[:12]})")
+        if item.problem:
+            print(f"   {item.problem}")
+        if item.changed:
+            print(f"   changed since: {', '.join(item.changed)}")
+        if item.uncommitted:
+            print(f"   uncommitted changes: {', '.join(item.uncommitted)}")
+    if unverified:
+        print(f"never verified: {', '.join(unverified)}")
     return EXIT_OK
 
 
@@ -505,6 +562,7 @@ def cmd_check(args: argparse.Namespace, settings: Settings) -> int:
         pages = [load(page_file, settings) for page_file in files]
         issues = check_corpus(pages, resolver)
         issues.extend(_cache_issues(pages, settings, resolver, verify=args.verify_cache))
+        issues.extend(codebase.check_pages(pages, settings))
         checked = sum(1 for page in pages if page.file.kind == "page")
     else:
         if args.verify_cache:
@@ -518,6 +576,7 @@ def cmd_check(args: argparse.Namespace, settings: Settings) -> int:
                 cache.conn.commit()
         issues = check_page(page, resolver)
         issues.extend(_cache_issues([page], settings, resolver, verify=False))
+        issues.extend(codebase.check_pages([page], settings))
         checked = 1
 
     issues.sort(key=lambda issue: (issue.path or "", issue.severity != ERROR, issue.code, issue.message))
@@ -689,7 +748,7 @@ def cmd_vocab(args: argparse.Namespace, settings: Settings) -> int:
         entry = {"type": name, "inverse": vocabulary.inverse(name)}
         sources = [f"heading '{h}'" for rule in vocabulary.rules if rule.type == name for h in rule.headings]
         sources += [f"field '{rule.field}'" for rule in vocabulary.rules if rule.type == name and rule.field]
-        entry["from"] = sources or (["block embeds"] if name == "embeds" else ["any other link"])
+        entry["from"] = sources or [{"embeds": "block embeds", "refers-to-code": "code: links"}.get(name, "any other link")]
         types.append(entry)
     if args.format == "json":
         _print_json({"types": types})

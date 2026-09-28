@@ -46,6 +46,8 @@ def check_page(page: Page, resolver: Resolver) -> list[Issue]:
     ambiguous: set[str] = set()
     unresolved: set[str] = set()
     for link in links.extract_links(page.body, page.file.rel):
+        if link.is_code:
+            continue  # a file in the code repo, checked against it by codebase.check_pages
         if link.is_path:
             found = resolver.resolve_path(link.target)
         elif resolver.ambiguous(link.target):

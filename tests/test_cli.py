@@ -115,8 +115,9 @@ def test_vocab(wiki, run):
     code, result = run_json(run, "vocab")
     assert code == 0 and result["types"][0] == {"type": "rests-on", "inverse": "premise-of",
                                                 "from": ["heading 'rests on'", "field 'rests_on'"]}
-    assert result["types"][-3:] == [{"type": "embeds", "inverse": "embedded-in", "from": ["block embeds"]},
+    assert result["types"][-4:] == [{"type": "embeds", "inverse": "embedded-in", "from": ["block embeds"]},
                                     {"type": "draws-on", "inverse": "drawn-on-by", "from": ["field 'sources'"]},
+                                    {"type": "refers-to-code", "inverse": "referred-to-by", "from": ["code: links"]},
                                     {"type": "links-to", "inverse": "linked-from", "from": ["any other link"]}]
 
 

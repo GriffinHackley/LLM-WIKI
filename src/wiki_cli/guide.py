@@ -55,6 +55,10 @@ def render(name: str, settings: Settings | None) -> str:
         names = ", ".join(guide for guide, _ in available(settings))
         raise GuideError(f"no guide '{name}'; available: {names}")
     text = text.replace("{{types}}", types_text(settings)).replace("{{rules}}", RULES)
+    if "{{code_repo}}" in text:
+        code_repo = settings.code_repo if settings is not None else None
+        text = text.replace("{{code_repo}}", code_repo.as_posix() if code_repo else
+                            "(no code repo configured: set [code] repo in .wiki-cli.toml, or WIKI_CODE_REPO)")
     return text.rstrip() + "\n"
 
 
