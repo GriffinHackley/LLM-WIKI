@@ -120,6 +120,16 @@ def download(name: str, models_dir: Path, *, reranker: bool) -> None:
         TextEmbedding(name, cache_dir=str(models_dir))
 
 
+def is_downloaded(name: str, models_dir: Path, *, reranker: bool) -> bool:
+    """True when the model loads without downloading (built-in fakes and 'none' always do)."""
+    if name.startswith("fake:") or name == NO_RERANKER:
+        return True
+    if reranker:
+        return name in RERANKERS and _snapshot(models_dir, name, RERANKERS[name]) is not None
+    spec = EMBEDDING_MODELS.get(name)
+    return spec is not None and _snapshot(models_dir, spec.repo, spec.model_file) is not None
+
+
 def _quiet_fastembed() -> None:
     """fastembed logs through loguru; missing models are reported by this tool instead."""
     try:

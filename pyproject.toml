@@ -27,5 +27,8 @@ wiki = "wiki_cli.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+wiki_cli = ["guides/**/*.md", "presets/**/*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

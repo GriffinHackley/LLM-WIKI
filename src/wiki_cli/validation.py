@@ -30,6 +30,11 @@ def check_page(page: Page, resolver: Resolver) -> list[Issue]:
             if not isinstance(page.data.get(key), str) or not page.data[key].strip():
                 issues.append(Issue(WARNING, "missing-field", f"frontmatter has no '{key}'"))
 
+    declared = {page_type.name for page_type in settings.types} if settings is not None else set()
+    if declared and page.page_type and page.page_type not in declared:
+        issues.append(Issue(WARNING, "unknown-type",
+                            f"type '{page.page_type}' is not one of the types in [types]: {', '.join(sorted(declared))}"))
+
     summary_types = settings.summary_types if settings is not None else ()
     if "*" in summary_types or (page.page_type and page.page_type in summary_types):
         _, fallback = page.summary()

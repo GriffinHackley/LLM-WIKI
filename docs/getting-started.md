@@ -248,12 +248,10 @@ Three small changes in the wiki's repo let Claude Code use the tool.
 }
 ```
 
-**Add the query skill.** Copy
-[`integrations/claude-code/skills/wiki-query/`](../integrations/claude-code/skills/wiki-query/SKILL.md)
-into the wiki's `.claude/skills/`. It tells Claude to answer questions with `wiki nav`:
-start from search, read one section at a time, follow relations by their reasons, stay
-within a page limit, and cite what it used. Edit it to add your wiki's own citation
-rules.
+**Add the query skill.** `wiki new --agent claude` writes `.claude/skills/wiki-query/`,
+a stub that runs `wiki guide query`. The guide tells Claude to answer questions with
+`wiki nav`: start from search, read one section at a time, follow relations by their
+reasons, stay within a page limit, and cite what it used.
 
 **Tell Claude about it** in the wiki's `CLAUDE.md`:
 

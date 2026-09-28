@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
-from wiki_cli import __version__, evaluate, init
+from wiki_cli import __version__, evaluate, guide, init, scaffold
 from wiki_cli.cache import Cache, CacheUnavailable
 from wiki_cli.config import CONFIG_FILENAME, ConfigError, Settings, load_settings
 from wiki_cli.model import ERROR, WARNING, Issue
@@ -47,12 +47,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.print_help()
         return EXIT_ERROR
     try:
+        if args.handler is cmd_new:
+            return cmd_new(args)
+        if args.handler is cmd_guide:
+            return cmd_guide(args, _optional_settings(args))
         settings = load_settings(args.root, args.cache,
                                  getattr(args, "embed_model", None), getattr(args, "reranker", None))
         if settings.root_note:
             print(f"note: {settings.root_note}", file=sys.stderr)
         return args.handler(args, settings)
-    except (ConfigError, PageNotFound, CacheUnavailable, UsageError, ModelUnavailable, evaluate.EvalError) as exc:
+    except (ConfigError, PageNotFound, CacheUnavailable, UsageError, ModelUnavailable, evaluate.EvalError,
+            guide.GuideError, scaffold.ScaffoldError) as exc:
         print(f"wiki: {exc}", file=sys.stderr)
         return EXIT_ERROR
 
@@ -170,6 +175,22 @@ def build_parser() -> argparse.ArgumentParser:
     eval_run.add_argument("--split", choices=evaluate.SPLITS + ("all",), default="test")
     eval_run.add_argument("--keyword-only", action="store_true")
     eval_run.set_defaults(handler=cmd_eval_run)
+
+    new = commands.add_parser("new", help="create a wiki from a preset, or add what is missing (never overwrites)")
+    new.add_argument("folder", nargs="?", default=".", help="the wiki's folder (default: the current folder)")
+    new.add_argument("--preset", default=scaffold.DEFAULT_PRESET,
+                     help=f"{' or '.join(scaffold.presets())}, or a preset folder (default: {scaffold.DEFAULT_PRESET})")
+    new.add_argument("--agent", choices=scaffold.AGENTS, help="also write this agent's adapter files")
+    new.add_argument("--format", choices=("text", "json"), default="text")
+    new.set_defaults(handler=cmd_new)
+
+    guide_parser = commands.add_parser("guide", parents=[common], help="print a workflow's steps for an agent")
+    guide_parser.add_argument("name", nargs="?", help="the workflow (omit to list them)")
+    guide_parser.set_defaults(handler=cmd_guide)
+
+    list_parser = commands.add_parser("list", parents=[common], help="every page, with its type and summary")
+    list_parser.add_argument("--type", dest="page_type", help="only pages of this type")
+    list_parser.set_defaults(handler=cmd_list)
 
     vocab = commands.add_parser("vocab", parents=[common], help="list relation types")
     vocab.set_defaults(handler=cmd_vocab)
@@ -310,6 +331,85 @@ def _print_nav_text(result: dict) -> None:
             print(f"  {event['kind']:<10} {event.get('slug', '')}  {json.dumps(detail, ensure_ascii=False)}".rstrip())
         return
     print(json.dumps(result, ensure_ascii=False, indent=1))
+
+
+# -- new / guide / list ----------------------------------------------------------
+
+def cmd_new(args: argparse.Namespace) -> int:
+    result = scaffold.scaffold(Path(args.folder), args.preset, args.agent)
+    if args.format == "json":
+        _print_json(result)
+        return EXIT_OK
+    print(f"{result['preset']} wiki in {result['root']}")
+    if result["created"]:
+        print(f"created: {', '.join(result['created'])}")
+    if result["kept"]:
+        print(f"kept (already there): {', '.join(result['kept'])}")
+    if result["skipped"]:
+        print(f"not added (the wiki has its own config): {', '.join(result['skipped'])}")
+    if result["git_init"]:
+        print("initialized a git repository")
+    for note in result["notes"]:
+        print(f"note: {note}")
+    for item in result["add"]:
+        print(f"\nadd to {item['file']}:\n{item['text'].rstrip()}")
+    steps = []
+    if result["models_missing"]:
+        steps.append("wiki models download    (once per machine, about 0.2 GB; search works by keyword until then)")
+    steps.append("put a source in raw/, then ask your agent to ingest it (AGENTS.md tells it how)")
+    steps.append("ask your agent questions about the wiki; 'wiki guide' lists the workflows it follows")
+    print("\nnext:")
+    for number, step in enumerate(steps, start=1):
+        print(f"  {number}. {step}")
+    return EXIT_OK
+
+
+def _optional_settings(args: argparse.Namespace) -> Settings | None:
+    """The wiki's settings when there is a wiki here; guides still print without one."""
+    try:
+        settings = load_settings(args.root, args.cache)
+    except ConfigError:
+        return None
+    return settings if settings.root_note is None else None
+
+
+def cmd_guide(args: argparse.Namespace, settings: Settings | None) -> int:
+    if args.name is None:
+        guides = guide.available(settings)
+        if args.format == "json":
+            _print_json({"guides": [{"name": name, "title": title} for name, title in guides]})
+        else:
+            for name, title in guides:
+                print(f"wiki guide {name:<8} {title}")
+        return EXIT_OK
+    text = guide.render(args.name, settings)
+    if args.format == "json":
+        _print_json({"guide": args.name, "text": text})
+    else:
+        print(text, end="")
+    return EXIT_OK
+
+
+def cmd_list(args: argparse.Namespace, settings: Settings) -> int:
+    with Cache(settings) as cache:
+        cache.refresh()
+        query = ("SELECT slug, COALESCE(title, slug), page_type, summary, path FROM pages WHERE kind = 'page'"
+                 + (" AND page_type = ?" if args.page_type else "") + " ORDER BY COALESCE(page_type, '~'), slug")
+        rows = cache.conn.execute(query, (args.page_type.lower(),) if args.page_type else ()).fetchall()
+    pages = [{"slug": slug, "title": title, "type": page_type, "summary": summary, "path": path}
+             for slug, title, page_type, summary, path in rows]
+    if args.format == "json":
+        _print_json({"pages": pages})
+        return EXIT_OK
+    current = object()
+    for page in pages:
+        if page["type"] != current:
+            current = page["type"]
+            print(f"## {current or 'no type'}")
+        print(f"- {page['slug']}: {page['title']}" + (f" — {page['summary']}" if page["summary"] else ""))
+    if not pages:
+        print("no pages" + (f" of type '{args.page_type}'" if args.page_type else ""))
+    return EXIT_OK
 
 
 # -- suggest / unwritten / orphans ---------------------------------------------
