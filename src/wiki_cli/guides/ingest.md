@@ -47,7 +47,8 @@ touches, and commit. One source per run; repeat for the next.
 7. **Check.** Run `wiki index refresh`, then `wiki check <slug>` on every page you created
    or changed, and fix every error. Warnings about links to pages not written yet are
    expected. A `summary-stale` warning means you changed a page's body but not its
-   `## Summary`: re-read the summary and revise it to cover what the page now says.
+   `## Summary`: re-read the summary and revise it to cover what the page now says, or,
+   if it still fits, run `wiki check <slug> --summary-ok`.
 8. **Commit** (if the wiki is a git repository): one commit for this source, with a
    message naming the source slug, the pages created and updated, and any questions
    raised.
