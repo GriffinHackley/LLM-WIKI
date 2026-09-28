@@ -188,9 +188,9 @@ class TestGuides:
             code, guide = run_json(capsys, "guide", name, "--root", str(code_wiki))
             assert code_repo.resolve().as_posix() in guide["text"] and "{{" not in guide["text"]
 
-    def test_code_query_guide_differs_from_the_generic_one_only_in_step_six(self):
+    def test_code_query_guide_differs_from_the_generic_one_only_in_step_seven(self):
         guides = Path(__file__).parents[1] / "src/wiki_cli/guides"
-        generic = (guides / "query.md").read_text(encoding="utf-8").split("\n6. ")
-        code = (guides / "code/query.md").read_text(encoding="utf-8").split("\n6. ")
+        generic = (guides / "query.md").read_text(encoding="utf-8").split("\n7. ")
+        code = (guides / "code/query.md").read_text(encoding="utf-8").split("\n7. ")
         assert generic[0] == code[0]
-        assert generic[1].split("\n7. ", 1)[1] == code[1].split("\n7. ", 1)[1]
+        assert generic[1].split("\n8. ", 1)[1] == code[1].split("\n8. ", 1)[1]

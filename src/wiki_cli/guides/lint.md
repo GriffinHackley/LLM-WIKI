@@ -20,8 +20,8 @@ what needs judgment, and commit the fixes.
      report; the most-linked first), or a link that should not exist (remove it).
    - `wiki orphans`: pages nothing links to. Link each from the pages that discuss it
      (`wiki suggest <slug>` and `wiki search` find them), or report it if nothing
-     should. `wiki/open-questions.md` is an orphan until a page raises a question; that
-     is fine.
+     should. An open-questions page is an orphan until a page raises a question; that is
+     fine.
 3. **Judgment checks, by reading.** Use `wiki search`, `wiki list --type <type>` and
    `wiki neighbors` to find the pages to compare; read only what you need.
    - **Contradictions:** pages that disagree about the same fact (a date, a role, a
@@ -30,11 +30,12 @@ what needs judgment, and commit the fixes.
      involves and the pages that link to it); for each person or organization, compare
      its timeline with the events it links. Check the sources each side cites. When a
      source settles it, fix the wrong page and cite the source; otherwise file it in
-     `wiki/open-questions.md` with the pages and sources on each side.
+     the wiki's open questions (`wiki/open-questions.md` in the presets) with the pages
+     and sources on each side.
    - **Uncited facts:** paragraphs stating facts with no link to a source page. Add the
      citation if the page's sources support the fact; otherwise report it. Never guess a
      citation.
-   - **Settled questions:** entries in `wiki/open-questions.md` that a later source
+   - **Settled questions:** open questions that a later source
      answers. Update the pages, and remove the entry.
    - **Stale summaries:** for each `summary-stale` page, re-read the summary against the
      page. Revise it to cover what the page now says, or, if it still fits, run
