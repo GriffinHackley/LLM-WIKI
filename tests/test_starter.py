@@ -205,3 +205,13 @@ class TestList:
         assert main(["list", "--root", str(root)]) == 0
         text = capsys.readouterr().out
         assert "## person\n- ada: Ada Lovelace — A mathematician." in text
+
+
+def test_ingest_guide_names_the_wikis_types(new_wiki, capsys):
+    root, _ = new_wiki
+    code, ingest = run_json(capsys, "guide", "ingest", "--root", str(root))
+    assert code == 0
+    assert "`place`: A location: a country" in ingest["text"] and "wiki suggest" in ingest["text"]
+    assert "{{" not in ingest["text"]
+    scaffold(root, agent="claude")
+    assert (root / ".claude/skills/wiki-ingest/SKILL.md").is_file()

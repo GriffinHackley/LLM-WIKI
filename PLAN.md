@@ -136,7 +136,7 @@ Done when: `wiki new` on an empty folder followed by `wiki index refresh` and
 `wiki check --all` reports no errors, re-running it changes nothing, and running it in a
 copy of Politics creates no file that Politics already has.
 
-## Phase 2: Ingest guide
+## Phase 2 (done): Ingest guide
 
 `wiki guide ingest`: a generic ingest workflow, modelled on Politics' `/ingest` without
 its domain rules.
@@ -159,6 +159,13 @@ Done when: an agent following the guide ingests three varied sources (a web page
 PDF, notes) into a fresh wiki, yielding source and entity pages with typed relations, no
 `wiki check` errors, and one commit per source. Tried with Claude Code and at least one
 other agent (OpenCode with a local model).
+
+Result: Claude, following only `wiki guide ingest`, ingested an NPR web page, a UN
+resolution PDF and a notes file into a fresh wiki: 3 source pages and 12 entity pages,
+typed relations with the citing sentences as reasons, no `wiki check` errors, one commit
+per source. The trial added two things to the kit: `place` covers countries, and the guide
+says what to do about `summary-stale` after merging facts into a page. **Pending:** the
+same trial with OpenCode and a local model, which needs OpenCode and Ollama installed.
 
 ## Phase 3: Lint guide
 
