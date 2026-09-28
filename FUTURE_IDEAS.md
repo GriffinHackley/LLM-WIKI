@@ -53,6 +53,14 @@ PyYAML MIT, numpy BSD); the models are downloaded, not shipped. Leaning MIT for 
 with 0BSD or CC0 for `src/wiki_cli/starter/` so files `wiki new` copies into a wiki carry
 no notice requirement. Needs the copyright holder's name.
 
+## Editable files in raw/
+
+The pre-commit hook (`wiki new --git-hook`) refuses any edit, rename or deletion under
+`raw/`. Politics keeps a manifest there (`raw/SOURCES.md`) that it updates as sources
+arrive, so it keeps its own hook with an exemption. If other wikis do the same, let the
+config name files in `raw/` that may change (`[raw] editable = ["raw/SOURCES.md"]`) and
+have the hook read it.
+
 ## Several code repos per wiki
 
 The `code` preset handles one code repo per wiki. Microservices, or a frontend and

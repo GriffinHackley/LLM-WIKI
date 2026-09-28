@@ -353,7 +353,7 @@ Result:
 - **Pending:** the part run with OpenCode and a local model (needs OpenCode and Ollama
   installed).
 
-## Phase 8: Convert Politics
+## Phase 8 (done, pull request open): Convert Politics
 
 The final test of the research phases, started only once Phases 1 to 7 are done and the
 kit is in good shape. Politics becomes a wiki built on the kit, with its own rules on
@@ -375,6 +375,34 @@ Done on a branch, delivered as a pull request, as in v2 Phase 6. Done when: sear
 quality on its 50 evaluation questions is within noise of today, an ingest and a query
 following the converted workflows match the quality of the current skills, and the
 notes on customisation gaps are resolved or recorded in FUTURE_IDEAS.md.
+
+Result, on the Politics branch `wiki-starter-kit`:
+- `AGENTS.md` holds what `CLAUDE.md` held: workflows point at the guides, and everything
+  specific to Politics (editorial rules, source tiers, page conventions, and the dossier,
+  claims, quote and presentation steps) sits under "Your rules", headings unchanged, with
+  a "Workflow additions" subsection for ingest, query and lint. `CLAUDE.md` imports it.
+  `/ingest`, `/query` and `/lint` are stubs that run their guides; `/claims` and
+  `/new-dossier` stay Politics' own. Types are in `[types]`; `index.md` is gone.
+- Search quality is identical (hit@1 0.511, hit@3 0.778, MRR 0.639).
+- **Ingest:** a document page removed in a scratch copy and re-ingested through the
+  converted workflow came out more complete than the original (eight entities against
+  three, three verified quotes against one, dated facts, a stated gap), with quotes
+  passing `check_quotes.py` and `fix_links.py` updating every use of the title.
+- **Query:** a two-part question with a judgment part was answered from two pages with
+  claim statuses and a stated scope, as the old skill required.
+- **Customisation gaps**, and what happened to each:
+  - The guides assumed a type named `source` and a `wiki/open-questions.md`: fixed, the
+    guides now say "the source type" and "where the wiki keeps open questions".
+  - Politics' query skill had steps every wiki needs (split the question into parts, a
+    gap check before saying the wiki lacks something, `--keyword-only` for exact
+    strings): moved into the generic query guide.
+  - Additions are prose layered on the guides, placed by reference ("before the guide's
+    check step"); that worked, so the guides need no numbered insertion points yet.
+  - The generic pre-commit hook cannot exempt a manifest that lives in `raw/`
+    (`raw/SOURCES.md`): Politics keeps its own hook with the exemption; recorded in
+    FUTURE_IDEAS.md.
+  - The "read the rules before editing" guardrail (`require_rules.py`) has no generic
+    equivalent and stays a Claude Code hook in Politics.
 
 ## Open decisions
 
