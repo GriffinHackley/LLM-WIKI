@@ -322,7 +322,7 @@ for `llm-wiki-cli` on PyPI; tag `v0.2.0`. Existing installs of `wiki-cli` need
 Done when: someone following only the docs on a fresh machine gets from nothing to a
 first answered query.
 
-## Phase 7: Dry run
+## Phase 7 (done, second agent pending): Dry run
 
 Start a `research` wiki on a topic unrelated to Politics: ingest about ten sources
 following the guides, answer five questions with the query guide, run the lint guide.
@@ -330,6 +330,28 @@ Start a `code` wiki for a real repo other than this one, working from the code r
 document it, change some code, sync. Use Claude Code for most of it and OpenCode with a
 local model for part. Fix the rough edges found, as for the Phase 7 dry run of v2.
 Re-run the test suite and the Politics evaluation to confirm nothing regressed.
+
+Result:
+- **Research wiki** on an unrelated topic: ten sources (the package metadata of the
+  libraries in this repo's environment), ingested one by one following the guide: 38
+  pages (10 sources, 13 concepts, 5 organizations, 8 people, an analysis, open
+  questions), one commit per source, no check errors. Five questions through the query
+  guide: four answered in one page read each, the fifth (how sqlite-vec works) correctly
+  reported as a gap the sources do not cover. One answer filed as an `analysis` page.
+  The lint pass found the analysis orphaned and an uncited line in it; fixed, and caught
+  a link broken by the fix. Ends at 0 errors, 0 warnings.
+- **Code wiki** for a copy of the D&D character sheet app (its `app/` folder, as a git
+  repo), worked from the code repo: four modules, a concept and a decision documented
+  with `code:` links; a change to `compute.ts` showed in `wiki stale` and the sync guide
+  brought it back to clean; the coverage step names the UI folders no page covers yet.
+- **Regressions:** 228 tests pass; the Politics evaluation is identical before and after
+  the kit (hit@1 0.511, hit@3 0.778, MRR 0.639 on all 50 questions).
+- **Fixed from the dry run:** `concept` covers products and tools (a software library had
+  no type); summaries keep underscores inside words (`huggingface_hub` showed as
+  "huggingfacehub"), recomputed on the next refresh; the query guide says citing a page
+  known only from its summary is fine.
+- **Pending:** the part run with OpenCode and a local model (needs OpenCode and Ollama
+  installed).
 
 ## Phase 8: Convert Politics
 
