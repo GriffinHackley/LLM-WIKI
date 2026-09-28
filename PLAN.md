@@ -167,7 +167,7 @@ per source. The trial added two things to the kit: `place` covers countries, and
 says what to do about `summary-stale` after merging facts into a page. **Pending:** the
 same trial with OpenCode and a local model, which needs OpenCode and Ollama installed.
 
-## Phase 3: Lint guide
+## Phase 3 (done): Lint guide
 
 `wiki guide lint`:
 
@@ -187,6 +187,14 @@ in FUTURE_IDEAS.md would slot into step 2 if built.
 Done when: on a fresh wiki with planted problems (a broken link, an orphan, a missing
 summary, a contradiction), an agent following the guide finds all four and fixes the
 first three.
+
+Result: on the Phase 2 trial wiki with a typo link, a contradicting date, an orphan and a
+page with no summary, following the guide found all four and fixed the typo, the date
+(the source settled it) and the summary, and reported the orphan with its uncited fact.
+The trial added `wiki check <slug> --summary-ok` (a summary that still fits after an edit
+no longer warns forever), a tip on where contradictions collect, a fix so that line
+endings alone no longer make a summary stale, and a `.gitattributes` entry keeping the
+hook's line endings LF. The hook refuses edits to `raw/` and pages with check errors.
 
 ## Phase 4: `code` preset
 

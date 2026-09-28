@@ -19,6 +19,7 @@ from wiki_cli.models import Embedder
 from wiki_cli.pages import PAGE, Page, PageFile, Resolver, content_hash, parse, scan, scan_vault, vault_files
 
 SCHEMA_VERSION = "4"
+BODY_HASH_VERSION = "2"  # 2: line endings normalized; a change rehashes bodies on the next refresh
 EMBED_BATCH_PAGES = 32
 LARGE_CHANGE = 500  # pages; beyond this, truncate the write-ahead log afterwards
 
@@ -99,6 +100,7 @@ class Cache:
         self.rebuilt = False  # schema was reset when this instance opened the cache
         self.needs_full_refresh = False
         self.needs_rederive = False
+        self.needs_rehash = False  # body hashes predate BODY_HASH_VERSION
         self.vocabulary = settings.vocabulary
         self.conn = self._connect()
         self._ensure_schema()
@@ -139,6 +141,8 @@ class Cache:
             # refresh (no re-embedding needed).
             if not self.readonly and self._meta("graph_config") != self.settings.fingerprint():
                 self.needs_rederive = True
+            if not self.readonly and self._meta("body_hash_version") != BODY_HASH_VERSION:
+                self.needs_rederive = self.needs_rehash = True
             return
         if self.readonly:
             raise CacheUnavailable("cache is missing, from another schema version, or built with other "
@@ -157,7 +161,7 @@ class Cache:
                 "INSERT INTO metadata(key, value) VALUES (?, ?)",
                 [("schema_version", SCHEMA_VERSION), ("root", str(self.settings.root)),
                  ("summary_config", self.settings.summary_fingerprint()),
-                 ("graph_config", self.settings.fingerprint())],
+                 ("graph_config", self.settings.fingerprint()), ("body_hash_version", BODY_HASH_VERSION)],
             )
             self.conn.execute("COMMIT")
         except BaseException:
@@ -321,6 +325,11 @@ class Cache:
             except FileNotFoundError:
                 continue
             self.conn.execute("UPDATE pages SET page_type = ? WHERE path = ?", (page.page_type, page_file.rel))
+            if self.needs_rehash and page_file.kind == PAGE:
+                # Old hashes are not comparable with new ones: start each page's summary afresh.
+                self.conn.execute("UPDATE pages SET body_hash = ?1, summary_body_hash = CASE WHEN "
+                                  "summary_body_hash IS NULL THEN NULL ELSE ?1 END WHERE path = ?2",
+                                  (page.body_hash, page_file.rel))
             self.conn.execute("DELETE FROM relations WHERE source_path = ?", (page_file.rel,))
             self.conn.executemany(
                 """INSERT OR REPLACE INTO relations
@@ -330,6 +339,10 @@ class Cache:
                  for edge in derive(page, resolver, self.vocabulary)])
         self.conn.execute("INSERT OR REPLACE INTO metadata(key, value) VALUES ('graph_config', ?)",
                           (self.settings.fingerprint(),))
+        if self.needs_rehash:
+            self.conn.execute("INSERT OR REPLACE INTO metadata(key, value) VALUES ('body_hash_version', ?)",
+                              (BODY_HASH_VERSION,))
+            self.needs_rehash = False
 
     def _reresolve(self, resolver: Resolver) -> None:
         """After pages appear or disappear, update which edges point at real pages."""

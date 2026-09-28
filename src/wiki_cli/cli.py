@@ -144,6 +144,8 @@ def build_parser() -> argparse.ArgumentParser:
     check.add_argument("--verify-cache", action="store_true", help="also verify the cache matches the files (with --all)")
     check.add_argument("--strict", action="store_true", help="fail on warnings too")
     check.add_argument("--no-warnings", action="store_true", help="hide warnings")
+    check.add_argument("--summary-ok", action="store_true",
+                       help="record that the page's summary still fits its body (clears summary-stale)")
     check.set_defaults(handler=cmd_check)
 
     index = commands.add_parser("index", help="manage the derived cache").add_subparsers(title="index commands", metavar="<command>")
@@ -181,6 +183,8 @@ def build_parser() -> argparse.ArgumentParser:
     new.add_argument("--preset", default=scaffold.DEFAULT_PRESET,
                      help=f"{' or '.join(scaffold.presets())}, or a preset folder (default: {scaffold.DEFAULT_PRESET})")
     new.add_argument("--agent", choices=scaffold.AGENTS, help="also write this agent's adapter files")
+    new.add_argument("--git-hook", action="store_true",
+                     help="install a pre-commit hook: no edits to raw/, and 'wiki check --all' must pass")
     new.add_argument("--format", choices=("text", "json"), default="text")
     new.set_defaults(handler=cmd_new)
 
@@ -336,7 +340,7 @@ def _print_nav_text(result: dict) -> None:
 # -- new / guide / list ----------------------------------------------------------
 
 def cmd_new(args: argparse.Namespace) -> int:
-    result = scaffold.scaffold(Path(args.folder), args.preset, args.agent)
+    result = scaffold.scaffold(Path(args.folder), args.preset, args.agent, git_hook=args.git_hook)
     if args.format == "json":
         _print_json(result)
         return EXIT_OK
@@ -492,6 +496,8 @@ def cmd_neighbors(args: argparse.Namespace, settings: Settings) -> int:
 # -- check -------------------------------------------------------------------
 
 def cmd_check(args: argparse.Namespace, settings: Settings) -> int:
+    if args.all and args.summary_ok:
+        raise UsageError("--summary-ok takes one page, after you have re-read its summary")
     scanned, others = scan_vault(settings)
     files = [page_file for page_file, _ in scanned]
     resolver = Resolver([(page_file.slug, page_file.rel) for page_file in files], others)
@@ -504,6 +510,12 @@ def cmd_check(args: argparse.Namespace, settings: Settings) -> int:
         if args.verify_cache:
             raise UsageError("--verify-cache requires --all")
         page = load(resolve(args.target, settings), settings)
+        if args.summary_ok:
+            with Cache(settings) as cache:  # only the cache records this; the page is not touched
+                cache.ensure_fresh(page.slug)
+                cache.conn.execute("UPDATE pages SET summary_body_hash = body_hash WHERE path = ? "
+                                   "AND summary_body_hash IS NOT NULL", (page.file.rel,))
+                cache.conn.commit()
         issues = check_page(page, resolver)
         issues.extend(_cache_issues([page], settings, resolver, verify=False))
         checked = 1

@@ -29,7 +29,7 @@ def new_wiki(tmp_path, capsys):
 def write(root: Path, rel: str, text: str) -> Path:
     path = root / rel
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
+    path.write_bytes(text.encode("utf-8"))  # exactly as given: no CRLF translation on Windows
     return path
 
 
@@ -215,3 +215,50 @@ def test_ingest_guide_names_the_wikis_types(new_wiki, capsys):
     assert "{{" not in ingest["text"]
     scaffold(root, agent="claude")
     assert (root / ".claude/skills/wiki-ingest/SKILL.md").is_file()
+
+
+@pytest.mark.skipif(not shutil.which("git"), reason="needs git")
+def test_git_hook_blocks_edits_to_raw_and_check_errors(tmp_path):
+    import subprocess
+    root = tmp_path / "w"
+    result = scaffold(root, git_hook=True)
+    assert ".githooks/pre-commit" in result["created"] and ".gitattributes" in result["created"]
+    assert b"\r\n" not in (root / ".githooks/pre-commit").read_bytes()
+
+    def git(*args):
+        return subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *args], cwd=root,
+                              capture_output=True, text=True)
+
+    assert git("config", "--get", "core.hooksPath").stdout.strip() == ".githooks"
+    write(root, "raw/source.txt", "original\n")
+    git("add", "-A")
+    assert git("commit", "-qm", "add a source").returncode == 0  # adding sources is fine
+    write(root, "raw/source.txt", "edited\n")
+    git("add", "-A")
+    refused = git("commit", "-qm", "edit a source")
+    assert refused.returncode != 0 and "raw/source.txt" in refused.stderr
+
+
+def test_summary_ok_clears_summary_stale(new_wiki, capsys):
+    root, _ = new_wiki
+    page = write(root, "wiki/people/ada.md", "---\ntitle: Ada\n---\n# Ada\n\n## Summary\nA mathematician.\n\n"
+                                            "## Details\nWrote notes.\n")
+    main(["index", "refresh", "--no-embed", "--root", str(root)])
+    page.write_text(page.read_text(encoding="utf-8").replace("Wrote notes.", "Wrote the first program."),
+                    encoding="utf-8")
+    main(["index", "refresh", "--no-embed", "--root", str(root)])
+    code, report = run_json(capsys, "check", "ada", "--root", str(root))
+    assert [issue["code"] for issue in report["issues"]] == ["summary-stale"]
+    code, report = run_json(capsys, "check", "ada", "--summary-ok", "--root", str(root))
+    assert report["issues"] == []
+    assert main(["check", "--all", "--summary-ok", "--root", str(root)]) == 2
+
+
+def test_line_endings_alone_do_not_make_a_summary_stale(new_wiki, capsys):
+    root, _ = new_wiki
+    page = write(root, "wiki/people/ada.md", "---\ntitle: Ada\n---\n# Ada\n\n## Summary\nA mathematician.\n")
+    main(["index", "refresh", "--no-embed", "--root", str(root)])
+    page.write_bytes(page.read_bytes().replace(b"\n", b"\r\n"))
+    main(["index", "refresh", "--no-embed", "--root", str(root)])
+    code, report = run_json(capsys, "check", "ada", "--root", str(root))
+    assert report["issues"] == []

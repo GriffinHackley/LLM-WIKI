@@ -1,0 +1,24 @@
+#!/bin/sh
+# Wiki pre-commit hook, installed by `wiki new --git-hook`. A backstop for edits made
+# outside an agent's workflows (an editor, Obsidian, by hand):
+#   - sources in raw/ are never edited, renamed or deleted (adding new ones is fine);
+#   - `wiki check --all` must report no errors.
+# Enabled per clone with: git config core.hooksPath .githooks
+# Bypass (not recommended): git commit --no-verify
+changed=$(git diff --cached --name-only --diff-filter=MDR -- raw/)
+if [ -n "$changed" ]; then
+  echo "pre-commit: sources in raw/ are never edited, renamed or deleted:" >&2
+  echo "$changed" | sed 's/^/  /' >&2
+  echo "pre-commit: restore them (git restore --staged --worktree <file>), then commit again." >&2
+  exit 1
+fi
+if command -v wiki >/dev/null 2>&1; then
+  if ! out=$(wiki check --all --no-warnings 2>&1); then
+    echo "$out" >&2
+    echo "pre-commit: fix the errors above, then commit again." >&2
+    exit 1
+  fi
+else
+  echo "pre-commit: 'wiki' is not installed; skipped 'wiki check --all'." >&2
+fi
+exit 0

@@ -20,6 +20,7 @@ from wiki_cli.config import CONFIG_FILENAME, ConfigError, load_settings
 from wiki_cli.models import is_downloaded
 
 PRESETS_DIR = Path(__file__).parent / "presets"
+HOOKS_DIR = Path(__file__).parent / "hooks"
 DEFAULT_PRESET = "research"
 AGENTS = ("claude",)
 CLAUDE_PERMISSION = "Bash(wiki:*)"
@@ -44,7 +45,8 @@ def preset_files(preset: str) -> tuple[str, Path]:
     raise ScaffoldError(f"no preset '{preset}': use one of {', '.join(presets())}, or a preset folder")
 
 
-def scaffold(target: Path, preset: str = DEFAULT_PRESET, agent: str | None = None) -> dict:
+def scaffold(target: Path, preset: str = DEFAULT_PRESET, agent: str | None = None, *,
+             git_hook: bool = False) -> dict:
     target = target.expanduser().resolve()
     if target == Path.home().resolve() or target == Path(target.anchor):
         raise ScaffoldError(f"{target} is not a wiki folder; name a folder for the wiki")
@@ -81,6 +83,8 @@ def scaffold(target: Path, preset: str = DEFAULT_PRESET, agent: str | None = Non
         result["created"].append(rel)
 
     result["git_init"] = _git_init(target, result)
+    if git_hook:
+        _git_hook(target, result)
     try:
         settings = load_settings(target)
     except ConfigError as exc:
@@ -149,6 +153,41 @@ def _git_init(target: Path, result: dict) -> bool:
                                "the workflows commit after each unit of work")
         return False
     return True
+
+
+def _git_hook(target: Path, result: dict) -> None:
+    """Install the pre-commit backstop as `.githooks/pre-commit`, versioned with the wiki,
+    and point this clone's `core.hooksPath` at it unless it already points elsewhere."""
+    rel = ".githooks/pre-commit"
+    path = target / rel
+    if path.exists():
+        result["kept"].append(rel)
+    else:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes((HOOKS_DIR / "pre-commit").read_bytes().replace(b"\r\n", b"\n"))
+        path.chmod(0o755)
+        result["created"].append(rel)
+    # A shell script checked out with CRLF line endings (Windows, core.autocrlf) fails elsewhere.
+    attributes, line = target / ".gitattributes", ".githooks/* text eol=lf"
+    if not attributes.exists():
+        attributes.write_text(line + "\n", encoding="utf-8")
+        result["created"].append(".gitattributes")
+    elif ".githooks" not in attributes.read_text(encoding="utf-8", errors="replace"):
+        result["kept"].append(".gitattributes")
+        result["add"].append({"file": ".gitattributes", "text": line + "\n"})
+    try:
+        current = subprocess.run(["git", "config", "--get", "core.hooksPath"], cwd=target,
+                                 capture_output=True, text=True).stdout.strip()
+        if current and current != ".githooks":
+            result["notes"].append(f"core.hooksPath is already '{current}'; the hook in {rel} is not active. "
+                                   "Call it from your hooks, or run 'git config core.hooksPath .githooks'")
+        elif not current:
+            subprocess.run(["git", "config", "core.hooksPath", ".githooks"], cwd=target, check=True,
+                           capture_output=True)
+            result["notes"].append("pre-commit hook enabled for this clone; other clones enable it with "
+                                   "'git config core.hooksPath .githooks'")
+    except (OSError, subprocess.CalledProcessError):
+        result["notes"].append(f"wrote {rel}, but could not enable it: run 'git config core.hooksPath .githooks'")
 
 
 def _claude(target: Path, settings, result: dict) -> None:

@@ -85,7 +85,8 @@ class Page:
     def body_hash(self) -> str:
         """Hash of the body without its summary text, to detect a stale summary."""
         summary, _ = self.summary()
-        body = self.body.replace(summary, "") if summary else self.body
+        body = self.body.replace("\r\n", "\n")  # line endings alone (an editor, git autocrlf) are no change
+        body = body.replace(summary, "") if summary else body
         return content_hash(body.encode("utf-8"))
 
 
