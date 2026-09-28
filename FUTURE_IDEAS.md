@@ -1,6 +1,6 @@
 # Future Ideas
 
-Possible improvements deferred from the main upgrade plan. Nothing here is
+Possible improvements deferred from the plans ([PLAN.md](PLAN.md)). Nothing here is
 committed scope; promote an item into the plan only after deciding to build it.
 
 ## Token budget for traversal sessions
@@ -11,6 +11,70 @@ Pages vary widely in size, so a page-count limit alone does not bound cost: a
 offer a truncated or section-only read) once the remaining budget cannot cover the
 requested page, and `candidates` could show each page's approximate size so the
 agent can weigh cost when choosing.
+
+## Source intake
+
+Deferred from the starter kit plan: `/wiki-ingest` assumes a readable file is already in
+`raw/`.
+
+- **`wiki add <url | file>`:** save a web page as HTML plus extracted text, and a PDF or
+  DOCX as extracted text beside the original, so the raw search tier covers it. Politics'
+  `.claude/fetch_html.py` is a rough version for web pages.
+- **Provenance:** URL, retrieval date and original file name, in the text file's header
+  or a `raw/SOURCES.md`.
+- **`wiki pending`:** files in `raw/` that no page links to yet, so `/wiki-ingest` with no
+  argument can offer only what is left. The index already holds the links to answer it.
+- **`wiki extract <file>`:** write `raw/<name>.txt` beside a PDF or HTML original, and
+  have the ingest guide run it when no `.txt` exists. Matters for the "any agent"
+  principle: Claude reads PDFs, several other agents do not. The text is also what the
+  raw search tier indexes.
+
+## Agent-platform adapters
+
+Deferred from the starter kit plan, and optional by design: the kit must work with any
+agent through the `wiki` command and `AGENTS.md`, so these only add convenience on one
+platform and never become the only way to do something.
+
+- A **"file this answer"** workflow (upstream `llm-wiki` calls it `crystallize`) that
+  saves a good synthesis from a query as an `analysis` page. This one is generic: a
+  `wiki guide file-answer`, not a platform feature.
+- **Guardrails** that block edits under `raw/` and run `wiki index refresh` after page
+  edits. The generic form is a git pre-commit hook that rejects changes under `raw/`;
+  agent hooks (Claude Code's `PreToolUse`, for example) would be per-platform extras.
+- **Packaging** the stubs as a Claude Code plugin or similar, if copying them per wiki
+  becomes a chore.
+- **An MCP server** exposing the commands as tools, for agents without a shell.
+
+## License
+
+TODO before publishing to PyPI or anyone else installs it. Dependencies are all
+permissive (fastembed and tokenizers Apache-2.0, sqlite-vec MIT/Apache, onnxruntime MIT,
+PyYAML MIT, numpy BSD); the models are downloaded, not shipped. Leaning MIT for the tool,
+with 0BSD or CC0 for `src/wiki_cli/starter/` so files `wiki new` copies into a wiki carry
+no notice requirement. Needs the copyright holder's name.
+
+## Several code repos per wiki
+
+The `code` preset handles one code repo per wiki. Microservices, or a frontend and
+backend in separate repos, would want one wiki across several: the config would hold
+`[code.repos.<name>]` pointers and links would read `code:<name>/path`. Moving to that
+from `code:path` means rewriting every code link, so decide before code wikis pile up.
+
+## Graph health checks
+
+`orphans` and `unwritten` catch missing links, not weak structure. Borrowed from the
+geronimo-iia `llm-wiki` engine's lint rules, a `wiki check --graph` (or an `orphans`
+extension) for `/lint` could report, over the relations graph:
+
+- **Articulation points:** pages whose removal splits the graph; add paths around them.
+- **Bridges:** single relations whose removal splits the graph; add a parallel path.
+- **Isolated clusters:** communities (Louvain) of two pages or fewer, as a review
+  queue for `wiki suggest`.
+- **Top hubs** and cluster counts as a short summary line.
+
+`wiki suggest` could add a "same cluster, no link path" candidate type, which
+upstream finds the most valuable link suggestions. Community detection is noise on
+small graphs; upstream skips it below 30 pages.
 
 ## Other items deferred during planning
 

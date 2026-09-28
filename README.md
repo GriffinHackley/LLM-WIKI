@@ -8,8 +8,9 @@ relations with reasons, and read only the sections they need, within a page limi
 **New here? Start with [docs/getting-started.md](docs/getting-started.md)**: install, set
 up an existing wiki, and connect Claude Code, in about ten minutes.
 
-See [UPGRADE_PLAN.md](UPGRADE_PLAN.md) for the design and
-[FUTURE_IDEAS.md](FUTURE_IDEAS.md) for deferred ideas.
+See [PLAN.md](PLAN.md) for the current plan,
+[docs/archive/upgrade-plan-v2.md](docs/archive/upgrade-plan-v2.md) for the design so far,
+and [FUTURE_IDEAS.md](FUTURE_IDEAS.md) for deferred ideas.
 
 The tool never edits pages. Everything it builds lives in a disposable SQLite
 cache in `<root>/.cache/` (add `.cache/` to the repo's `.gitignore`).
