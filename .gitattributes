@@ -1,0 +1,5 @@
+# Files `wiki new` copies into wikis, and the guides it prints: LF everywhere, so a wheel
+# built on Windows ships the same bytes as one built elsewhere (and hooks run in sh).
+src/wiki_cli/presets/** text eol=lf
+src/wiki_cli/guides/** text eol=lf
+src/wiki_cli/hooks/* text eol=lf

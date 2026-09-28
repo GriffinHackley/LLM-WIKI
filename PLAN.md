@@ -275,7 +275,7 @@ the repo, a wiki inside the code repo) all work. Also added: a `code` variant of
 query guide (read the code when the wiki cannot answer), preset-aware next steps, and
 `not-verified` / `covers-nothing` / `missing-code-file` / `code-repo` checks.
 
-## Phase 5: Install
+## Phase 5 (done, publishing pending): Install
 
 Today install needs a clone plus `uv tool install --editable`.
 
@@ -292,6 +292,17 @@ Today install needs a clone plus `uv tool install --editable`.
 
 Done when: on a machine without the repo, installing the package, then
 `wiki models download`, then `wiki new` works end to end.
+
+Result: the package is `llm-wiki-cli` 0.2.0 (command still `wiki`). A wheel built on
+Windows carries every guide, preset and the hook, all with LF line endings
+(`.gitattributes`), and `wiki new` and `wiki guide` run from it. `uv tool install
+git+<repo URL>` installs a working `wiki` without a clone (tried from a local git URL into
+an isolated tool folder). A missing model now names the command and the size. Added
+GitHub Actions: tests on Windows, macOS and Linux on every push, and publishing to PyPI
+on a `v*` tag. **Pending, for the owner:** push the repo (and make it public, or share
+access, for git installs); add a license (FUTURE_IDEAS.md); set up trusted publishing
+for `llm-wiki-cli` on PyPI; tag `v0.2.0`. Existing installs of `wiki-cli` need
+`uv tool uninstall wiki-cli` before installing `llm-wiki-cli`, as both provide `wiki`.
 
 ## Phase 6: Docs
 
