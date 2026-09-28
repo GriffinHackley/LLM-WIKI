@@ -350,7 +350,8 @@ class Cache:
         # Only unresolved edges, or resolved ones whose target vanished, can change.
         rows = self.conn.execute(
             """SELECT source_path, target_slug, resolved FROM relations
-               WHERE resolved = 0 OR target_slug NOT IN (SELECT slug FROM pages)"""
+               WHERE (resolved = 0 OR target_slug NOT IN (SELECT slug FROM pages))
+                 AND relation_type != 'refers-to-code'"""
         ).fetchall()
         for source_path, target, resolved in rows:
             new_target = resolver.resolve(target)

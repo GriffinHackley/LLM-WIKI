@@ -31,6 +31,16 @@ class Link:
     raw: str = ""  # the link exactly as written
     is_path: bool = False  # a Markdown link: target is a path from the wiki root, never a bare name
     context: str = ""  # the whole paragraph, list item or table row, with wrapped lines joined
+    is_code: bool = False  # a `code:` link: target is "code:<path in the code repo>", not a page
+
+
+def code_target(href: str) -> str | None:
+    """``code:src/app.py#L10`` -> ``code:src/app.py``: a file in the code repo a code wiki describes."""
+    href = href.strip().strip("<>")
+    if not href.lower().startswith("code:"):
+        return None
+    path = posixpath.normpath(unquote(href[5:].split("#", 1)[0]).replace("\\", "/").lstrip("/"))
+    return None if path in (".", "") or path.startswith("..") else "code:" + path
 
 
 def split_target(inner: str) -> tuple[str, str | None, str | None]:
@@ -130,6 +140,11 @@ def extract_links(body: str, source_rel: str | None = None) -> list[Link]:
                 if target:
                     found.append(Link(target, display, anchor, bool(match.group(1)), section, line, raw,
                                       context=context))
+                continue
+            code = code_target(match.group(5))
+            if code:
+                found.append(Link(code, match.group(4).strip() or None, None, False, section, line, raw,
+                                  context=context, is_code=True))
                 continue
             resolved = markdown_target(match.group(5), source_rel)
             if resolved:

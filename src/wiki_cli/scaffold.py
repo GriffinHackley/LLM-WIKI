@@ -11,17 +11,19 @@ from __future__ import annotations
 
 import datetime
 import json
+import os
 import subprocess
 import tomllib
 from pathlib import Path
 
-from wiki_cli import guide
+from wiki_cli import codebase, guide
 from wiki_cli.config import CONFIG_FILENAME, ConfigError, load_settings
 from wiki_cli.models import is_downloaded
 
 PRESETS_DIR = Path(__file__).parent / "presets"
 HOOKS_DIR = Path(__file__).parent / "hooks"
 DEFAULT_PRESET = "research"
+CODE_PRESET = "code"  # describes a code repo, which `wiki new` must be pointed at
 AGENTS = ("claude",)
 CLAUDE_PERMISSION = "Bash(wiki:*)"
 CONTENT_FOLDERS = {"wiki", "templates", "raw"}  # a preset's pages and templates, not added to an established wiki
@@ -46,7 +48,7 @@ def preset_files(preset: str) -> tuple[str, Path]:
 
 
 def scaffold(target: Path, preset: str = DEFAULT_PRESET, agent: str | None = None, *,
-             git_hook: bool = False) -> dict:
+             git_hook: bool = False, code: Path | None = None) -> dict:
     target = target.expanduser().resolve()
     if target == Path.home().resolve() or target == Path(target.anchor):
         raise ScaffoldError(f"{target} is not a wiki folder; name a folder for the wiki")
@@ -56,10 +58,16 @@ def scaffold(target: Path, preset: str = DEFAULT_PRESET, agent: str | None = Non
         raise ScaffoldError(f"no adapter for '{agent}': choose {', '.join(AGENTS)}")
     name, folder = preset_files(preset)
     files = folder / "files" if (folder / "files").is_dir() else folder
+    if code is not None and name != CODE_PRESET:
+        raise ScaffoldError(f"--code is for the {CODE_PRESET} preset")
+    code_repo = _code_repo(code, target) if name == CODE_PRESET else None
     target.mkdir(parents=True, exist_ok=True)
     result = {"root": str(target), "preset": name, "created": [], "kept": [], "skipped": [], "add": [],
               "notes": []}
     variables = {"name": target.name, "today": datetime.date.today().isoformat()}
+    if code_repo is not None:
+        variables["code_repo"] = _relative(code_repo, target)
+        variables["code_origin"] = codebase.origin(code_repo) or ""
     # A wiki with its own config from elsewhere keeps its own pages and templates: only the
     # files that connect agents to it are added.
     established = _config_preset(target) not in (None, name)
@@ -68,7 +76,7 @@ def scaffold(target: Path, preset: str = DEFAULT_PRESET, agent: str | None = Non
         rel = "/".join(_dotted(part) for part in source.relative_to(files).parts)
         if established and (rel == "AGENTS.md" or rel.split("/", 1)[0] in CONTENT_FOLDERS):
             if rel == "AGENTS.md" and not (target / rel).exists():
-                _add_section(folder, "your agent instructions (AGENTS.md, CLAUDE.md, ...)", result)
+                _add_section(folder, "your agent instructions (AGENTS.md, CLAUDE.md, ...)", result, variables)
             result["skipped"].append(rel)
             continue
         destination = target / rel
@@ -76,7 +84,7 @@ def scaffold(target: Path, preset: str = DEFAULT_PRESET, agent: str | None = Non
         if destination.exists():
             result["kept"].append(rel)
             if destination.read_bytes() != content:
-                _missing_parts(rel, destination, folder, result)
+                _missing_parts(rel, destination, folder, result, variables)
             continue
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(content)
@@ -91,11 +99,68 @@ def scaffold(target: Path, preset: str = DEFAULT_PRESET, agent: str | None = Non
         result["notes"].append(f"{CONFIG_FILENAME} could not be read: {exc}")
         settings = None
     if agent == "claude":
-        _claude(target, settings, result)
+        _claude(target, settings, result, extra_dir=code_repo)
+    if code_repo is not None:
+        result["code_repo"] = str(code_repo)
+        result["code_setup"] = _code_setup(code_repo, target, folder, agent)
     result["models_missing"] = settings is not None and not all((
         is_downloaded(settings.embed_model, settings.models_dir, reranker=False),
         is_downloaded(settings.reranker, settings.models_dir, reranker=True)))
     return result
+
+
+def _code_repo(code: Path | None, target: Path) -> Path:
+    """The code repo a code wiki describes: the top folder of a git repository, outside the wiki."""
+    if code is None:
+        raise ScaffoldError(f"the {CODE_PRESET} preset needs --code <path>: the top folder of the code's "
+                            "git repository")
+    path = Path(code).expanduser().resolve()
+    if not path.is_dir():
+        raise ScaffoldError(f"--code {path} is not a folder")
+    top = codebase.top_level(path)
+    if top is None:
+        raise ScaffoldError(f"--code {path} is not in a git repository")
+    if top != path:
+        raise ScaffoldError(f"--code {path} is inside the git repository {top}; pass its top folder: {top}")
+    if target == path or path in target.parents:
+        raise ScaffoldError(f"the wiki must be its own repository, outside the code repo {path}; "
+                            f"choose a folder beside it, such as {path.parent / (path.name + '-wiki')}")
+    return path
+
+
+def _relative(path: Path, start: Path) -> str:
+    try:
+        return Path(os.path.relpath(path, start)).as_posix()
+    except ValueError:  # another drive on Windows
+        return path.as_posix()
+
+
+def _code_setup(code_repo: Path, target: Path, preset: Path, agent: str | None) -> list[dict]:
+    """What the code repo needs so an agent working there finds and keeps the wiki. Never
+    written by `wiki new`: the code repo is the user's to change."""
+    wiki_path = _relative(target, code_repo)
+    setup = []
+    if _redirect_target(code_repo) != target:
+        setup.append({"file": CONFIG_FILENAME, "text": f'wiki = "{wiki_path}"\n',
+                      "why": "points wiki commands run in the code repo at the wiki"})
+    agents = code_repo / "AGENTS.md"
+    if not (agents.is_file() and "wiki guide sync" in agents.read_text(encoding="utf-8", errors="replace")):
+        section = (preset / "code-repo-section.md").read_text(encoding="utf-8").replace("{{wiki_path}}", wiki_path)
+        setup.append({"file": "AGENTS.md", "text": section,
+                      "why": "tells the agent working on the code to keep the wiki current"})
+    if agent == "claude":
+        settings = {"permissions": {"allow": [CLAUDE_PERMISSION], "additionalDirectories": [target.as_posix()]}}
+        setup.append({"file": ".claude/settings.json", "text": json.dumps(settings, indent=2) + "\n",
+                      "why": "lets Claude Code run wiki commands and read and edit the wiki from the code repo"})
+    return setup
+
+
+def _redirect_target(code_repo: Path) -> Path | None:
+    try:
+        value = tomllib.loads((code_repo / CONFIG_FILENAME).read_text(encoding="utf-8")).get("wiki")
+    except (OSError, tomllib.TOMLDecodeError):
+        return None
+    return (code_repo / value).resolve() if isinstance(value, str) else None
 
 
 def _config_preset(target: Path) -> str | None:
@@ -125,11 +190,11 @@ def _fill(data: bytes, variables: dict[str, str]) -> bytes:
     return text.encode("utf-8")
 
 
-def _missing_parts(rel: str, path: Path, preset: Path, result: dict) -> None:
+def _missing_parts(rel: str, path: Path, preset: Path, result: dict, variables: dict[str, str]) -> None:
     """For a kept file the wiki depends on, say what to add to it."""
     text = path.read_text(encoding="utf-8", errors="replace")
     if rel == "AGENTS.md" and "wiki guide" not in text:
-        _add_section(preset, rel, result)
+        _add_section(preset, rel, result, variables)
     elif rel == ".gitignore" and ".cache" not in text:
         result["add"].append({"file": rel, "text": ".cache/\n"})
     elif rel == CONFIG_FILENAME:
@@ -137,10 +202,10 @@ def _missing_parts(rel: str, path: Path, preset: Path, result: dict) -> None:
                                "were not added to it, nor its templates and pages")
 
 
-def _add_section(preset: Path, where: str, result: dict) -> None:
+def _add_section(preset: Path, where: str, result: dict, variables: dict[str, str]) -> None:
     section = preset / "agents-section.md"
     if section.is_file():
-        result["add"].append({"file": where, "text": section.read_text(encoding="utf-8")})
+        result["add"].append({"file": where, "text": _fill(section.read_bytes(), variables).decode("utf-8")})
 
 
 def _git_init(target: Path, result: dict) -> bool:
@@ -190,7 +255,7 @@ def _git_hook(target: Path, result: dict) -> None:
         result["notes"].append(f"wrote {rel}, but could not enable it: run 'git config core.hooksPath .githooks'")
 
 
-def _claude(target: Path, settings, result: dict) -> None:
+def _claude(target: Path, settings, result: dict, extra_dir: Path | None = None) -> None:
     """Claude Code adapter: CLAUDE.md importing AGENTS.md, the `wiki` permission, and one
     skill stub per guide that runs the guide."""
     claude_md = target / "CLAUDE.md"
@@ -204,10 +269,12 @@ def _claude(target: Path, settings, result: dict) -> None:
         result["add"].append({"file": "CLAUDE.md", "text": "@AGENTS.md\n"})
 
     settings_file = target / ".claude" / "settings.json"
+    permissions = {"allow": [CLAUDE_PERMISSION]}
+    if extra_dir is not None:  # a code wiki reads the code repo
+        permissions["additionalDirectories"] = [extra_dir.as_posix()]
     if not settings_file.exists():
         settings_file.parent.mkdir(parents=True, exist_ok=True)
-        settings_file.write_text(json.dumps({"permissions": {"allow": [CLAUDE_PERMISSION]}}, indent=2) + "\n",
-                                 encoding="utf-8")
+        settings_file.write_text(json.dumps({"permissions": permissions}, indent=2) + "\n", encoding="utf-8")
         result["created"].append(".claude/settings.json")
     else:
         result["kept"].append(".claude/settings.json")

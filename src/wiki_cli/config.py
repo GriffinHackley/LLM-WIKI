@@ -17,7 +17,7 @@ from wiki_cli.vocabulary import RelationRule, RuleError, Vocabulary, parse_rules
 
 CONFIG_FILENAME = ".wiki-cli.toml"
 CACHE_FILENAME = "wiki.sqlite3"
-DERIVATION_VERSION = "4"  # bump when edge or reason extraction changes: edges are re-derived
+DERIVATION_VERSION = "5"  # bump when edge or reason extraction changes: edges are re-derived
 DEFAULT_PAGES = ("**/*.md",)
 DEFAULT_RAW = ("raw/**/*.txt",)
 DEFAULT_MODELS_DIR = Path.home() / ".cache" / "wiki-cli" / "models"  # shared by every wiki
@@ -26,7 +26,9 @@ DEFAULT_SUMMARY_HEADINGS = ("summary",)
 DEFAULT_SEARCH_RESULTS = 3
 MAX_SEARCH_RESULTS = 20  # search reranks 20 passages (search.RERANK_K), so it never returns more pages
 _TOP_LEVEL = {"pages", "exclude", "raw", "embed_model", "reranker", "relations", "summary", "page_type",
-              "check", "suggest", "search", "preset", "types", "guides"}
+              "check", "suggest", "search", "preset", "types", "guides", "code"}
+_CODE_KEYS = {"repo", "origin"}
+REDIRECT_KEY = "wiki"  # a config holding only this key says "the wiki for this folder is over there"
 _TYPE_KEYS = {"description", "folder", "template"}
 
 
@@ -66,6 +68,9 @@ class Settings:
     preset: str | None = None  # the preset `wiki new` made the wiki from; picks guide variants
     types: tuple[PageType, ...] = ()  # declared page types; empty = any type is fine
     guides_dir: str | None = None  # folder of the wiki's own guides, overriding the built-in ones
+    code_repo: Path | None = None  # the code a code wiki describes ([code] repo, or $WIKI_CODE_REPO)
+    code_origin: str | None = None  # the code repo's origin URL, to tell a wrong pointer
+    redirected_from: Path | None = field(default=None, compare=False)  # a code repo that pointed here
     vocabulary: Vocabulary = field(default_factory=Vocabulary, compare=False)
     root_note: str | None = field(default=None, compare=False)  # set when no config chose the root
 
@@ -128,6 +133,12 @@ def load_settings(
         raise ConfigError(f"wiki root does not exist: {resolved}")
 
     config = _read_config(Path(os.environ.get("WIKI_CONFIG") or resolved / CONFIG_FILENAME))
+    redirected_from = None
+    if REDIRECT_KEY in config:
+        resolved, redirected_from, config = _follow_redirect(resolved, config), resolved, None
+        config = _read_config(resolved / CONFIG_FILENAME)
+        if REDIRECT_KEY in config:
+            raise ConfigError(f"{resolved / CONFIG_FILENAME} redirects again; a redirect must name the wiki itself")
     unknown = set(config) - _TOP_LEVEL
     if unknown:
         raise ConfigError(f"{CONFIG_FILENAME}: unknown setting(s) {', '.join(sorted(unknown))}")
@@ -159,6 +170,11 @@ def load_settings(
     guides_dir = _table(config, "guides").get("dir")
     if guides_dir is not None and not isinstance(guides_dir, str):
         raise ConfigError(f"{CONFIG_FILENAME}: [guides] dir must be a folder path")
+    code = _table(config, "code")
+    if set(code) - _CODE_KEYS or not all(isinstance(value, str) for value in code.values()):
+        raise ConfigError(f"{CONFIG_FILENAME}: [code] takes 'repo' (a folder path) and 'origin' (a URL)")
+    code_value = os.environ.get("WIKI_CODE_REPO") or code.get("repo")
+    code_repo = (resolved / Path(code_value).expanduser()).resolve() if code_value else None
 
     return Settings(
         root=resolved,
@@ -182,9 +198,24 @@ def load_settings(
         preset=preset,
         types=types,
         guides_dir=guides_dir.strip("/") if guides_dir else None,
+        code_repo=code_repo,
+        code_origin=code.get("origin") or None,
+        redirected_from=redirected_from,
         vocabulary=Vocabulary(rules),
         root_note=root_note,
     )
+
+
+def _follow_redirect(folder: Path, config: dict) -> Path:
+    """A code repo's `.wiki-cli.toml` holding only `wiki = "<path>"` points at its wiki."""
+    if set(config) != {REDIRECT_KEY} or not isinstance(config[REDIRECT_KEY], str):
+        raise ConfigError(f"{folder / CONFIG_FILENAME}: '{REDIRECT_KEY}' must be the only setting, "
+                          "a path to the wiki")
+    target = (folder / Path(config[REDIRECT_KEY]).expanduser()).resolve()
+    if not (target / CONFIG_FILENAME).is_file():
+        raise ConfigError(f"{folder / CONFIG_FILENAME} points at {target}, which is not a wiki "
+                          f"(no {CONFIG_FILENAME} there)")
+    return target
 
 
 def _types(table: dict) -> tuple[PageType, ...]:
