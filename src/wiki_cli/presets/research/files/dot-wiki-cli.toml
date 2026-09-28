@@ -31,7 +31,7 @@ folder = "wiki/organizations"
 template = "templates/organization.md"
 
 [types.place]
-description = "A location: a city, building, property or region."
+description = "A location: a country, region, city, building or property."
 folder = "wiki/places"
 template = "templates/place.md"
 
