@@ -75,9 +75,11 @@ class TestNew:
     def test_an_established_wiki_keeps_its_own_pages_and_instructions(self, tmp_path):
         root = tmp_path / "vault"
         write(root, ".wiki-cli.toml", 'pages = ["notes/**/*.md"]\n')
+        write(root, "CLAUDE.md", "# Our rules\n")
         result = scaffold(root, agent="claude")
         assert not (root / "templates").exists() and not (root / "wiki").exists()
-        assert not (root / "AGENTS.md").exists() and not (root / "CLAUDE.md").exists()
+        assert not (root / "AGENTS.md").exists()
+        assert (root / "CLAUDE.md").read_text(encoding="utf-8") == "# Our rules\n"
         assert "templates/person.md" in result["skipped"] and "AGENTS.md" in result["skipped"]
         assert any("agent instructions" in item["file"] for item in result["add"])
         assert (root / ".claude/skills/wiki-query/SKILL.md").is_file()
@@ -262,3 +264,12 @@ def test_line_endings_alone_do_not_make_a_summary_stale(new_wiki, capsys):
     main(["index", "refresh", "--no-embed", "--root", str(root)])
     code, report = run_json(capsys, "check", "ada", "--root", str(root))
     assert report["issues"] == []
+
+
+def test_an_established_wiki_without_instructions_gets_a_short_agents_md(tmp_path):
+    root = tmp_path / "notes"
+    write(root, ".wiki-cli.toml", 'pages = ["**/*.md"]\n')
+    result = scaffold(root)
+    assert "AGENTS.md" in result["created"]
+    text = (root / "AGENTS.md").read_text(encoding="utf-8")
+    assert text.startswith("## LLM wiki") and "wiki guide ingest" in text

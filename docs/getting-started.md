@@ -1,48 +1,57 @@
 # Getting started
 
-This guide takes an existing folder of Markdown notes (an Obsidian vault, a `docs/`
-folder, an LLM-maintained wiki) from nothing to searchable and navigable by an agent. The
-tool never edits your pages: everything it builds lives in a disposable cache inside the
-repo, so trying it is safe.
+This guide gets an LLM-maintained wiki running with your agent, on one of three paths:
+
+- **[A new research wiki](#3-start-a-new-research-wiki):** sources go in, the agent writes
+  and links the pages. News, politics, history, papers, any topic you research.
+- **[A wiki about a codebase](#4-start-a-wiki-about-a-codebase):** a wiki in its own repo,
+  kept current by the agent that changes the code.
+- **[An existing folder of notes](#5-add-to-an-existing-wiki):** an Obsidian vault, a
+  `docs/` folder, a wiki you already keep. Your pages are left alone.
+
+The `wiki` command never edits pages: the agent does, following workflow guides the
+command prints. Everything the command builds for search lives in a disposable cache
+inside the wiki, so trying it is safe.
 
 **The short version:**
 
 ```bash
-uv tool install --editable ./LLM-WIKI    # once per machine
-wiki models download                      # once per machine, about 0.2 GB
+uv tool install git+https://github.com/GriffinHackley/LLM-WIKI   # once per machine
+wiki models download                                               # once per machine, about 0.2 GB
+wiki new my-wiki --agent claude                                    # --agent is optional
 cd my-wiki
-wiki init --write                         # draft .wiki-cli.toml, then review it
-echo ".cache/" >> .gitignore
-wiki index refresh                        # index and embed
-wiki search "a question your wiki answers"
+# put a source in raw/, then ask your agent: "ingest raw/<file>"
 ```
-
-Then [connect your agent](#5-connect-claude-code). The rest of this page explains each
-step and what to look for.
 
 ## 1. Requirements
 
 - [uv](https://docs.astral.sh/uv/getting-started/installation/). It installs Python 3.13
   for the tool if you don't have it.
-- Git access to the LLM-WIKI repository.
+- Git, and access to the LLM-WIKI repository (until the package is on PyPI).
+- An agent that can run shell commands: Claude Code, Codex, Cursor, Copilot, OpenCode or
+  similar. It reads the wiki's `AGENTS.md`; nothing depends on one platform.
 - About 0.2 GB of disk for the two models, plus a cache in each wiki of roughly 40 KB per
   page.
-- No GPU. Everything runs locally on the CPU; nothing is sent to a server.
+- No GPU. Search runs locally on the CPU; nothing is sent to a server.
 
-The default models are English-only. The tool has been tested on Windows 11; it should
-work on macOS and Linux too, but hasn't been tried there yet.
+The default models are English-only. The tool is developed on Windows 11; its tests run
+on Windows, macOS and Linux.
 
 ## 2. Install the tool (once per machine)
 
 ```bash
-git clone https://github.com/GriffinHackley/LLM-WIKI.git
-uv tool install --editable ./LLM-WIKI
+uv tool install git+https://github.com/GriffinHackley/LLM-WIKI
 wiki --version
 ```
 
-`--editable` means a later `git pull` in `LLM-WIKI` updates the command with no
-reinstall. `uv tool install` puts `wiki` on your PATH; if the shell can't find it, run
-`uv tool update-shell` and open a new terminal.
+Once the package is on PyPI, `uv tool install llm-wiki-cli` does the same. `uv tool
+install` puts `wiki` on your PATH; if the shell can't find it, run `uv tool update-shell`
+and open a new terminal. To update later, run `uv tool upgrade llm-wiki-cli`. If you
+installed an earlier version named `wiki-cli`, remove it first:
+`uv tool uninstall wiki-cli`.
+
+To work on the tool itself, clone the repository and run `uv tool install --editable .`
+in it: the command then follows your checkout.
 
 Then download the models:
 
@@ -55,7 +64,86 @@ This fetches the embedding model (`BAAI/bge-small-en-v1.5`) and the reranker
 wiki on the machine. It is the only command that ever downloads anything; the others load
 models from that folder or, if they are missing, fall back to keyword search and say so.
 
-## 3. Set up a wiki
+## 3. Start a new research wiki
+
+```bash
+wiki new my-wiki
+```
+
+```
+research wiki in ...\my-wiki
+created: AGENTS.md, .gitignore, .wiki-cli.toml, raw/.gitkeep, templates/analysis.md, ...
+initialized a git repository
+```
+
+It creates:
+
+| | |
+|---|---|
+| `raw/` | Your sources: PDFs, saved web pages, notes. The agent never edits them. |
+| `wiki/` | The pages, one folder per type, created as pages are written. |
+| `wiki/open-questions.md` | Contradictions and gaps the agent finds while ingesting. |
+| `templates/` | A template per page type: source, person, organization, place, event, concept, analysis. |
+| `AGENTS.md` | The agent's instructions: it is the librarian; merge, don't append; cite every fact. |
+| `.wiki-cli.toml` | Page types and relation rules that match the templates, so typed relations work from the first page. |
+
+Options: `--agent claude` adds the Claude Code files ([section 7](#7-connect-your-agent));
+`--git-hook` adds a pre-commit hook that refuses edits to `raw/` and pages that fail
+`wiki check`. Running `wiki new` again never overwrites anything; it adds what is
+missing.
+
+**Ingest a source.** Put a file in `raw/` and ask your agent to ingest it. `AGENTS.md`
+tells it to run `wiki guide ingest` and follow it: read the whole source, write its source
+page, create or update the pages for the people, places, events and ideas it discusses,
+cite every fact, file contradictions, check, and commit. One commit per source.
+
+**Ask questions.** Ask your agent; it follows `wiki guide query`: search, read one section
+at a time, follow relations by their reasons, stay within a page limit, and cite the
+pages used.
+
+**Audit now and then.** Ask your agent to lint the wiki (`wiki guide lint`): broken and
+unwritten links, orphans, missing summaries, contradictions between pages, uncited facts.
+
+Put your own conventions (editorial rules, citation details, naming) in the "Your rules"
+section of `AGENTS.md`; every workflow applies them. [workflows.md](workflows.md) has
+more.
+
+## 4. Start a wiki about a codebase
+
+The wiki lives in its own repository beside the code, and needs to know where the code
+is:
+
+```bash
+wiki new my-app-wiki --preset code --code ../my-app
+```
+
+`--code` must be the top folder of the code's git repository, and the wiki must be
+outside it. `wiki new` records the path (relative to the wiki) and the repo's origin in
+the wiki's `.wiki-cli.toml`, and prints what the code repo needs so that the agent
+working on the code also keeps the wiki. It never writes to the code repo itself; add
+these yourself:
+
+- `.wiki-cli.toml` in the code repo, holding only `wiki = "../my-app-wiki"`: every `wiki`
+  command run in the code repo then works on the wiki.
+- A section for the code repo's `AGENTS.md`: answer questions about the code with the
+  query guide; after changing code, commit it and follow `wiki guide sync`.
+- With `--agent claude`, the code repo's `.claude/settings.json` entries: the `wiki`
+  permission, and the wiki folder in `additionalDirectories` so Claude can edit it.
+
+Then work in the code repo as usual. To document a module or a decision, ask the agent
+(it follows `wiki guide ingest`): pages link to code with `[name](code:src/app.py)`, list
+the files they describe in `covers:`, and record the code commit they were checked
+against in `verified:`. After code changes, `wiki stale` lists the pages whose covered
+files changed, and `wiki guide sync` brings them back in line. The code and the wiki are
+committed separately: code first, then the wiki. On a machine where the code is checked
+out somewhere else, set `WIKI_CODE_REPO` to its path.
+
+## 5. Add to an existing wiki
+
+For a folder of notes that already exists. `wiki new . --agent claude` (or without
+`--agent`) adds the agent files; when the folder already has its own `.wiki-cli.toml`,
+it adds no templates or pages, only what connects agents to the wiki. The rest of this
+section tunes search and relations for your pages.
 
 ### Run it from inside the wiki
 
@@ -184,7 +272,7 @@ where it stopped. Later runs only touch files that changed and take a fraction o
 second when nothing did. [What refresh does](#what-wiki-index-refresh-does) explains the
 details.
 
-## 4. Try it
+## 6. Try the commands
 
 ```bash
 wiki search "how are jobs prioritised so none wait forever?"
@@ -234,49 +322,38 @@ wiki suggest <slug>  # pages this one names but doesn't link, or resembles
 `wiki check` exits with 1 when it finds errors, so it works in a pre-commit hook or CI.
 Every command accepts `--format json` for scripts and agents.
 
-## 5. Connect Claude Code
+## 7. Connect your agent
 
-Three small changes in the wiki's repo let Claude Code use the tool.
+**Any agent.** The wiki's `AGENTS.md` is the connection: Codex, Cursor, Copilot, OpenCode
+and others read it, and it tells the agent to run `wiki guide <workflow>` and follow it.
+`wiki guide` lists the workflows. The agent only needs to be allowed to run `wiki`
+commands; how you allow that depends on the agent. If your agent reads a different file
+(some read their own, such as `GEMINI.md`), point it at `AGENTS.md` or copy the section in.
 
-**Allow the command** without a prompt for each call, in `.claude/settings.json`:
+**Claude Code.** `wiki new --agent claude` writes three things:
 
-```json
-{
-  "permissions": {
-    "allow": ["Bash(wiki:*)"]
-  }
-}
-```
+- `CLAUDE.md` containing `@AGENTS.md`, so Claude reads the same instructions.
+- `.claude/settings.json` allowing `Bash(wiki:*)`, so `wiki` commands run without a
+  prompt each time (for a code wiki, also the code repo in `additionalDirectories`).
+- Skills `/wiki-ingest`, `/wiki-query`, `/wiki-lint` (and `/wiki-sync` for a code wiki),
+  each a stub that runs its guide, so the steps stay in step with the installed command.
 
-**Add the query skill.** `wiki new --agent claude` writes `.claude/skills/wiki-query/`,
-a stub that runs `wiki guide query`. The guide tells Claude to answer questions with
-`wiki nav`: start from search, read one section at a time, follow relations by their
-reasons, stay within a page limit, and cite what it used.
+It never edits an existing `CLAUDE.md` or `settings.json`; it prints what to add
+instead. Run it again after upgrading the tool if a new workflow has appeared: it adds the
+missing stubs.
 
-**Tell Claude about it** in the wiki's `CLAUDE.md`:
-
-```markdown
-## Finding things in this wiki
-
-Use the `wiki` command instead of reading an index or grepping:
-- Answer questions with the /wiki-query skill (`wiki nav`), not by opening pages directly.
-- `wiki neighbors <slug>` shows what a page links to and what links to it, with reasons.
-- After adding or editing pages, run `wiki index refresh`, then `wiki check <slug>` on each
-  page you touched and fix any error it reports.
-- When auditing the wiki, use `wiki check --all`, `wiki unwritten` and `wiki orphans`.
-```
-
-If your agent writes new pages, add `wiki suggest <slug>` to that workflow as well. It
-finds pages the new one should probably link to.
-
-## 6. Day to day
+## 8. Day to day
 
 - **After editing pages, run `wiki index refresh`.** Search and navigation update their
   keyword index automatically before every search, so edits are findable by keyword
   immediately; vector search sees them after the next refresh.
 - **After changing `.wiki-cli.toml`,** nothing extra: the next command picks it up.
-- **Updating the tool:** `git pull` in `LLM-WIKI`. If an update changes the cache format,
-  the next command rebuilds the cache by itself.
+- **Updating the tool:** `uv tool upgrade llm-wiki-cli` (or `git pull` in an editable
+  checkout). Guides come with the command, so every wiki gets the new steps at once. If an
+  update changes the cache format, the next command rebuilds the cache by itself.
+- **After an edit that doesn't change what a page is about,** `wiki check` may warn
+  `summary-stale`; re-read the summary and revise it, or run
+  `wiki check <slug> --summary-ok`.
 - **If anything looks wrong,** `wiki index rebuild` recreates the cache from the files.
   Deleting `.cache/` does the same.
 
@@ -289,7 +366,7 @@ finds pages the new one should probably link to.
 4. Removes pages whose files are gone, and re-checks links that pointed at missing pages.
 5. Embeds the sections of every changed file (skip with `--no-embed`).
 
-## 7. Measure search quality (optional)
+## 9. Measure search quality (optional)
 
 To check whether search finds the right pages in *your* wiki, or to compare models,
 write a small set of questions with known answers and score them.
@@ -308,4 +385,8 @@ questions about) and `wiki eval run`.
 | Search returns files that aren't wiki pages | Narrow `pages` or add `exclude` globs in `.wiki-cli.toml`. |
 | `ambiguous-link` warnings | Two files share a name, so `[[name]]` could mean either. Link with the path (`[[people/name]]`), as Obsidian does. |
 | Every relation is `links-to` | Add `[[relations]]` rules; `wiki init` suggests them from your headings. |
+| `summary-stale` warning | The page's body changed but its summary did not. Revise the summary, or `wiki check <slug> --summary-ok` if it still fits. |
+| `code repo ... does not exist` or `is not the top of a git repository` | A code wiki's `[code] repo` points at the wrong place on this machine. Set `WIKI_CODE_REPO` to the code's checkout, or fix the path. |
+| `code repo ... has origin ..., but this wiki describes ...` | The pointer names a different repository than the one the wiki was made for. Point it at the right checkout. |
+| `wiki` in a code repo works on the code repo, not the wiki | Add the redirect `wiki new --preset code` printed: a `.wiki-cli.toml` in the code repo holding only `wiki = "<path to the wiki>"`. |
 | The first search after a reboot takes a few seconds | The model files are read from disk the first time; later searches take about 1 second. |

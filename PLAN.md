@@ -304,7 +304,7 @@ access, for git installs); add a license (FUTURE_IDEAS.md); set up trusted publi
 for `llm-wiki-cli` on PyPI; tag `v0.2.0`. Existing installs of `wiki-cli` need
 `uv tool uninstall wiki-cli` before installing `llm-wiki-cli`, as both provide `wiki`.
 
-## Phase 6: Docs
+## Phase 6 (done): Docs
 
 - **README:** reframe from "read-side tooling" to a starter kit for LLM wikis that works
   with any agent; command table gains `new`, `guide` and `list`; point to this plan

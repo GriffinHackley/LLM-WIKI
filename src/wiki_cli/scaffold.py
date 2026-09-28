@@ -75,7 +75,13 @@ def scaffold(target: Path, preset: str = DEFAULT_PRESET, agent: str | None = Non
     for source in sorted(path for path in files.rglob("*") if path.is_file()):
         rel = "/".join(_dotted(part) for part in source.relative_to(files).parts)
         if established and (rel == "AGENTS.md" or rel.split("/", 1)[0] in CONTENT_FOLDERS):
+            section = folder / "agents-section.md"
             if rel == "AGENTS.md" and not (target / rel).exists():
+                if not (target / "CLAUDE.md").exists() and section.is_file():
+                    # No instructions at all: an AGENTS.md with just the workflow section.
+                    (target / rel).write_bytes(_fill(section.read_bytes(), variables))
+                    result["created"].append(rel)
+                    continue
                 _add_section(folder, "your agent instructions (AGENTS.md, CLAUDE.md, ...)", result, variables)
             result["skipped"].append(rel)
             continue

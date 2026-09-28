@@ -1,70 +1,100 @@
-# wiki-cli
+# LLM wiki starter kit (`wiki`)
 
-Search and navigation for a folder of Markdown notes maintained by an LLM (an
-Obsidian vault, a `docs/` folder, a Karpathy-style wiki). Agents find the best
-starting page without reading an index, see where each page leads through typed
-relations with reasons, and read only the sections they need, within a page limit.
+Start and run an **LLM-maintained wiki** (a folder of Markdown notes that an agent
+keeps: an Obsidian vault, a research notebook, a wiki about a codebase) with any agent
+that can run shell commands: Claude Code, Codex, Cursor, Copilot, OpenCode and others.
 
-**New here? Start with [docs/getting-started.md](docs/getting-started.md)**: install, set
-up an existing wiki, and connect Claude Code, in about ten minutes.
+- **`wiki new`** sets up a wiki from a preset: folder layout, page templates, an
+  `AGENTS.md` telling the agent how to be the librarian, and a config whose relation
+  rules match the templates. Presets: `research` (sources in, pages out) and `code` (a
+  wiki in its own repo describing a code repo).
+- **`wiki guide`** prints the workflow an agent follows (ingest a source, answer a
+  question, audit the wiki, sync after code changes), versioned with the command so the
+  steps never go stale.
+- **Search and navigation** find the best starting page without reading an index, show
+  where each page leads through typed relations with reasons, and read only the sections
+  needed, within a page limit.
 
-See [PLAN.md](PLAN.md) for the current plan,
-[docs/archive/upgrade-plan-v2.md](docs/archive/upgrade-plan-v2.md) for the design so far,
-and [FUTURE_IDEAS.md](FUTURE_IDEAS.md) for deferred ideas.
+**New here? Start with [docs/getting-started.md](docs/getting-started.md).**
+[docs/workflows.md](docs/workflows.md) covers the workflows and how to customise them,
+[docs/presets.md](docs/presets.md) the presets. [PLAN.md](PLAN.md) is the current plan,
+[FUTURE_IDEAS.md](FUTURE_IDEAS.md) the deferred ideas.
 
-The tool never edits pages. Everything it builds lives in a disposable SQLite
-cache in `<root>/.cache/` (add `.cache/` to the repo's `.gitignore`).
+The `wiki` command never edits pages: agents do. What it builds for search lives in a
+disposable SQLite cache in `<root>/.cache/`.
 
 ## Install
 
-Requires Python 3.13.
-
-To use `wiki` from any folder (an isolated install that follows this checkout):
-
-```bash
-uv tool install --editable <path-to-this-repo>
-wiki models download   # once: bge-small + jina-reranker-v1-turbo, about 0.2 GB
-```
-
-For development:
+Requires [uv](https://docs.astral.sh/uv/getting-started/installation/), which installs
+Python 3.13 for the tool if needed.
 
 ```bash
-python -m venv .venv
-.venv/Scripts/python -m pip install -e ".[test]"
+uv tool install git+https://github.com/GriffinHackley/LLM-WIKI   # once per machine
+wiki models download                                               # once: about 0.2 GB
 ```
+
+Once the package is on PyPI this becomes `uv tool install llm-wiki-cli`. For
+development, from a clone:
+
+```bash
+uv tool install --editable .        # 'wiki' follows the checkout
+python -m venv .venv && .venv/Scripts/python -m pip install -e ".[test]"
+```
+
+An earlier install named `wiki-cli` also provides `wiki`: remove it first with
+`uv tool uninstall wiki-cli`.
 
 ## Quick start
 
-It works with no configuration: run it anywhere inside a folder of Markdown.
+A new research wiki:
+
+```bash
+wiki new my-wiki --agent claude     # --agent is optional: AGENTS.md works for any agent
+cd my-wiki
+# put a source in raw/, then ask your agent: "ingest raw/<file>"
+```
+
+A wiki about a codebase, in its own repo beside the code:
+
+```bash
+wiki new my-app-wiki --preset code --code ../my-app
+# add the lines it prints to the code repo, then work from there as usual
+```
+
+An existing folder of notes:
 
 ```bash
 cd my-notes
-wiki index refresh                 # index and embed (about 2 minutes per 500 pages on CPU)
+wiki init --write                   # draft a .wiki-cli.toml from a survey of the folder
+wiki new . --agent claude           # add the agent files; your pages are left alone
+wiki index refresh                  # index and embed (about 2 minutes per 500 pages on CPU)
 wiki search "how do I configure the exporter?"
-wiki neighbors setup-guide
-wiki init                          # print a starter .wiki-cli.toml for this repo
 ```
 
-With no config, every `*.md` file under the folder is a page (hidden folders and
-`node_modules` are skipped), `raw/**/*.txt` is searchable source text if a `raw/`
-folder exists, both `[[wikilinks]]` and `[text](path.md)` links are followed, and
-every link is a `links-to` relation whose reason is the sentence around it.
+It also works with no configuration at all: every `*.md` file under the folder is a
+page, `raw/**/*.txt` is searchable source text, and every link is a `links-to` relation
+whose reason is the sentence around it.
 
 ## Configure: `.wiki-cli.toml`
 
 Commands find the root by walking up to the nearest `.wiki-cli.toml`, else use the
-enclosing git repository, else the current folder, and say which folder they chose
-when no config did. They refuse to treat your home folder or a drive root as a wiki.
-`--root` or `WIKI_ROOT` overrides all of this, and `WIKI_CONFIG` points at a
-different config file. `wiki init` drafts one from a survey of the repo. Every
-setting is optional:
+enclosing git repository, else the current folder, and say which folder they chose when
+no config did. They refuse to treat your home folder or a drive root as a wiki. `--root`
+or `WIKI_ROOT` overrides all of this, and `WIKI_CONFIG` points at a different config
+file. Every setting is optional:
 
 ```toml
+preset = "research"               # the preset `wiki new` used; picks guide variants
 pages = ["wiki/**/*.md"]          # default ["**/*.md"]
 exclude = ["wiki/index.md"]
 raw = ["raw/**/*.txt"]            # default; searched only with --include-raw
 embed_model = "BAAI/bge-small-en-v1.5"
 reranker = "jinaai/jina-reranker-v1-turbo-en"   # or "none"
+
+[types.person]                    # page types: guides list them, `wiki check` flags others
+description = "A person."
+folder = "wiki/people"            # pages here get this type when frontmatter has none
+template = "templates/person.md"
 
 [summary]                         # where a page's summary comes from, in order
 fields = ["summary", "description"]            # frontmatter keys (default)
@@ -72,8 +102,6 @@ headings = ["Summary", "Overview"]             # default ["Summary"]; else the f
 
 [page_type]
 field = "type"                    # frontmatter key holding the page type (default)
-[page_type.folders]               # optional: type by folder when the field is absent
-"notes/people" = "person"
 
 [check]
 require_frontmatter = false       # default
@@ -83,18 +111,28 @@ summary_types = ["person"]        # page types that must have a summary ("*" = a
 named_types = ["person", "organization"]  # pages `suggest` matches by name (default: all)
 
 [search]
-results = 3                       # pages from search, nav start and nav search (1-20); --limit overrides
+results = 3                       # pages from search, nav start and nav search (1-20)
+
+[guides]
+dir = "guides"                    # the wiki's own guides, overriding built-in ones by name
+
+[code]                            # code wikis only
+repo = "../my-app"                # the code repo, relative to the wiki; $WIKI_CODE_REPO overrides
+origin = "https://github.com/me/my-app.git"    # catches a pointer to the wrong checkout
 ```
+
+In a code repo, a `.wiki-cli.toml` holding only `wiki = "../my-app-wiki"` sends every
+command run there to the wiki.
 
 ## Relations
 
-Typed relations come from rules in the same file. A rule gives links under a
-heading, or the values of a frontmatter field, a type and an inverse label:
+Typed relations come from rules in the same file. A rule gives links under a heading,
+or the values of a frontmatter field, a type and an inverse label:
 
 ```toml
 [[relations]]
 heading = "Entities mentioned"    # or a list of headings
-page_type = "document"            # optional, or a list
+page_type = "source"              # optional, or a list
 type = "mentions"
 inverse = "mentioned-in"
 
@@ -102,7 +140,7 @@ inverse = "mentioned-in"
 field = "sources"                 # frontmatter field holding slugs or [[links]]
 type = "draws-on"
 inverse = "drawn-on-by"
-reason = "Listed in sources."     # optional fixed reason
+reason = "Listed in sources."     # optional; without it, the sentence citing the page
 ```
 
 With that rule, this list item
@@ -112,33 +150,40 @@ With that rule, this list item
 - [[mike-johnson]] — Speaker who delayed the oath (p. 2)
 ```
 
-becomes `mentions -> mike-johnson` with reason "Speaker who delayed the oath
-(p. 2)". Without rules, links are still relations (`links-to`), and frontmatter
-values written as `[[links]]` count as links, as in Obsidian. Two types are built
-in: `embeds` (a `![[page#^block]]` embed) and `links-to`. When a page reaches one
-target several ways, the most specific type wins: heading-rule types in file order,
-then `embeds`, then field-only types, then `links-to`. `wiki vocab` lists the types.
-Changing the rules re-derives relations on the next refresh without re-embedding.
+becomes `mentions -> mike-johnson` with reason "Speaker who delayed the oath (p. 2)". A
+link in parentheses under a typed heading, such as a citation `([[report]], p. 2)`, is a
+plain link: it supports the line rather than being its subject. Without rules, links are
+still relations (`links-to`), and frontmatter values written as `[[links]]` count as
+links, as in Obsidian. Built in: `embeds` (a `![[page#^block]]` embed), `refers-to-code`
+(a `[name](code:path)` link to a file in a code wiki's code repo) and `links-to`. When a
+page reaches one target several ways, the most specific type wins: heading-rule types in
+file order, then `embeds`, then field-only types, then `links-to`. `wiki vocab` lists
+the types. Changing the rules re-derives relations on the next refresh without
+re-embedding.
 
 ## Commands
 
 | Command | Purpose |
 |---|---|
+| `wiki new [folder] [--preset research\|code\|<folder>] [--code <repo>] [--agent claude] [--git-hook]` | Create a wiki from a preset, or add what is missing (never overwrites) |
+| `wiki guide [<name>]` | Print a workflow's steps for an agent; without a name, list them |
 | `wiki search "<question>" [--limit 3] [--include-raw] [--keyword-only]` | Best pages for a question: keyword + vector search, fused and reranked |
 | `wiki nav start \| read \| candidates \| search \| end \| log` | Guided traversal sessions (see [docs/navigation.md](docs/navigation.md)) |
+| `wiki list [--type T]` | Every page with its type and summary |
+| `wiki neighbors <slug> [--incoming] [--outgoing] [--relation T] [--limit N]` | A page's typed relations with reasons, no page bodies |
 | `wiki suggest <slug>` | Pages a page names but does not link, shares linked pages with, or resembles |
 | `wiki unwritten [--limit N]` | Link targets with no page, most-linked first |
 | `wiki orphans` | Pages nothing relates to |
-| `wiki neighbors <slug> [--incoming] [--outgoing] [--relation T] [--limit N]` | A page's typed relations with reasons, no page bodies |
-| `wiki check <slug> \| --all [--verify-cache] [--strict] [--no-warnings]` | Frontmatter, summaries, ambiguous and unwritten links, stale summaries |
+| `wiki stale` | Code wikis: pages whose covered code changed since they were verified |
+| `wiki check <slug> \| --all [--verify-cache] [--strict] [--no-warnings] [--summary-ok]` | Frontmatter, summaries, types, ambiguous and unwritten links, stale summaries, code links |
 | `wiki index refresh \| rebuild [--no-embed] \| status` | Manage the cache and embeddings |
-| `wiki init [--write]` | Survey the repo and draft a `.wiki-cli.toml` (never overwrites) |
+| `wiki init [--write]` | Survey an existing folder and draft a `.wiki-cli.toml` (never overwrites) |
 | `wiki models list \| download` | Supported models; `download` is the only command that downloads |
 | `wiki eval sample \| run` | Search-quality evaluation (see [docs/evaluation.md](docs/evaluation.md)) |
 | `wiki vocab` | Relation types, their inverses, and where each comes from |
 
-All commands accept `--format json` (compact, deterministic), `--root` and
-`--cache`. Exit codes: 0 success, 1 validation failures, 2 usage or runtime
+All commands accept `--format json` (compact, deterministic); commands on a wiki accept
+`--root` and `--cache`. Exit codes: 0 success, 1 validation failures, 2 usage or runtime
 errors.
 
 ## Models
@@ -146,7 +191,8 @@ errors.
 `--embed-model` / `WIKI_EMBED_MODEL` and `--reranker` / `WIKI_RERANKER` override
 `.wiki-cli.toml`. Models load from `~/.cache/wiki-cli/models/` only; run
 `wiki models download` once. Without a downloaded model, search falls back to
-keyword-only and says so.
+keyword-only and says so. [docs/model-selection.md](docs/model-selection.md) explains the
+defaults.
 
 ## Tests and benchmark
 
@@ -154,3 +200,6 @@ keyword-only and says so.
 .venv/Scripts/python -m pytest
 .venv/Scripts/python benchmarks/bench_synthetic.py --pages 30000 --relations 100000
 ```
+
+The tests use fake models and download nothing. GitHub Actions runs them on Windows,
+macOS and Linux.
