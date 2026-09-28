@@ -41,7 +41,7 @@ folder = "wiki/events"
 template = "templates/event.md"
 
 [types.concept]
-description = "A thing found in the sources: a term, technique, law, policy or idea."
+description = "A thing found in the sources: a term, technique, law, policy, idea, product or tool."
 folder = "wiki/concepts"
 template = "templates/concept.md"
 

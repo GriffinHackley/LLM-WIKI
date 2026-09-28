@@ -48,3 +48,7 @@ def test_section_text_uses_first_matching_section_in_priority_order():
 
 def test_plain_strips_markup():
     assert links.plain("See **[[doc|Cite]]** and [x](http://y) <span>z</span> ^q-id") == "See Cite and x z"
+
+
+def test_plain_keeps_underscores_inside_words():
+    assert links.plain("`huggingface_hub`, an _emphasised_ word, __bold__") == "huggingface_hub, an emphasised word, bold"

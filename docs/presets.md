@@ -25,7 +25,7 @@ page and works what it says into the pages it discusses.
 | `organization` | A company, agency, group or institution | `## Relationships` -> `associated-with` |
 | `place` | A country, region, city, building or property | |
 | `event` | Something that happened at a particular time | `## Participants` -> `involves`; `## Location` -> `located-at` |
-| `concept` | A term, technique, law, policy or idea found in the sources | |
+| `concept` | A term, technique, law, policy, idea, product or tool found in the sources | |
 | `analysis` | The wiki's own synthesis, answering a question across pages | `## Key pages` -> `synthesizes` |
 
 Every page lists its sources in `sources:` (`draws-on`), and cites each fact inline:
