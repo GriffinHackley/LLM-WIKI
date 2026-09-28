@@ -211,7 +211,8 @@ class _OnnxModel:
         if self._session is None:
             snapshot = _snapshot(self.models_dir, self._repo, self._model_file)
             if snapshot is None:
-                raise ModelUnavailable(f"{self.kind} '{self.name}' is not downloaded; run 'wiki models download'")
+                raise ModelUnavailable(f"{self.kind} '{self.name}' is not downloaded; run 'wiki models download' "
+                                       "(once per machine; the default models are about 0.2 GB)")
             import onnxruntime as ort
             options = ort.SessionOptions()
             options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
