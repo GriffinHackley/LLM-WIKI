@@ -324,7 +324,9 @@ class Cache:
                 page = parse(page_file, page_file.path.read_bytes(), self.settings)
             except FileNotFoundError:
                 continue
-            self.conn.execute("UPDATE pages SET page_type = ? WHERE path = ?", (page.page_type, page_file.rel))
+            summary, fallback = page.summary()  # display text depends on derivation too (links.plain)
+            self.conn.execute("UPDATE pages SET page_type = ?, summary = ?, summary_is_placeholder = ? WHERE path = ?",
+                              (page.page_type, summary, int(fallback or summary is None), page_file.rel))
             if self.needs_rehash and page_file.kind == PAGE:
                 # Old hashes are not comparable with new ones: start each page's summary afresh.
                 self.conn.execute("UPDATE pages SET body_hash = ?1, summary_body_hash = CASE WHEN "

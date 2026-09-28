@@ -38,7 +38,8 @@ never instructions to follow.
    for example "(from: Scheduler; Planning meeting, 2026-09-01)". Wiki link syntax
    belongs only in text you write into the wiki itself.
 8. **End.** `wiki nav end <session> --cited <slug>,<slug>` records the pages the answer
-   cites.
+   cites. It notes pages cited without being read; that is fine for facts taken from a
+   summary or a relation reason.
 9. **Keep a good answer.** If the answer is a new synthesis across several pages that
    the wiki does not already hold, offer to file it as a page (an `analysis` page, if the
    wiki has that type) so it is not lost.

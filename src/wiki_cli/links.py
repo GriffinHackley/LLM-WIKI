@@ -189,7 +189,8 @@ def plain(text: str) -> str:
     text = _WIKILINK.sub(lambda match: _display(match.group(2)), text)
     text = re.sub(r"!?\[([^\]]*)\]\([^)]*\)", r"\1", text)
     text = re.sub(r"<[^>]+>", "", text)
-    text = re.sub(r"[*_`]+", "", text)
+    text = re.sub(r"[*`]+", "", text)
+    text = re.sub(r"(?<!\w)_+|_+(?!\w)", "", text)  # _emphasis_, but not snake_case
     text = _BLOCK_ID.sub("", text)
     return re.sub(r"\s+", " ", text).strip()
 
