@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
-from wiki_cli import __version__, codebase, evaluate, guide, init, scaffold, sources
+from wiki_cli import __version__, audit, codebase, evaluate, guide, init, scaffold, sources
 from wiki_cli.cache import Cache, CacheUnavailable
 from wiki_cli.config import CONFIG_FILENAME, ConfigError, Settings, load_settings
 from wiki_cli.model import ERROR, WARNING, Issue
@@ -150,6 +150,8 @@ def build_parser() -> argparse.ArgumentParser:
     check.add_argument("--verify-cache", action="store_true", help="also verify the cache matches the files (with --all)")
     check.add_argument("--strict", action="store_true", help="fail on warnings too")
     check.add_argument("--no-warnings", action="store_true", help="hide warnings")
+    check.add_argument("--ingested", action="store_true",
+                       help="for a source page: check the whole ingest (original linked, pages cite it, committed)")
     check.add_argument("--summary-ok", action="store_true",
                        help="record that the page's summary still fits its body (clears summary-stale)")
     check.set_defaults(handler=cmd_check)
@@ -586,10 +588,14 @@ def cmd_neighbors(args: argparse.Namespace, settings: Settings) -> int:
 def cmd_check(args: argparse.Namespace, settings: Settings) -> int:
     if args.all and args.summary_ok:
         raise UsageError("--summary-ok takes one page, after you have re-read its summary")
+    if args.ingested and (args.all or args.summary_ok or args.verify_cache):
+        raise UsageError("--ingested takes one source page: wiki check <source-slug> --ingested")
     scanned, others = scan_vault(settings)
     files = [page_file for page_file, _ in scanned]
     resolver = Resolver([(page_file.slug, page_file.rel) for page_file in files], others)
-    if args.all:
+    if args.ingested:
+        issues, checked = audit.ingested(settings, args.target)
+    elif args.all:
         pages = [load(page_file, settings) for page_file in files]
         issues = check_corpus(pages, resolver)
         issues.extend(_cache_issues(pages, settings, resolver, verify=args.verify_cache))

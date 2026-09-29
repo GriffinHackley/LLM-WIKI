@@ -393,6 +393,8 @@ questions about) and `wiki eval run`.
 | Search returns files that aren't wiki pages | Narrow `pages` or add `exclude` globs in `.wiki-cli.toml`. |
 | `ambiguous-link` warnings | Two files share a name, so `[[name]]` could mean either. Link with the path (`[[people/name]]`), as Obsidian does. |
 | Every relation is `links-to` | Add `[[relations]]` rules; `wiki init` suggests them from your headings. |
+| `missing-section` or `missing-field` warning | The page lacks a heading or frontmatter key its type's `sections` or `fields` in `.wiki-cli.toml` require. Add it (the template shows it), or drop it from the config if your pages don't need it. |
+| `uncited-sources` warning | The page lists a source in `sources:` that its text never cites. Cite it where its facts are used, or remove it from the list. |
 | `summary-stale` warning | The page's body changed but its summary did not. Revise the summary, or `wiki check <slug> --summary-ok` if it still fits. |
 | `code repo ... does not exist` or `is not the top of a git repository` | A code wiki's `[code] repo` points at the wrong place on this machine. Set `WIKI_CODE_REPO` to the code's checkout, or fix the path. |
 | `code repo ... has origin ..., but this wiki describes ...` | The pointer names a different repository than the one the wiki was made for. Point it at the right checkout. |

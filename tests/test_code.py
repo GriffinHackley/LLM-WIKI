@@ -54,7 +54,7 @@ def code_wiki(tmp_path, code_repo) -> Path:
 
 
 def module_page(wiki: Path, slug: str, covers: list[str], verified: str | None, body: str = "") -> Path:
-    front = f"---\ntitle: {slug}\ntype: module\ncovers: {json.dumps(covers)}\n"
+    front = f"---\ntitle: {slug}\ntype: module\nlast_updated: 2026-09-29\ncovers: {json.dumps(covers)}\n"
     if verified:
         front += f'verified: "{verified}"\n'
     return write(wiki, f"wiki/modules/{slug}.md", front + f"---\n# {slug}\n\n## Summary\nThe {slug} module.\n\n{body}")

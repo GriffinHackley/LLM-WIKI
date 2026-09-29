@@ -13,8 +13,11 @@ what needs judgment, and commit the fixes.
 2. **Mechanical checks, from the tool.** Run each with `--format json`:
    - `wiki check --all`: frontmatter that does not parse, pages with no summary, types
      not declared in the config (`unknown-type`), ambiguous links (`[[name]]` matching
-     several files: link by path instead), and summaries not revised since their page
-     changed (`summary-stale`).
+     several files: link by path instead), summaries not revised since their page
+     changed (`summary-stale`), pages missing a section or frontmatter field their type
+     requires (`missing-section`, `missing-field`), and sources listed in `sources:` that
+     the text never cites (`uncited-sources`: cite each where its facts are used, or
+     remove it from the list).
    - `wiki unwritten`: link targets with no page, most-linked first. For each, decide:
      a typo or a renamed page (fix the links), a page worth writing (list it in the
      report; the most-linked first), or a link that should not exist (remove it).

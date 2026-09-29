@@ -30,6 +30,7 @@ _TOP_LEVEL = {"pages", "exclude", "raw", "embed_model", "reranker", "relations",
 _CODE_KEYS = {"repo", "origin"}
 REDIRECT_KEY = "wiki"  # a config holding only this key says "the wiki for this folder is over there"
 _TYPE_KEYS = {"description", "folder", "template"}
+_TYPE_LISTS = {"sections", "fields"}
 
 
 class ConfigError(Exception):
@@ -39,11 +40,14 @@ class ConfigError(Exception):
 @dataclass(frozen=True)
 class PageType:
     """A page type the wiki declares in `[types.<name>]`: what it is, where its pages live,
-    and the template new pages start from."""
+    and the template new pages start from. `sections` and `fields` are what `wiki check`
+    expects every page of the type to have: headings, and frontmatter keys."""
     name: str
     description: str = ""
     folder: str | None = None
     template: str | None = None
+    sections: tuple[str, ...] = ()
+    fields: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -226,14 +230,17 @@ def _types(table: dict) -> tuple[PageType, ...]:
         where = f"{CONFIG_FILENAME}: [types.{name}]"
         if not isinstance(entry, dict):
             raise ConfigError(f"{where} must be a table")
-        unknown = set(entry) - _TYPE_KEYS
+        unknown = set(entry) - _TYPE_KEYS - _TYPE_LISTS
         if unknown:
             raise ConfigError(f"{where}: unknown key(s) {', '.join(sorted(unknown))}")
-        if not all(isinstance(value, str) for value in entry.values()):
+        if not all(isinstance(entry[key], str) for key in _TYPE_KEYS & set(entry)):
             raise ConfigError(f"{where}: {', '.join(sorted(_TYPE_KEYS))} must be strings")
+        lists = {key: _patterns(entry, key, (), f"[types.{name}] {key}") for key in _TYPE_LISTS}
         folder = entry.get("folder", "").strip().strip("/")
         found.append(PageType(name.strip().lower(), entry.get("description", "").strip(), folder or None,
-                              entry.get("template", "").strip() or None))
+                              entry.get("template", "").strip() or None,
+                              tuple(item.strip() for item in lists["sections"] if item.strip()),
+                              tuple(item.strip() for item in lists["fields"] if item.strip())))
     return tuple(found)
 
 

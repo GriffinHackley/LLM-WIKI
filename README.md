@@ -95,6 +95,8 @@ reranker = "jinaai/jina-reranker-v1-turbo-en"   # or "none"
 description = "A person."
 folder = "wiki/people"            # pages here get this type when frontmatter has none
 template = "templates/person.md"
+sections = ["Summary"]            # headings and frontmatter every page of the type has,
+fields = ["title", "type", "sources", "last_updated"]   # checked by `wiki check`
 
 [summary]                         # where a page's summary comes from, in order
 fields = ["summary", "description"]            # frontmatter keys (default)
@@ -176,7 +178,8 @@ re-embedding.
 | `wiki unwritten [--limit N]` | Link targets with no page, most-linked first |
 | `wiki orphans` | Pages nothing relates to |
 | `wiki stale` | Code wikis: pages whose covered code changed since they were verified |
-| `wiki check <slug> \| --all [--verify-cache] [--strict] [--no-warnings] [--summary-ok]` | Frontmatter, summaries, types, ambiguous and unwritten links, stale summaries, code links |
+| `wiki check <slug> \| --all [--verify-cache] [--strict] [--no-warnings] [--summary-ok]` | Frontmatter, summaries, types and their required sections and fields, uncited sources, ambiguous and unwritten links, stale summaries, code links |
+| `wiki check <source-slug> --ingested` | Whether an ingest is complete: original linked, discussed pages named and citing it, all clean and committed |
 | `wiki index refresh \| rebuild [--no-embed] \| status` | Manage the cache and embeddings |
 | `wiki init [--write]` | Survey an existing folder and draft a `.wiki-cli.toml` (never overwrites) |
 | `wiki models list \| download` | Supported models; `download` is the only command that downloads |

@@ -291,9 +291,12 @@ def test_git_hook_blocks_edits_to_raw_and_check_errors(tmp_path):
     assert refused.returncode != 0 and "raw/source.txt" in refused.stderr
 
 
+ADA_FRONT = "---\ntitle: Ada\ntype: person\nsources: []\nlast_updated: 2026-09-29\n---\n"
+
+
 def test_summary_ok_clears_summary_stale(new_wiki, capsys):
     root, _ = new_wiki
-    page = write(root, "wiki/people/ada.md", "---\ntitle: Ada\n---\n# Ada\n\n## Summary\nA mathematician.\n\n"
+    page = write(root, "wiki/people/ada.md", ADA_FRONT + "# Ada\n\n## Summary\nA mathematician.\n\n"
                                             "## Details\nWrote notes.\n")
     main(["index", "refresh", "--no-embed", "--root", str(root)])
     page.write_text(page.read_text(encoding="utf-8").replace("Wrote notes.", "Wrote the first program."),
@@ -308,7 +311,7 @@ def test_summary_ok_clears_summary_stale(new_wiki, capsys):
 
 def test_line_endings_alone_do_not_make_a_summary_stale(new_wiki, capsys):
     root, _ = new_wiki
-    page = write(root, "wiki/people/ada.md", "---\ntitle: Ada\n---\n# Ada\n\n## Summary\nA mathematician.\n")
+    page = write(root, "wiki/people/ada.md", ADA_FRONT + "# Ada\n\n## Summary\nA mathematician.\n")
     main(["index", "refresh", "--no-embed", "--root", str(root)])
     page.write_bytes(page.read_bytes().replace(b"\n", b"\r\n"))
     main(["index", "refresh", "--no-embed", "--root", str(root)])
