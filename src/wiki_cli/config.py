@@ -26,7 +26,7 @@ DEFAULT_SUMMARY_HEADINGS = ("summary",)
 DEFAULT_SEARCH_RESULTS = 3
 MAX_SEARCH_RESULTS = 20  # search reranks 20 passages (search.RERANK_K), so it never returns more pages
 _TOP_LEVEL = {"pages", "exclude", "raw", "embed_model", "reranker", "relations", "summary", "page_type",
-              "check", "suggest", "search", "preset", "types", "guides", "code"}
+              "check", "suggest", "search", "preset", "types", "guides", "code", "pending"}
 _CODE_KEYS = {"repo", "origin"}
 REDIRECT_KEY = "wiki"  # a config holding only this key says "the wiki for this folder is over there"
 _TYPE_KEYS = {"description", "folder", "template"}
@@ -70,6 +70,7 @@ class Settings:
     guides_dir: str | None = None  # folder of the wiki's own guides, overriding the built-in ones
     code_repo: Path | None = None  # the code a code wiki describes ([code] repo, or $WIKI_CODE_REPO)
     code_origin: str | None = None  # the code repo's origin URL, to tell a wrong pointer
+    pending_ignore: tuple[str, ...] = ()  # files under raw/ that are not sources (`wiki pending` skips them)
     redirected_from: Path | None = field(default=None, compare=False)  # a code repo that pointed here
     vocabulary: Vocabulary = field(default_factory=Vocabulary, compare=False)
     root_note: str | None = field(default=None, compare=False)  # set when no config chose the root
@@ -200,6 +201,7 @@ def load_settings(
         guides_dir=guides_dir.strip("/") if guides_dir else None,
         code_repo=code_repo,
         code_origin=code.get("origin") or None,
+        pending_ignore=_patterns(_table(config, "pending"), "ignore", (), "[pending] ignore"),
         redirected_from=redirected_from,
         vocabulary=Vocabulary(rules),
         root_note=root_note,

@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
-from wiki_cli import __version__, codebase, evaluate, guide, init, scaffold
+from wiki_cli import __version__, codebase, evaluate, guide, init, scaffold, sources
 from wiki_cli.cache import Cache, CacheUnavailable
 from wiki_cli.config import CONFIG_FILENAME, ConfigError, Settings, load_settings
 from wiki_cli.model import ERROR, WARNING, Issue
@@ -196,6 +196,10 @@ def build_parser() -> argparse.ArgumentParser:
     stale = commands.add_parser("stale", parents=[common],
                                 help="code wikis: pages whose covered code changed since they were verified")
     stale.set_defaults(handler=cmd_stale)
+
+    pending_parser = commands.add_parser("pending", parents=[common],
+                                         help="sources in raw/ that no page links to yet")
+    pending_parser.set_defaults(handler=cmd_pending)
 
     list_parser = commands.add_parser("list", parents=[common], help="every page, with its type and summary")
     list_parser.add_argument("--type", dest="page_type", help="only pages of this type")
@@ -448,6 +452,22 @@ def cmd_stale(args: argparse.Namespace, settings: Settings) -> int:
             print(f"   uncommitted changes: {', '.join(item.uncommitted)}")
     if unverified:
         print(f"never verified: {', '.join(unverified)}")
+    return EXIT_OK
+
+
+def cmd_pending(args: argparse.Namespace, settings: Settings) -> int:
+    waiting, ingested = sources.pending(settings)
+    folders = sources.raw_dirs(settings)
+    if args.format == "json":
+        _print_json({"raw_dirs": folders, "pending": [source.to_dict() for source in waiting], "ingested": ingested})
+        return EXIT_OK
+    if not folders:
+        print("no raw/ folder: sources go in raw/")
+        return EXIT_OK
+    for source in waiting:
+        note = f"  (same content as {source.duplicate_of})" if source.duplicate_of else ""
+        print(f"{source.key}: {', '.join(source.files)}{note}")
+    print(f"{len(waiting)} pending, {ingested} ingested (in {', '.join(f + '/' for f in folders)})")
     return EXIT_OK
 
 
