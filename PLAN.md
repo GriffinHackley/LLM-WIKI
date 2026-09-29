@@ -404,7 +404,7 @@ Result, on the Politics branch `wiki-starter-kit`:
   - The "read the rules before editing" guardrail (`require_rules.py`) has no generic
     equivalent and stays a Claude Code hook in Politics.
 
-## Phase 9: One robust ingest guide
+## Phase 9 (done, OpenCode run pending): One robust ingest guide
 
 The ingest guide should work unchanged in a new wiki, with any agent, including a weak
 local model. Phase 2's guide gives the steps but leaves the hard judgment to the agent,
@@ -433,6 +433,26 @@ Done when: the tests pass; the guide renders for both presets; a fresh research 
 a fresh code wiki each ingest sources following it with no changes; Politics' evaluation
 is unchanged; and OpenCode with a local model ingests into a fresh wiki from the
 unchanged guide (the robustness test).
+
+Result (done, except the OpenCode run):
+- `wiki pending` works on Politics as it stands: 139 sources ingested, and the six it
+  lists are real (each named only in a dossier `TODO.md`), plus `raw/SOURCES.md`, which
+  Politics can skip with `[pending] ignore`. 0.4 s.
+- **Research trial:** a fresh wiki with three package READMEs and a byte-identical copy of
+  one. `wiki pending` flagged the copy; ingesting the h11 README following the guide gave
+  a source page, five pages that pass the page test (the library, its author, the person
+  whose argument inspired it, the design approach, the RFC it implements), links without
+  pages for three names mentioned in passing (Trio, Curio, requests), `aliases:` on the
+  approach and the RFC, claims attributed to the author, and one open question. 0 errors;
+  afterwards `wiki pending` lists the copy against the ingested original.
+- **Code trial:** a fresh code wiki with a design note that disagrees with the code (five
+  retries with backoff against three attempts without). The module page describes the
+  code and gives the note as history; the question is filed; the note's page and the
+  module page relate as `discusses` / `draws-on`. `check`, `pending` and `stale` are
+  clean.
+- 246 tests pass; the Politics evaluation is identical (hit@1 0.511, hit@3 0.778, MRR
+  0.639 on all 50 questions).
+- **Pending:** the OpenCode run (needs OpenCode and Ollama installed).
 
 ## Open decisions
 
