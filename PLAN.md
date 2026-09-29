@@ -452,7 +452,19 @@ Result (done, except the OpenCode run):
   clean.
 - 246 tests pass; the Politics evaluation is identical (hit@1 0.511, hit@3 0.778, MRR
   0.639 on all 50 questions).
-- **Pending:** the OpenCode run (needs OpenCode and Ollama installed).
+- **First OpenCode run** (qwen3:14b through Ollama): it ran `wiki guide ingest` five
+  times, taking it for the command that ingests, then tried `wiki ingest`; and OpenCode's
+  shell on Windows (PowerShell 5.1) garbled the guides' non-ASCII characters. Every guide
+  now opens by saying the agent does the steps itself, `wiki ingest` and friends explain
+  the guide, and the guides are ASCII.
+- **Slash commands for Claude Code, Copilot and OpenCode** (`wiki new --agent`, now
+  repeatable): each `/wiki-<workflow>` embeds `` !`wiki guide <workflow>` ``, so the guide
+  arrives as the prompt with no copy to go stale, plus a line telling agents that don't run
+  embedded commands to run it, and the user's arguments. Checked: Claude Code (haiku, `-p`)
+  and OpenCode (qwen3:14b, `opencode run --command`) both received `/wiki-lint` with the
+  guide inlined and the arguments in place. Copilot reads the same `SKILL.md` format, from
+  `.github/skills/` or `.claude/skills/`; not yet checked in VS Code.
+- **Pending:** the OpenCode ingest rerun, and a check of the skills in Copilot.
 
 ## Open decisions
 

@@ -188,7 +188,8 @@ def build_parser() -> argparse.ArgumentParser:
     new.add_argument("folder", nargs="?", default=".", help="the wiki's folder (default: the current folder)")
     new.add_argument("--preset", default=scaffold.DEFAULT_PRESET,
                      help=f"{' or '.join(scaffold.presets())}, or a preset folder (default: {scaffold.DEFAULT_PRESET})")
-    new.add_argument("--agent", choices=scaffold.AGENTS, help="also write this agent's adapter files")
+    new.add_argument("--agent", choices=scaffold.AGENTS, action="append",
+                     help="also write this agent's adapter files (slash commands for the workflows); repeatable")
     new.add_argument("--code", help="code preset: the top folder of the code's git repository (required)")
     new.add_argument("--git-hook", action="store_true",
                      help="install a pre-commit hook: no edits to raw/, and 'wiki check --all' must pass")

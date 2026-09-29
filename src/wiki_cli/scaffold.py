@@ -14,6 +14,7 @@ import json
 import os
 import subprocess
 import tomllib
+from collections.abc import Sequence
 from pathlib import Path
 
 from wiki_cli import codebase, guide
@@ -24,7 +25,7 @@ PRESETS_DIR = Path(__file__).parent / "presets"
 HOOKS_DIR = Path(__file__).parent / "hooks"
 DEFAULT_PRESET = "research"
 CODE_PRESET = "code"  # describes a code repo, which `wiki new` must be pointed at
-AGENTS = ("claude",)
+AGENTS = ("claude", "copilot", "opencode")  # agent platforms with adapter files
 CLAUDE_PERMISSION = "Bash(wiki:*)"
 CONTENT_FOLDERS = {"wiki", "templates", "raw"}  # a preset's pages and templates, not added to an established wiki
 
@@ -47,15 +48,17 @@ def preset_files(preset: str) -> tuple[str, Path]:
     raise ScaffoldError(f"no preset '{preset}': use one of {', '.join(presets())}, or a preset folder")
 
 
-def scaffold(target: Path, preset: str = DEFAULT_PRESET, agent: str | None = None, *,
+def scaffold(target: Path, preset: str = DEFAULT_PRESET, agent: str | Sequence[str] | None = None, *,
              git_hook: bool = False, code: Path | None = None) -> dict:
     target = target.expanduser().resolve()
     if target == Path.home().resolve() or target == Path(target.anchor):
         raise ScaffoldError(f"{target} is not a wiki folder; name a folder for the wiki")
     if target.exists() and not target.is_dir():
         raise ScaffoldError(f"{target} is a file")
-    if agent is not None and agent not in AGENTS:
-        raise ScaffoldError(f"no adapter for '{agent}': choose {', '.join(AGENTS)}")
+    agents = (agent,) if isinstance(agent, str) else tuple(agent or ())
+    for name in agents:
+        if name not in AGENTS:
+            raise ScaffoldError(f"no adapter for '{name}': choose {', '.join(AGENTS)}")
     name, folder = preset_files(preset)
     files = folder / "files" if (folder / "files").is_dir() else folder
     if code is not None and name != CODE_PRESET:
@@ -104,11 +107,15 @@ def scaffold(target: Path, preset: str = DEFAULT_PRESET, agent: str | None = Non
     except ConfigError as exc:
         result["notes"].append(f"{CONFIG_FILENAME} could not be read: {exc}")
         settings = None
-    if agent == "claude":
+    if "claude" in agents:
         _claude(target, settings, result, extra_dir=code_repo)
+    if "copilot" in agents:
+        _copilot(target, settings, result, with_claude="claude" in agents)
+    if "opencode" in agents:
+        _opencode(target, settings, result)
     if code_repo is not None:
         result["code_repo"] = str(code_repo)
-        result["code_setup"] = _code_setup(code_repo, target, folder, agent)
+        result["code_setup"] = _code_setup(code_repo, target, folder, agents)
     result["models_missing"] = settings is not None and not all((
         is_downloaded(settings.embed_model, settings.models_dir, reranker=False),
         is_downloaded(settings.reranker, settings.models_dir, reranker=True)))
@@ -141,7 +148,7 @@ def _relative(path: Path, start: Path) -> str:
         return path.as_posix()
 
 
-def _code_setup(code_repo: Path, target: Path, preset: Path, agent: str | None) -> list[dict]:
+def _code_setup(code_repo: Path, target: Path, preset: Path, agents: tuple[str, ...]) -> list[dict]:
     """What the code repo needs so an agent working there finds and keeps the wiki. Never
     written by `wiki new`: the code repo is the user's to change."""
     wiki_path = _relative(target, code_repo)
@@ -149,12 +156,12 @@ def _code_setup(code_repo: Path, target: Path, preset: Path, agent: str | None) 
     if _redirect_target(code_repo) != target:
         setup.append({"file": CONFIG_FILENAME, "text": f'wiki = "{wiki_path}"\n',
                       "why": "points wiki commands run in the code repo at the wiki"})
-    agents = code_repo / "AGENTS.md"
-    if not (agents.is_file() and "wiki guide sync" in agents.read_text(encoding="utf-8", errors="replace")):
+    instructions = code_repo / "AGENTS.md"
+    if not (instructions.is_file() and "wiki guide sync" in instructions.read_text(encoding="utf-8", errors="replace")):
         section = (preset / "code-repo-section.md").read_text(encoding="utf-8").replace("{{wiki_path}}", wiki_path)
         setup.append({"file": "AGENTS.md", "text": section,
                       "why": "tells the agent working on the code to keep the wiki current"})
-    if agent == "claude":
+    if "claude" in agents:
         settings = {"permissions": {"allow": [CLAUDE_PERMISSION], "additionalDirectories": [target.as_posix()]}}
         setup.append({"file": ".claude/settings.json", "text": json.dumps(settings, indent=2) + "\n",
                       "why": "lets Claude Code run wiki commands and read and edit the wiki from the code repo"})
@@ -292,20 +299,81 @@ def _claude(target: Path, settings, result: dict, extra_dir: Path | None = None)
             result["add"].append({"file": ".claude/settings.json",
                                   "text": f'"permissions": {{"allow": ["{CLAUDE_PERMISSION}"]}}\n'})
 
+    _write_skills(target, ".claude/skills", settings, result)
+
+
+def _copilot(target: Path, settings, result: dict, *, with_claude: bool) -> None:
+    """GitHub Copilot adapter: instructions pointing at AGENTS.md, and the workflow skills.
+    Copilot also reads `.claude/skills/`, so with the Claude adapter the skills are not
+    written twice."""
+    rel = ".github/copilot-instructions.md"
+    path = target / rel
+    if path.exists():
+        result["kept"].append(rel)
+        if "AGENTS.md" not in path.read_text(encoding="utf-8", errors="replace"):
+            result["add"].append({"file": rel, "text": COPILOT_INSTRUCTIONS})
+    elif (target / "AGENTS.md").exists():
+        _write(target, rel, COPILOT_INSTRUCTIONS, result)
+    if with_claude:
+        result["notes"].append("Copilot uses the workflow skills in .claude/skills/, so none were written "
+                               "to .github/skills/")
+    else:
+        _write_skills(target, ".github/skills", settings, result)
+
+
+def _opencode(target: Path, settings, result: dict) -> None:
+    """OpenCode adapter: one command per guide, run by the build agent (which may edit files
+    and run commands)."""
     for name, title in guide.available(settings):
-        rel = f".claude/skills/wiki-{name}/SKILL.md"
-        path = target / rel
-        if path.exists():
-            result["kept"].append(rel)
-            continue
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(skill_stub(name, title), encoding="utf-8")
-        result["created"].append(rel)
+        _write(target, f".opencode/commands/wiki-{name}.md", opencode_command(name, title), result)
+
+
+def _write_skills(target: Path, folder: str, settings, result: dict) -> None:
+    for name, title in guide.available(settings):
+        _write(target, f"{folder}/wiki-{name}/SKILL.md", skill_stub(name, title), result)
+
+
+def _write(target: Path, rel: str, text: str, result: dict) -> None:
+    path = target / rel
+    if path.exists():
+        result["kept"].append(rel)
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8", newline="\n")
+    result["created"].append(rel)
+
+
+COPILOT_INSTRUCTIONS = ("This repository is an LLM-maintained wiki. Read and follow `AGENTS.md` at the "
+                        "repository root:\nit says how the wiki is laid out and which workflow to run for "
+                        "each task.\n")
+
+# What each workflow acts on, for the text after the slash command.
+_SUBJECTS = {"ingest": "The source to ingest", "query": "The question to answer",
+             "lint": "What to audit", "sync": "The code change to sync"}
+
+
+def adapter_body(name: str, title: str) -> str:
+    """The steps of a guide as a prompt. Agents that run `` !`command` `` lines when a
+    skill or command loads (Claude Code, OpenCode) get the guide inlined; others see the
+    line itself, and the sentence before it tells them to run it. The guide still comes from
+    the installed `wiki` command, never a copy."""
+    subject = _SUBJECTS.get(name, "What to work on")
+    return (f"# /wiki-{name}: {title.split(': ', 1)[-1]}\n\n"
+            f"The steps below come from `wiki guide {name}`. If the next line is a command rather than the\n"
+            "steps, run that command once and use what it prints as the steps.\n\n"
+            f"!`wiki guide {name}`\n\n"
+            "Carry out those steps yourself, with your own tools, applying the rules in AGENTS.md.\n"
+            f"{subject}, if the user gave one after the command: $ARGUMENTS\n")
 
 
 def skill_stub(name: str, title: str) -> str:
+    """A `SKILL.md` for Claude Code, and for GitHub Copilot (which reads the same format)."""
     purpose = title.split(": ", 1)[-1].replace('"', "'")
-    return (f"---\nname: wiki-{name}\ndescription: \"{purpose[:1].upper() + purpose[1:]}. Runs `wiki guide {name}` "
-            f"and follows the steps it prints.\"\n---\n\n# /wiki-{name}\n\nRun `wiki guide {name}` and follow the steps it prints, "
-            "applying the rules in AGENTS.md. The steps come from the installed `wiki` command, so they "
-            "always match it.\n")
+    return (f"---\nname: wiki-{name}\ndescription: \"{purpose[:1].upper() + purpose[1:]}. Runs the steps from "
+            f"`wiki guide {name}`.\"\nallowed-tools: Bash(wiki *)\n---\n\n" + adapter_body(name, title))
+
+
+def opencode_command(name: str, title: str) -> str:
+    purpose = title.split(": ", 1)[-1].replace('"', "'")
+    return (f"---\ndescription: \"{purpose[:1].upper() + purpose[1:]} (wiki guide {name})\"\nagent: build\n---\n\n"
+            + adapter_body(name, title))

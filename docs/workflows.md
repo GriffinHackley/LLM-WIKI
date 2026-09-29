@@ -12,7 +12,8 @@ wiki guide ingest     # print the steps
 Guides ship with the command, so upgrading the tool updates the steps for every wiki at
 once, and the steps can never refer to a command or flag the installed version lacks.
 The wiki's `AGENTS.md` tells the agent to run the guide before starting a workflow;
-Claude Code skill stubs (`wiki new --agent claude`) do the same.
+the slash commands `wiki new --agent claude|copilot|opencode` adds (`/wiki-ingest` and so
+on) pull the guide into the prompt when they run.
 
 ## The workflows
 
