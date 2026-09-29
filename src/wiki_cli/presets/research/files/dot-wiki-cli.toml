@@ -15,40 +15,55 @@ summary_types = ["source", "person", "organization", "place", "event", "concept"
 named_types = ["person", "organization", "place", "event", "concept"]
 
 # Page types. A page's type comes from its `type:` frontmatter, else from its folder.
+# `wiki check` warns when a page lacks one of its type's `sections` or frontmatter `fields`.
 [types.source]
 description = "One page per ingested source: what it is, what it says, and what it names."
 folder = "wiki/sources"
 template = "templates/source.md"
+sections = ["Summary", "Key points", "Entities mentioned", "Original"]
+fields = ["title", "type", "date", "ingested", "last_updated"]
 
 [types.person]
 description = "A person."
 folder = "wiki/people"
 template = "templates/person.md"
+sections = ["Summary"]
+fields = ["title", "type", "sources", "last_updated"]
 
 [types.organization]
 description = "A company, agency, group or institution."
 folder = "wiki/organizations"
 template = "templates/organization.md"
+sections = ["Summary"]
+fields = ["title", "type", "sources", "last_updated"]
 
 [types.place]
 description = "A location: a country, region, city, building or property."
 folder = "wiki/places"
 template = "templates/place.md"
+sections = ["Summary"]
+fields = ["title", "type", "sources", "last_updated"]
 
 [types.event]
 description = "Something that happened at a particular time."
 folder = "wiki/events"
 template = "templates/event.md"
+sections = ["Summary"]
+fields = ["title", "type", "date", "sources", "last_updated"]
 
 [types.concept]
 description = "A thing found in the sources: a term, technique, law, policy, idea, product or tool."
 folder = "wiki/concepts"
 template = "templates/concept.md"
+sections = ["Summary"]
+fields = ["title", "type", "sources", "last_updated"]
 
 [types.analysis]
 description = "The wiki's own synthesis: a page answering a question by drawing on many other pages."
 folder = "wiki/analyses"
 template = "templates/analysis.md"
+sections = ["Summary", "Key pages"]
+fields = ["title", "type", "sources", "last_updated"]
 
 # Typed relations: links under these headings (or in these fields) get a relation type,
 # and the rest of the list line becomes the reason. Every other link is `links-to`.

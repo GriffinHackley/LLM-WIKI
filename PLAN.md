@@ -464,7 +464,19 @@ Result (done, except the OpenCode run):
   and OpenCode (qwen3:14b, `opencode run --command`) both received `/wiki-lint` with the
   guide inlined and the arguments in place. Copilot reads the same `SKILL.md` format, from
   `.github/skills/` or `.claude/skills/`; not yet checked in VS Code.
-- **Pending:** the OpenCode ingest rerun, and a check of the skills in Copilot.
+- **Second OpenCode run** (qwen3:14b, "Ingest everything new"): no loop; it used
+  `wiki pending`, skipped the duplicate, linked each original and resisted the planted
+  instruction, but wrote only source pages, ignored the template, invented a date,
+  never committed, and suggested `wiki commit`. It did what the tools told it and skipped
+  what only the guide said, so the guide's rules became checks: `[types.<name>]` takes
+  `sections` and `fields` that `wiki check` requires (`missing-section`,
+  `missing-field`), `uncited-sources` flags sources a page lists but never cites (19 real
+  cases in Politics), and `wiki check <source> --ingested` checks the whole ingest
+  (original linked, what it discusses named, cited by the pages it touched, those pages
+  clean, pages and sources committed). The guide's commit step gives the git commands
+  and its last step runs the ingest check until clean. On the second run's pages the
+  checks name every gap; the h11 trial and a Politics source page pass.
+- **Pending:** a third OpenCode run, and a check of the skills in Copilot.
 
 ## Open decisions
 

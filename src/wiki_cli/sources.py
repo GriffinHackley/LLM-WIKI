@@ -51,42 +51,53 @@ def raw_dirs(settings: Settings) -> list[str]:
     return sorted(tops)
 
 
+class _RawIndex:
+    """The sources in the raw folders, and which of them a page's links name."""
+
+    def __init__(self, settings: Settings, scanned, others: list[str]):
+        folders = raw_dirs(settings)
+        raw_files = sorted(rel for rel in [page_file.rel for page_file, _ in scanned] + others
+                           if any(rel.startswith(folder + "/") for folder in folders)
+                           and rel.rsplit("/", 1)[-1] not in ALWAYS_IGNORED
+                           and not matches(rel, settings.pending_ignore))
+        self.groups: dict[str, Source] = {}
+        for rel in raw_files:
+            key = _without_extension(rel)
+            self.groups.setdefault(key.casefold(), Source(key)).files.append(rel)
+        self.by_path: dict[str, str] = {}
+        self.by_name: dict[str, set[str]] = {}
+        for folded, source in self.groups.items():
+            names = {folded.rsplit("/", 1)[-1]}
+            self.by_path[folded] = folded
+            for rel in source.files:
+                self.by_path[rel.casefold()] = folded
+                names.add(rel.rsplit("/", 1)[-1].casefold())
+            for name in names:
+                self.by_name.setdefault(name, set()).add(folded)
+
+    def linked(self, page) -> set[str]:
+        """The sources (folded keys) a page links, by path or bare name, in body or frontmatter."""
+        found: set[str] = set()
+        for target in _targets(page):
+            folded = target.casefold().lstrip("/")
+            if folded in self.by_path:
+                found.add(self.by_path[folded])
+            elif "/" not in folded:
+                found.update(self.by_name.get(folded, ()))
+            else:
+                found.update(key for path, key in self.by_path.items() if path.endswith("/" + folded))
+        return found
+
+
 def pending(settings: Settings) -> tuple[list[Source], int]:
     """Sources no page links to, sorted by path, and how many sources are ingested."""
     scanned, others = scan_vault(settings)
-    folders = raw_dirs(settings)
-    raw_files = sorted(rel for rel in [page_file.rel for page_file, _ in scanned] + others
-                       if any(rel.startswith(folder + "/") for folder in folders)
-                       and rel.rsplit("/", 1)[-1] not in ALWAYS_IGNORED
-                       and not matches(rel, settings.pending_ignore))
-    groups: dict[str, Source] = {}
-    for rel in raw_files:
-        key = _without_extension(rel)
-        groups.setdefault(key.casefold(), Source(key)).files.append(rel)
-
-    by_path: dict[str, str] = {}
-    by_name: dict[str, set[str]] = {}
-    for folded, source in groups.items():
-        names = {folded.rsplit("/", 1)[-1]}
-        by_path[folded] = folded
-        for rel in source.files:
-            by_path[rel.casefold()] = folded
-            names.add(rel.rsplit("/", 1)[-1].casefold())
-        for name in names:
-            by_name.setdefault(name, set()).add(folded)
-
+    index = _RawIndex(settings, scanned, others)
+    groups = index.groups
     ingested: set[str] = set()
     for page_file, _ in scanned:
-        if page_file.kind != PAGE:
-            continue
-        for target in _targets(load(page_file, settings)):
-            folded = target.casefold().lstrip("/")
-            if folded in by_path:
-                ingested.add(by_path[folded])
-            elif "/" not in folded:
-                ingested.update(by_name.get(folded, ()))
-            else:
-                ingested.update(key for path, key in by_path.items() if path.endswith("/" + folded))
+        if page_file.kind == PAGE:
+            ingested |= index.linked(load(page_file, settings))
 
     seen: dict[str, str] = {}
     for folded in sorted(ingested):

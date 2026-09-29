@@ -7,8 +7,11 @@ listed in `summary_types` ("*" for all).
 
 from __future__ import annotations
 
+import re
+
 from wiki_cli import links
-from wiki_cli.edges import derive
+from wiki_cli.config import PageType
+from wiki_cli.edges import _link_value, derive
 from wiki_cli.model import ERROR, WARNING, Issue
 from wiki_cli.pages import PAGE, Page, Resolver
 
@@ -34,6 +37,12 @@ def check_page(page: Page, resolver: Resolver) -> list[Issue]:
     if declared and page.page_type and page.page_type not in declared:
         issues.append(Issue(WARNING, "unknown-type",
                             f"type '{page.page_type}' is not one of the types in [types]: {', '.join(sorted(declared))}"))
+
+    page_type = next((declared_type for declared_type in settings.types if declared_type.name == page.page_type),
+                     None) if settings is not None else None
+    if page_type is not None:
+        issues.extend(_required_parts(page, page_type))
+    issues.extend(_uncited_sources(page, resolver))
 
     summary_types = settings.summary_types if settings is not None else ()
     if "*" in summary_types or (page.page_type and page.page_type in summary_types):
@@ -64,6 +73,62 @@ def check_page(page: Page, resolver: Resolver) -> list[Issue]:
         listed = ", ".join(names[:MAX_LISTED]) + (f" and {len(names) - MAX_LISTED} more" if len(names) > MAX_LISTED else "")
         issues.append(Issue(WARNING, "unwritten-links", f"{len(names)} links to pages not written yet: {listed}"))
     return _locate(issues, page)
+
+
+def _required_parts(page: Page, page_type: PageType) -> list[Issue]:
+    """The sections and frontmatter fields its type's `[types]` entry says every page has."""
+    issues = []
+    data = page.data or {}
+    template = f" (see {page_type.template})" if page_type.template else ""
+    missing_fields = [key for key in page_type.fields if key not in data]
+    if missing_fields:
+        issues.append(Issue(WARNING, "missing-field", f"frontmatter has no {_quoted(missing_fields)}; every "
+                                                      f"{page_type.name} page has {_it(missing_fields)}{template}"))
+    headings = {section for line, section, in_code in links.iter_lines(page.body)
+                if not in_code and line.lstrip().startswith("#")}
+    missing_sections = [name for name in page_type.sections if name.lower() not in headings]
+    if missing_sections:
+        issues.append(Issue(WARNING, "missing-section", f"no {_quoted(missing_sections, '## ')} section"
+                                                        f"{'s' if len(missing_sections) > 1 else ''}; every "
+                                                        f"{page_type.name} page has {_it(missing_sections)}{template}"))
+    return issues
+
+
+def _uncited_sources(page: Page, resolver: Resolver) -> list[Issue]:
+    """Sources a page lists in `sources:` but never cites in its text."""
+    listed = (page.data or {}).get("sources")
+    if not isinstance(listed, list) or not listed:
+        return []
+    linked = set()
+    for link in links.extract_links(page.body, page.file.rel):
+        if not link.is_code:
+            linked.add((resolver.resolve_path if link.is_path else resolver.resolve)(link.target) or link.target)
+    uncited = []
+    for item in listed:
+        if not isinstance(item, str) or not item.strip():
+            continue
+        target = _link_value(item)
+        if (resolver.resolve(target) or target) in linked:
+            continue
+        # a wiki's own citation format may name the source in plain text: "(senate-report-2024, p. 4)"
+        name = target.rsplit("/", 1)[-1]
+        if re.search(rf"(?<![\w-]){re.escape(name)}(?![\w-])", page.body, re.IGNORECASE):
+            continue
+        uncited.append(target)
+    if not uncited:
+        return []
+    return [Issue(WARNING, "uncited-sources", f"sources: lists {_quoted(uncited, '[[', ']]')} but the text never "
+                                              "cites it; cite it where its facts are used, or remove it")]
+
+
+def _it(names: list[str]) -> str:
+    return "it" if len(names) == 1 else "them"
+
+
+def _quoted(names: list[str], before: str = "'", after: str | None = None) -> str:
+    after = before if after is None else after
+    after = "" if before == "## " else after
+    return ", ".join(f"{before}{name}{after}" for name in names)
 
 
 def check_corpus(pages: list[Page], resolver: Resolver) -> list[Issue]:

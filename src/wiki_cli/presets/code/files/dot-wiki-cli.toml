@@ -21,35 +21,48 @@ summary_types = ["module", "concept", "decision", "guide", "analysis", "source"]
 named_types = ["module", "concept"]
 
 # Page types. A page's type comes from its `type:` frontmatter, else from its folder.
+# `wiki check` warns when a page lacks one of its type's `sections` or frontmatter `fields`.
 [types.module]
 description = "One area of the code: what it does, where it lives, and how it fits with the rest."
 folder = "wiki/modules"
 template = "templates/module.md"
+sections = ["Summary"]
+fields = ["title", "type", "last_updated"]
 
 [types.concept]
 description = "A domain idea, pattern or term the code relies on."
 folder = "wiki/concepts"
 template = "templates/concept.md"
+sections = ["Summary"]
+fields = ["title", "type", "last_updated"]
 
 [types.decision]
 description = "Why something is the way it is: the context, the choice, and its consequences (like an ADR)."
 folder = "wiki/decisions"
 template = "templates/decision.md"
+sections = ["Summary", "Decision"]
+fields = ["title", "type", "status", "last_updated"]
 
 [types.guide]
 description = "How to do something with the code: run, test, deploy, debug or extend it."
 folder = "wiki/guides"
 template = "templates/guide.md"
+sections = ["Summary"]
+fields = ["title", "type", "last_updated"]
 
 [types.source]
 description = "One page per ingested document (a design doc, RFC, postmortem or meeting notes): what it is, what it says, and what it discusses."
 folder = "wiki/sources"
 template = "templates/source.md"
+sections = ["Summary", "Key points", "Discusses", "Original"]
+fields = ["title", "type", "date", "ingested", "last_updated"]
 
 [types.analysis]
 description = "The wiki's own synthesis: a page answering a question by drawing on many other pages."
 folder = "wiki/analyses"
 template = "templates/analysis.md"
+sections = ["Summary", "Key pages"]
+fields = ["title", "type", "last_updated"]
 
 # Typed relations: links under these headings get a relation type, and the rest of the
 # list line becomes the reason. `code:` links are `refers-to-code`; every other link is

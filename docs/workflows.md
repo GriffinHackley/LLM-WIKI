@@ -95,11 +95,16 @@ A page type is three things that should agree:
    description = "A person."
    folder = "wiki/people"
    template = "templates/person.md"
+   sections = ["Summary"]                              # headings every person page has
+   fields = ["title", "type", "sources", "last_updated"]  # frontmatter every person page has
    ```
 
    The guides show the agent each type's description, folder and template, so the
    description is how the agent decides what a thing is. Make the boundaries between
-   types sharp. `wiki check` flags pages whose `type:` is not declared.
+   types sharp. `wiki check` flags pages whose `type:` is not declared, and pages missing
+   one of their type's `sections` or `fields` (`missing-section`, `missing-field`): list
+   only what every page of the type must have, since agents delete template sections they
+   have nothing for.
 
 2. **A template** with the sections pages of that type should have. Every template needs
    a `## Summary`: search results and navigation show it.
@@ -124,6 +129,11 @@ relation types in effect, and `wiki neighbors <slug>` shows what a page's links 
 
 ## Keeping the wiki honest
 
+- **Checking an ingest.** `wiki check <source-slug> --ingested` checks a finished ingest
+  against what the guide asks for: the source page passes `wiki check` and links its file
+  in `raw/`, it names what the source discusses, at least one page cites it, those pages
+  pass `wiki check`, and the pages and sources are committed (other files, such as editor
+  settings, are left alone). The ingest guide ends by running it until it is clean.
 - **Summaries.** `wiki check` warns `summary-stale` when a page's body changed but its
   summary did not. The agent revises the summary, or runs
   `wiki check <slug> --summary-ok` when it still fits.
