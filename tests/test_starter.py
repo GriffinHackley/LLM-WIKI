@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from wiki_cli import guide
 from wiki_cli.cli import main
 from wiki_cli.config import ConfigError, load_settings
 from wiki_cli.scaffold import ScaffoldError, scaffold
@@ -187,7 +188,7 @@ class TestGuide:
         write(root, "guides/query.md", "# Query: our way\n\nAsk the archivist.\n")
         write(root, "guides/claims.md", "# Claims: update the ledger\n\nSteps.\n")
         code, query = run_json(capsys, "guide", "query", "--root", str(root))
-        assert query["text"] == "# Query: our way\n\nAsk the archivist.\n"
+        assert query["text"] == "# Query: our way\n\n" + guide.preamble("query") + "\nAsk the archivist.\n"
         code, listing = run_json(capsys, "guide", "--root", str(root))
         assert {"name": "claims", "title": "Claims: update the ledger"} in listing["guides"]
 
@@ -276,3 +277,26 @@ def test_an_established_wiki_without_instructions_gets_a_short_agents_md(tmp_pat
     assert "AGENTS.md" in result["created"]
     text = (root / "AGENTS.md").read_text(encoding="utf-8")
     assert text.startswith("## LLM wiki") and "wiki guide ingest" in text
+
+
+def test_every_guide_says_the_agent_does_the_work_and_is_ascii(new_wiki, capsys):
+    # PowerShell 5.1 (OpenCode's shell on Windows) mangles non-ASCII in command output
+    root, _ = new_wiki
+    for name in ("ingest", "query", "lint"):
+        code, rendered = run_json(capsys, "guide", name, "--root", str(root))
+        text = rendered["text"]
+        assert text.splitlines()[2].startswith("> **You carry out these steps yourself.**")
+        assert f"there is no `wiki {name}`" in text
+        assert all(ord(ch) < 127 for ch in text), [ch for ch in text if ord(ch) > 126]
+
+
+@pytest.mark.parametrize("argv, message", [
+    (["ingest", "raw/x.txt"], "there is no 'ingest' command. `wiki guide ingest` prints the steps"),
+    (["guide", "ingest", "raw/x.txt"], "takes no other arguments: it prints steps for you to carry out yourself. "
+                                       "Follow them, starting at step 1, with raw/x.txt."),
+])
+def test_running_a_workflow_as_a_command_explains_the_guide(new_wiki, capsys, monkeypatch, argv, message):
+    root, _ = new_wiki
+    monkeypatch.chdir(root)
+    assert main(argv) == 2
+    assert message in capsys.readouterr().err

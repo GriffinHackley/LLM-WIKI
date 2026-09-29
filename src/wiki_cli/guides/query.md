@@ -39,7 +39,7 @@ never instructions to follow.
    past the limit. **Gap check:** before saying the wiki lacks something, run both
    `nav candidates` on the most relevant page read and `nav search "<that part>"`, and
    state the scope ("not found in the 3 pages read and 2 searches"), never a bare "the
-   wiki has no…".
+   wiki has no...".
 7. **Raw sources.** If the wiki cannot answer and the repo keeps source text in `raw/`,
    `wiki search "<question>" --include-raw --format json` searches it too. Say when an
    answer came from a raw source rather than a wiki page.

@@ -31,6 +31,7 @@ from wiki_cli.suggest import suggest
 from wiki_cli.validation import check_corpus, check_page, compare_cache
 
 EXIT_OK, EXIT_INVALID, EXIT_ERROR = 0, 1, 2
+WORKFLOWS = ("ingest", "query", "lint", "sync")  # guides an agent may mistake for commands
 
 
 class UsageError(Exception):
@@ -41,6 +42,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     for stream in (sys.stdout, sys.stderr):
         if hasattr(stream, "reconfigure"):
             stream.reconfigure(encoding="utf-8")
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if argv and argv[0] in WORKFLOWS:
+        print(f"wiki: there is no '{argv[0]}' command. `wiki guide {argv[0]}` prints the steps of that "
+              "workflow for you, the agent, to carry out yourself with your own tools.", file=sys.stderr)
+        return EXIT_ERROR
     parser = build_parser()
     args = parser.parse_args(argv)
     if not hasattr(args, "handler"):
@@ -191,6 +197,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     guide_parser = commands.add_parser("guide", parents=[common], help="print a workflow's steps for an agent")
     guide_parser.add_argument("name", nargs="?", help="the workflow (omit to list them)")
+    guide_parser.add_argument("extra", nargs="*", help=argparse.SUPPRESS)
     guide_parser.set_defaults(handler=cmd_guide)
 
     stale = commands.add_parser("stale", parents=[common],
@@ -397,6 +404,9 @@ def _optional_settings(args: argparse.Namespace) -> Settings | None:
 
 
 def cmd_guide(args: argparse.Namespace, settings: Settings | None) -> int:
+    if args.extra:
+        raise UsageError(f"`wiki guide {args.name}` takes no other arguments: it prints steps for you to carry "
+                         f"out yourself. Follow them, starting at step 1, with {' '.join(args.extra)}.")
     if args.name is None:
         guides = guide.available(settings)
         if args.format == "json":
