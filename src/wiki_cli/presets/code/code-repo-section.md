@@ -7,4 +7,5 @@ repository's `.wiki-cli.toml` points `wiki` commands at it). Keep it current as 
   before reading code at random.
 - **After changing code:** commit the code, then run `wiki guide sync` and follow it, so
   the pages describing what you changed stay accurate. Commit the wiki separately.
-- **Documenting something new** (a module, a decision): `wiki guide ingest`.
+- **Documenting something new** (a module, a decision), or a design doc, RFC or postmortem
+  saved in the wiki's `raw/`: `wiki guide ingest`.

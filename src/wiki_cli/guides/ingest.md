@@ -51,7 +51,8 @@ the ones below, follow the template.
    - To ingest several sources in one run, or "everything new", see *Several sources*
      below.
    - **Is it already in the wiki?** `wiki pending` flags a file with the same content as
-     one already ingested (`duplicate_of`): don't ingest it again; tell the user. Also run
+     another (`duplicate_of`), ingested or listed before it: don't ingest the copy; tell
+     the user. Also run
      `wiki search "<the source's title or main subject>"` and look for a source page about
      the same document: another copy, a draft, a translation, or an earlier edition. For a
      new edition, write a new source page that links the earlier one and says what
