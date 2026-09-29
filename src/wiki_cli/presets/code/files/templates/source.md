@@ -19,7 +19,7 @@ What it says that matters, each with a locator (section or page). Where it descr
 the code works, say whether the code still does (the code wins).
 
 ## Discusses
-- [[page-slug]] — what the document says about it (§ N)
+- [[page-slug]] — what the document says about it (section N)
 
 ## Questions raised
 Plans the code never followed, disagreements with the code or other documents, and claims

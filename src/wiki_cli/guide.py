@@ -70,7 +70,17 @@ def render(name: str, settings: Settings | None) -> str:
         code_repo = settings.code_repo if settings is not None else None
         text = text.replace("{{code_repo}}", code_repo.as_posix() if code_repo else
                             "(no code repo configured: set [code] repo in .wiki-cli.toml, or WIKI_CODE_REPO)")
-    return text.rstrip() + "\n"
+    title, _, rest = text.partition("\n")
+    return f"{title}\n\n{preamble(name)}{rest}".rstrip() + "\n"
+
+
+def preamble(name: str) -> str:
+    """Said first in every guide, because an agent may take `wiki guide <name>` for the
+    command that does the work and run it again and again."""
+    return (f"> **You carry out these steps yourself.** `wiki guide {name}` only prints them; no `wiki`\n"
+            f"> command does this workflow for you (there is no `wiki {name}`). Use your own tools to\n"
+            "> read files, write files and run commands, and run a `wiki` command only where a step\n"
+            "> names one. You now have the whole guide: don't run `wiki guide` again. Start at step 1.\n")
 
 
 def types_text(settings: Settings | None) -> str:

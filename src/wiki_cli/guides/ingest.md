@@ -5,13 +5,13 @@ touches, check, and commit. Then the next source, if there is one.
 
 {{^code}}
 A source is a **document**: a file in `raw/` (an article, report, paper, transcript,
-book, notes). It never changes, so pages cite it by a locator: p. 4, § 2, 00:12:30.
+book, notes). It never changes, so pages cite it by a locator: p. 4, section 2, 00:12:30.
 {{/code}}
 {{#code}}
 A source is one of:
 
 - **A document:** a file in `raw/` (a design doc, RFC, postmortem, meeting notes). It
-  never changes, so pages cite it by a locator: p. 4, § 2.
+  never changes, so pages cite it by a locator: p. 4, section 2.
 - **Part of the code:** a module, a pull request, a range of commits or a decision, in the
   code repo at `{{code_repo}}`. The code changes, so pages cite it with `code:` links and
   record the commit they were checked against. Read the code; never edit it as part of
@@ -36,7 +36,7 @@ the ones below, follow the template.
 - **Write only what the source supports.** Don't fill gaps from your own knowledge. If you
   know something the source doesn't say, put it in your report as a lead, not in the wiki.
 - **Attribute; don't assert.** Where a source claims, alleges, estimates, predicts or
-  argues, say so and say who: "the report estimates…", "Smith says…". Write something as
+  argues, say so and say who: "the report estimates...", "Smith says...". Write something as
   plain fact only when the source establishes it (a record, a measurement, the text of a
   law) or sources agree and none disputes it.
 - **One page per thing,** found before it is created, under any of its names (step 6).
@@ -86,7 +86,7 @@ the ones below, follow the template.
      - a summary: what the source is, who produced it, when, and its main point, with its
        claims labelled as its claims;
      - what it says that matters, each point with a locator;
-     - what it discusses, one line each: `- [[slug]] — role in this source (p. N)`. Only
+     - what it discusses, one line each: `- [[slug]] - role in this source (p. N)`. Only
        what it materially discusses (step 5), not every name it contains;
      - a link to its file in `raw/`, for example `[[raw/report.pdf]]`. This link is how
        `wiki pending` knows the source is ingested.
@@ -139,10 +139,10 @@ the ones below, follow the template.
    - **New page:** copy the template for its type into the type's folder and fill it from
      this source. Delete the placeholder text, and any section you have nothing for.
    - **Cite every fact** you add, at the end of its sentence or paragraph:
-     `…signed in March ([[source-slug]], p. 4)`, or in the wiki's own citation format if
+     `...signed in March ([[source-slug]], p. 4)`, or in the wiki's own citation format if
      its rules give one.
    - **Link on first mention** in each page with `[[slug]]`, including pages not written
-     yet. In link lists, write `- [[page]] — why it matters here`: the text after the dash
+     yet. In link lists, write `- [[page]] - why it matters here`: the text after the dash
      is the reason the `wiki` command shows for that link, so make it specific.
 {{#code}}
    - **Code pages:** explain what the code does and why, how the parts fit, and what is
