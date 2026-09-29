@@ -22,8 +22,6 @@ Deferred from the starter kit plan: `/wiki-ingest` assumes a readable file is al
   `.claude/fetch_html.py` is a rough version for web pages.
 - **Provenance:** URL, retrieval date and original file name, in the text file's header
   or a `raw/SOURCES.md`.
-- **`wiki pending`:** files in `raw/` that no page links to yet, so `/wiki-ingest` with no
-  argument can offer only what is left. The index already holds the links to answer it.
 - **`wiki extract <file>`:** write `raw/<name>.txt` beside a PDF or HTML original, and
   have the ingest guide run it when no `.txt` exists. Matters for the "any agent"
   principle: Claude reads PDFs, several other agents do not. The text is also what the

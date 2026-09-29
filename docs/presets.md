@@ -46,6 +46,11 @@ agent that changes the code keeps it current, working from the code repo.
 | `decision` | Why something is the way it is (like an ADR) | `## Affects` -> `decided-for` |
 | `guide` | How to run, test, deploy, debug or extend the code | |
 | `analysis` | The wiki's own synthesis, answering a question across pages | `## Key pages` -> `synthesizes` |
+| `source` | A document about the code (design doc, RFC, postmortem, meeting notes), ingested from `raw/` | `## Discusses` -> `discusses` |
+
+Every type's `sources:` field lists the documents a page draws on (`draws-on`). Where a
+document and the code disagree about what the code does now, the code wins and the page
+gives the document as history.
 
 Pages link to code with `[name](code:src/app/pages.py)` (paths from the code repo's top
 level; `refers-to-code` relations), list the files they describe in `covers:` (globs),

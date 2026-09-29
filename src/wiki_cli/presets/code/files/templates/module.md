@@ -3,6 +3,7 @@ title: <Module name>
 type: module
 covers: ["src/<path>/**"]
 verified: "<code commit this page was checked against>"
+sources: []
 last_updated: YYYY-MM-DD
 ---
 

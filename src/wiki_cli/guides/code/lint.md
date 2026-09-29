@@ -22,6 +22,8 @@ The code repo is `{{code_repo}}`.
    - `wiki unwritten`: links to pages not written yet. Fix typos; list the rest in the
      report as pages worth writing, most-linked first.
    - `wiki orphans`: pages nothing links to. Link them from related pages, or report them.
+   - `wiki pending`: documents in `raw/` no page links to yet. List them in the report;
+     don't ingest them during lint.
 3. **Coverage.** Compare the code's top-level folders (`git -C <code repo> ls-files`) with
    the `covers:` of the module pages (`wiki list --type module`): report important code no
    page covers.
