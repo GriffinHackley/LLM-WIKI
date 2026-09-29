@@ -92,10 +92,11 @@ Options: `--agent claude` adds the Claude Code files ([section 7](#7-connect-you
 `wiki check`. Running `wiki new` again never overwrites anything; it adds what is
 missing.
 
-**Ingest a source.** Put a file in `raw/` and ask your agent to ingest it. `AGENTS.md`
-tells it to run `wiki guide ingest` and follow it: read the whole source, write its source
-page, create or update the pages for the people, places, events and ideas it discusses,
-cite every fact, file contradictions, check, and commit. One commit per source.
+**Ingest a source.** Put a file in `raw/` and ask your agent to ingest it, or to "ingest
+everything new". `AGENTS.md` tells it to run `wiki guide ingest` and follow it: read the
+whole source, write its source page, create or update the pages for the people, places,
+events and ideas it discusses, cite every fact, file contradictions, check, and commit.
+One commit per source. `wiki pending` lists the sources not ingested yet.
 
 **Ask questions.** Ask your agent; it follows `wiki guide query`: search, read one section
 at a time, follow relations by their reasons, stay within a page limit, and cite the

@@ -214,7 +214,10 @@ def test_ingest_guide_names_the_wikis_types(new_wiki, capsys):
     code, ingest = run_json(capsys, "guide", "ingest", "--root", str(root))
     assert code == 0
     assert "`place`: A location: a country" in ingest["text"] and "wiki suggest" in ingest["text"]
-    assert "{{" not in ingest["text"]
+    assert "{{" not in ingest["text"] and "}}" not in ingest["text"] and "\n\n\n" not in ingest["text"]
+    # a wiki with no code repo gets no code steps
+    assert "code:" not in ingest["text"] and "covers:" not in ingest["text"] and "code repo" not in ingest["text"]
+    assert "the source (or" not in ingest["text"] and "naming the source, the pages" in ingest["text"]
     scaffold(root, agent="claude")
     assert (root / ".claude/skills/wiki-ingest/SKILL.md").is_file()
 

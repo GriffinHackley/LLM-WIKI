@@ -22,6 +22,9 @@ what needs judgment, and commit the fixes.
      (`wiki suggest <slug>` and `wiki search` find them), or report it if nothing
      should. An open-questions page is an orphan until a page raises a question; that is
      fine.
+   - `wiki pending`: sources in `raw/` no page links to yet. Don't ingest them during
+     lint; list them in the report (and any flagged as the same content as a source
+     already ingested).
 3. **Judgment checks, by reading.** Use `wiki search`, `wiki list --type <type>` and
    `wiki neighbors` to find the pages to compare; read only what you need.
    - **Contradictions:** pages that disagree about the same fact (a date, a role, a
@@ -45,4 +48,4 @@ what needs judgment, and commit the fixes.
    the fixes with a message listing what was fixed.
 5. **Report** to the user: what you fixed, and what needs their judgment (contradictions,
    uncited facts you could not source, pages worth writing, orphans with no natural
-   home).
+   home), and the sources still to ingest.

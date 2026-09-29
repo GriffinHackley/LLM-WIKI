@@ -170,6 +170,7 @@ re-embedding.
 | `wiki search "<question>" [--limit 3] [--include-raw] [--keyword-only]` | Best pages for a question: keyword + vector search, fused and reranked |
 | `wiki nav start \| read \| candidates \| search \| end \| log` | Guided traversal sessions (see [docs/navigation.md](docs/navigation.md)) |
 | `wiki list [--type T]` | Every page with its type and summary |
+| `wiki pending` | Sources in `raw/` no page links to yet, flagging copies of sources already ingested |
 | `wiki neighbors <slug> [--incoming] [--outgoing] [--relation T] [--limit N]` | A page's typed relations with reasons, no page bodies |
 | `wiki suggest <slug>` | Pages a page names but does not link, shares linked pages with, or resembles |
 | `wiki unwritten [--limit N]` | Link targets with no page, most-linked first |

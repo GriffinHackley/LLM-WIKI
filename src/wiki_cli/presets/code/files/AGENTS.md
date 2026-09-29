@@ -3,7 +3,10 @@
 This repository is an **LLM-maintained wiki about a codebase**. The code lives in its
 own repository, at `{{code_repo}}` (relative to this wiki; `[code] repo` in
 `.wiki-cli.toml`). You, the agent, keep this wiki accurate as the code changes: what each
-part of the code does and why, the decisions behind it, and how to work on it.
+part of the code does and why, the decisions behind it, and how to work on it. Documents
+about the code (design docs, RFCs, postmortems, meeting notes) go in `raw/` and are
+ingested like the code; where they disagree with the code about what it does now, the
+code wins.
 Knowledge compounds because it lives in files, not in chat history.
 
 Usually the agent that changes the code also keeps the wiki, working from the code repo:
@@ -13,6 +16,7 @@ point `wiki` commands here. This file is for sessions started in the wiki itself
 ## Layout
 
 ```
+raw/                   Documents about the code. Never edit, rename or delete anything here.
 wiki/                  The wiki: one folder per page type (wiki/modules/, wiki/decisions/, ...).
 wiki/open-questions.md Things the code and the wiki disagree about, and gaps worth chasing.
 templates/             One template per page type. New pages start from these.
@@ -25,7 +29,9 @@ templates/             One template per page type. New pages start from these.
 Each workflow's steps come from the `wiki` command, so they always match the installed
 version. Before starting one, run its guide and follow it:
 
-- **Document part of the code** (a module, a pull request, a decision): `wiki guide ingest`
+- **Document part of the code** (a module, a pull request, a decision) **or ingest a
+  document from `raw/`:** `wiki guide ingest` (`wiki pending` lists documents not ingested
+  yet)
 - **Update the wiki after the code changed:** `wiki guide sync`
 - **Answer a question about the code from the wiki:** `wiki guide query`
 - **Audit the wiki:** `wiki guide lint`

@@ -3,7 +3,7 @@
 preset = "code"
 
 pages = ["wiki/**/*.md"]
-raw = []
+raw = ["raw/**/*.txt"]          # text of documents (design docs, RFCs), searched with --include-raw
 
 # The code this wiki describes: its path from this wiki, and its origin, so a pointer to
 # the wrong checkout is caught. WIKI_CODE_REPO overrides the path on another machine.
@@ -15,7 +15,7 @@ origin = "{{code_origin}}"
 headings = ["Summary"]
 
 [check]
-summary_types = ["module", "concept", "decision", "guide", "analysis"]
+summary_types = ["module", "concept", "decision", "guide", "analysis", "source"]
 
 [suggest]
 named_types = ["module", "concept"]
@@ -40,6 +40,11 @@ template = "templates/decision.md"
 description = "How to do something with the code: run, test, deploy, debug or extend it."
 folder = "wiki/guides"
 template = "templates/guide.md"
+
+[types.source]
+description = "One page per ingested document (a design doc, RFC, postmortem or meeting notes): what it is, what it says, and what it discusses."
+folder = "wiki/sources"
+template = "templates/source.md"
 
 [types.analysis]
 description = "The wiki's own synthesis: a page answering a question by drawing on many other pages."
@@ -66,3 +71,14 @@ heading = "Key pages"
 page_type = "analysis"
 type = "synthesizes"
 inverse = "synthesized-in"
+
+[[relations]]
+heading = "Discusses"
+page_type = "source"
+type = "discusses"
+inverse = "discussed-in"
+
+[[relations]]
+field = "sources"
+type = "draws-on"
+inverse = "drawn-on-by"

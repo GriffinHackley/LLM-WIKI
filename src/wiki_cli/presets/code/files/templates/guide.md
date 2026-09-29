@@ -3,6 +3,7 @@ title: How to <do the thing>
 type: guide
 covers: []
 verified: "<code commit this page was checked against>"
+sources: []
 last_updated: YYYY-MM-DD
 ---
 

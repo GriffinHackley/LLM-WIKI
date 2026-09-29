@@ -3,6 +3,8 @@
 Guides ship with the command, so they always match it. A wiki picks them up in this
 order: its own guides folder (`[guides] dir`), the variant for its preset, the generic
 guide. Placeholders fill in what depends on the wiki: its page types and its rules.
+Text between `{{#code}}` and `{{/code}}` is kept only in a wiki with a code repo, and
+between `{{^code}}` and `{{/code}}` only in one without.
 """
 
 from __future__ import annotations
@@ -14,6 +16,9 @@ from wiki_cli.config import CONFIG_FILENAME, Settings
 
 GUIDES_DIR = Path(__file__).parent / "guides"
 _NAME = re.compile(r"^[a-z][a-z0-9-]*$")
+# A block on lines of its own takes its line breaks with it; an inline one only itself.
+_CODE_BLOCK = re.compile(r"^\{\{([#^])code\}\}\n(.*?)^\{\{/code\}\}\n|\{\{([#^])code\}\}(.*?)\{\{/code\}\}",
+                         re.DOTALL | re.MULTILINE)
 
 RULES = ("Throughout, apply this wiki's own rules: the \"Your rules\" section of `AGENTS.md`, and any "
          "other instructions the wiki gives you. Where they conflict with this guide, they win.")
@@ -54,6 +59,12 @@ def render(name: str, settings: Settings | None) -> str:
     else:
         names = ", ".join(guide for guide, _ in available(settings))
         raise GuideError(f"no guide '{name}'; available: {names}")
+    has_code = settings is not None and (settings.code_repo is not None or settings.preset == "code")
+    def keep(match: re.Match) -> str:
+        wanted = (match.group(1) or match.group(3)) == "#"  # {{#code}}: with a code repo; {{^code}}: without
+        return (match.group(2) or match.group(4) or "") if wanted == has_code else ""
+
+    text = _CODE_BLOCK.sub(keep, text)
     text = text.replace("{{types}}", types_text(settings)).replace("{{rules}}", RULES)
     if "{{code_repo}}" in text:
         code_repo = settings.code_repo if settings is not None else None

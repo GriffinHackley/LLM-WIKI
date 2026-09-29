@@ -64,7 +64,8 @@ class TestNew:
     def test_creates_a_code_wiki_pointing_at_the_repo(self, code_wiki, code_repo):
         settings = load_settings(code_wiki)
         assert settings.preset == "code" and settings.code_repo == code_repo.resolve()
-        assert (code_wiki / "templates/module.md").is_file() and not (code_wiki / "raw").exists()
+        assert (code_wiki / "templates/module.md").is_file() and (code_wiki / "raw/.gitkeep").is_file()
+        assert "source" in [page_type.name for page_type in settings.types]  # documents about the code
         assert "../app" in (code_wiki / "AGENTS.md").read_text(encoding="utf-8")
 
     def test_code_setup_is_printed_not_written(self, tmp_path, code_repo):
@@ -187,6 +188,13 @@ class TestGuides:
         for name in ("ingest", "sync", "lint", "query"):
             code, guide = run_json(capsys, "guide", name, "--root", str(code_wiki))
             assert code_repo.resolve().as_posix() in guide["text"] and "{{" not in guide["text"]
+
+    def test_the_ingest_guide_keeps_its_code_parts_in_a_code_wiki(self, code_wiki, capsys):
+        code, guide = run_json(capsys, "guide", "ingest", "--root", str(code_wiki))
+        text = guide["text"]
+        assert "**Part of the code:**" in text and "`covers:`" in text and "the code wins" in text
+        assert "**A document:**" in text and "wiki pending" in text
+        assert "{{" not in text and "}}" not in text and "\n\n\n" not in text
 
     def test_code_query_guide_differs_from_the_generic_one_only_in_step_seven(self):
         guides = Path(__file__).parents[1] / "src/wiki_cli/guides"

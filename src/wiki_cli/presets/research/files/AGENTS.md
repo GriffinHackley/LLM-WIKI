@@ -22,7 +22,7 @@ templates/             One template per page type. New pages start from these.
 Each workflow's steps come from the `wiki` command, so they always match the installed
 version. Before starting one, run its guide and follow it:
 
-- **Ingest a source:** `wiki guide ingest`
+- **Ingest a source:** `wiki guide ingest` (`wiki pending` lists sources not ingested yet)
 - **Answer a question from the wiki:** `wiki guide query`
 - **Audit the wiki:** `wiki guide lint`
 
