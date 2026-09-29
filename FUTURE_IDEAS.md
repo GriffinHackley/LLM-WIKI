@@ -39,7 +39,9 @@ platform and never become the only way to do something.
 - **Guardrails** that block edits under `raw/` and run `wiki index refresh` after page
   edits. The generic form is a git pre-commit hook that rejects changes under `raw/`;
   agent hooks (Claude Code's `PreToolUse`, for example) would be per-platform extras.
-- **Packaging** the stubs as a Claude Code plugin or similar, if copying them per wiki
+- **More adapters** beside Claude Code, Copilot and OpenCode (`wiki new --agent`), such as
+  Cursor or Gemini CLI, as they are wanted.
+- **Packaging** the commands as a Claude Code plugin or similar, if copying them per wiki
   becomes a chore.
 - **An MCP server** exposing the commands as tools, for agents without a shell.
 

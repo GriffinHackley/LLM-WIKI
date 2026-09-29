@@ -8,6 +8,7 @@ import pytest
 import yaml
 
 from wiki_cli import guide
+from wiki_cli import scaffold as scaffold_module
 from wiki_cli.cli import main
 from wiki_cli.config import ConfigError, load_settings
 from wiki_cli.scaffold import ScaffoldError, scaffold
@@ -95,6 +96,51 @@ class TestNew:
         front = yaml.safe_load(stub.split("---")[1])
         assert front["name"] == "wiki-query" and "wiki guide query" in front["description"]
         assert "wiki guide query" in stub.split("---", 2)[2]
+        assert front["allowed-tools"] == "Bash(wiki *)"
+
+    def test_adapters_inline_the_guide_and_fall_back_to_running_it(self, tmp_path):
+        root = tmp_path / "w"
+        scaffold(root, agent="opencode")
+        command = (root / ".opencode/commands/wiki-ingest.md").read_text(encoding="utf-8")
+        front, body = command.split("---", 2)[1:]
+        assert yaml.safe_load(front) == {"description": "Add a source to the wiki (wiki guide ingest)",
+                                         "agent": "build"}
+        lines = body.splitlines()
+        # the injection must start its line to run; the sentence before it covers agents that don't run it
+        assert "!`wiki guide ingest`" in lines and "run that command once" in body
+        assert "applying the rules in AGENTS.md" in body and lines[-1].endswith("$ARGUMENTS")
+        assert {path.name for path in (root / ".opencode/commands").iterdir()} == {
+            "wiki-ingest.md", "wiki-lint.md", "wiki-query.md"}
+        assert not (root / ".claude").exists() and not (root / ".github").exists()
+
+    def test_copilot_adapter(self, tmp_path):
+        root = tmp_path / "w"
+        result = scaffold(root, agent="copilot")
+        assert "AGENTS.md" in (root / ".github/copilot-instructions.md").read_text(encoding="utf-8")
+        skill = (root / ".github/skills/wiki-lint/SKILL.md").read_text(encoding="utf-8")
+        assert "name: wiki-lint" in skill and "!`wiki guide lint`" in skill
+        assert not (root / ".claude").exists() and not result["notes"]
+
+    def test_copilot_with_claude_shares_the_claude_skills(self, capsys, tmp_path):
+        root = tmp_path / "w"
+        code, result = run_json(capsys, "new", str(root), "--agent", "claude", "--agent", "copilot",
+                                "--agent", "opencode")
+        assert code == 0
+        assert (root / ".claude/skills/wiki-ingest/SKILL.md").is_file() and not (root / ".github/skills").exists()
+        assert (root / ".github/copilot-instructions.md").is_file()
+        assert (root / ".opencode/commands/wiki-query.md").is_file()
+        assert any("Copilot uses the workflow skills in .claude/skills/" in note for note in result["notes"])
+
+    def test_copilot_instructions_are_kept(self, tmp_path):
+        root = tmp_path / "w"
+        write(root, ".github/copilot-instructions.md", "Use tabs.\n")
+        result = scaffold(root, agent=["copilot"])
+        assert (root / ".github/copilot-instructions.md").read_text(encoding="utf-8") == "Use tabs.\n"
+        assert {"file": ".github/copilot-instructions.md", "text": scaffold_module.COPILOT_INSTRUCTIONS} in result["add"]
+
+    def test_unknown_agent(self, tmp_path):
+        with pytest.raises(ScaffoldError, match="no adapter for 'cursor'"):
+            scaffold(tmp_path / "w", agent=["claude", "cursor"])
 
     def test_claude_adapter_names_a_missing_permission(self, tmp_path):
         root = tmp_path / "w"

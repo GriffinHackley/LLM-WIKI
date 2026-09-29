@@ -49,7 +49,7 @@ An earlier install named `wiki-cli` also provides `wiki`: remove it first with
 A new research wiki:
 
 ```bash
-wiki new my-wiki --agent claude     # --agent is optional: AGENTS.md works for any agent
+wiki new my-wiki --agent claude     # optional slash commands (also copilot, opencode); AGENTS.md works for any agent
 cd my-wiki
 # put a source in raw/, then ask your agent: "ingest raw/<file>"
 ```
@@ -165,7 +165,7 @@ re-embedding.
 
 | Command | Purpose |
 |---|---|
-| `wiki new [folder] [--preset research\|code\|<folder>] [--code <repo>] [--agent claude] [--git-hook]` | Create a wiki from a preset, or add what is missing (never overwrites) |
+| `wiki new [folder] [--preset research\|code\|<folder>] [--code <repo>] [--agent claude\|copilot\|opencode ...] [--git-hook]` | Create a wiki from a preset, or add what is missing (never overwrites) |
 | `wiki guide [<name>]` | Print a workflow's steps for an agent; without a name, list them |
 | `wiki search "<question>" [--limit 3] [--include-raw] [--keyword-only]` | Best pages for a question: keyword + vector search, fused and reranked |
 | `wiki nav start \| read \| candidates \| search \| end \| log` | Guided traversal sessions (see [docs/navigation.md](docs/navigation.md)) |
