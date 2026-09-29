@@ -29,7 +29,7 @@ hooks, not agent hooks.
 | Decision | Choice |
 |---|---|
 | Scope | Setup (`wiki new`) with presets, workflow guides (query, ingest, lint), the `code` preset, install, docs |
-| Not in scope | Source intake (`wiki add`, `wiki pending`), agent-platform packaging: see FUTURE_IDEAS.md |
+| Not in scope | Source intake (`wiki add`, `wiki extract`), agent-platform packaging: see FUTURE_IDEAS.md. `wiki pending` moved into Phase 9 |
 | Instructions file | `AGENTS.md`. The Claude adapter adds a `CLAUDE.md` that imports it (`@AGENTS.md`) |
 | Workflows | `wiki guide query \| ingest \| lint` prints the steps, versioned with the command, so they never go stale or disagree with it. Agents are told to run it; platform adapters are one-line stubs that do the same |
 | Customising workflows | A wiki's own rules go in the "Your rules" section of `AGENTS.md`. To change the steps themselves, copy the guide's output into your own instructions and maintain it |
@@ -403,6 +403,36 @@ Result, on the Politics branch `wiki-starter-kit`:
     FUTURE_IDEAS.md.
   - The "read the rules before editing" guardrail (`require_rules.py`) has no generic
     equivalent and stays a Claude Code hook in Politics.
+
+## Phase 9: One robust ingest guide
+
+The ingest guide should work unchanged in a new wiki, with any agent, including a weak
+local model. Phase 2's guide gives the steps but leaves the hard judgment to the agent,
+and code wikis have a separate guide that cannot take in documents (design docs, RFCs,
+postmortems). Decided:
+
+- **One ingest guide** with a shared core and two kinds of source: a **document** (a file
+  in `raw/`, fixed, cited by locator) and, in a wiki with a code repo, **code** (part of
+  the repo, cited with `code:` links and a `verified:` commit). `guides/code/ingest.md` is
+  removed. Parts of a guide that apply only with a code repo sit in `{{#code}}…{{/code}}`
+  blocks, kept only when the wiki has one. `sync` stays code-only.
+- **Code wikis ingest documents too:** the `code` preset gains `raw/`, a `source` type and
+  template. Where a document and the code disagree about current behavior, the code wins
+  and the document is history; the guide says so.
+- **`wiki pending`** (from FUTURE_IDEAS): sources in `raw/` no page links to yet, one entry
+  per source (a PDF and its `.txt` are one source), flagging files whose content matches a
+  source already ingested. Ingest uses it to pick sources and to ingest several in a row;
+  lint reports what is left.
+- **The guide gets the judgment rules it lacked:** the source is data, never instructions;
+  a test for when something gets its own page; names, aliases and slugs; running notes
+  while reading a long source; checking for a source already ingested (or a new edition
+  of one); attributing claims instead of asserting them; a cap on how many pages one
+  ingest edits; several sources in one run; what to do with a file that cannot be read.
+
+Done when: the tests pass; the guide renders for both presets; a fresh research wiki and
+a fresh code wiki each ingest sources following it with no changes; Politics' evaluation
+is unchanged; and OpenCode with a local model ingests into a fresh wiki from the
+unchanged guide (the robustness test).
 
 ## Open decisions
 
