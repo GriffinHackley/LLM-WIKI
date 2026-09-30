@@ -75,25 +75,18 @@ extension) for `/lint` could report, over the relations graph:
 
 - **Articulation points:** pages whose removal splits the graph; add paths around them.
 - **Bridges:** single relations whose removal splits the graph; add a parallel path.
-- **Isolated clusters:** communities (Louvain) of two pages or fewer, as a review
-  queue for `wiki suggest`.
 - **Top hubs** and cluster counts as a short summary line.
+- **Surprising connections:** relations between two clusters `wiki clusters` finds,
+  where one page links pages that otherwise never meet.
 
-`wiki suggest` could add a "same cluster, no link path" candidate type, which
-upstream finds the most valuable link suggestions. Community detection is noise on
-small graphs; upstream skips it below 30 pages.
+`wiki suggest` could add a "same cluster, no link path" candidate type, which upstream
+finds the most valuable link suggestions; its hub-damped shared links find most of the
+same pairs already. `wiki clusters` (Louvain, via networkx) now reports groups of pages
+no hub page covers; these checks would reuse its graph.
 
-**Clusters with no page about them.** A cluster of pages that link each other densely
-usually shares an idea: the files and PRs around a caching layer, the people around a
-negotiation. When no page in the cluster is about that idea (no `concept`, `module` or
-similar page that most of the cluster links to), report it as a page worth writing:
-list the cluster's pages, the names and phrases they share, and the typed relations
-between them, so the agent can name the idea and write its page (`wiki guide ingest`),
-then link the cluster to it. Weight relations by type when clustering: `part-of` and
-`implements` bind pages more than a passing `links-to`. Where the wiki declares hub
-types (`[types]` could mark `concept` and `module` as such), a cluster already linked
-to one of those pages is covered. Pairs well with `wiki unwritten`, which finds pages
-that are linked but not written; this finds ones nobody has linked yet.
+**Clusters over time.** `wiki clusters` takes the wiki as it is now. A weekly note could
+say which clusters grew, and a cluster that stays uncovered for weeks is a stronger lead
+than one that just formed.
 
 ## Relation-aware ranking in traversal
 

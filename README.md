@@ -103,6 +103,7 @@ template = "templates/person.md"
 sections = ["Summary"]            # headings and frontmatter every page of the type has,
 fields = ["title", "type", "sources", "last_updated"]   # checked by `wiki check`
 values = { role = ["author", "subject"] }               # allowed values of a field
+hub = false                       # true: pages gather around it (see `wiki clusters`)
 
 [summary]                         # where a page's summary comes from, in order
 fields = ["summary", "description"]            # frontmatter keys (default)
@@ -190,6 +191,7 @@ re-embedding.
 | `wiki suggest <slug>` | Pages a page names but does not link, shares linked pages with, or resembles |
 | `wiki unwritten [--limit N]` | Link targets with no page, most-linked first |
 | `wiki orphans` | Pages nothing relates to |
+| `wiki clusters [--all] [--min-size 4]` | Groups of pages that link each other densely (Louvain communities) with no hub page most of them link to: leads for pages worth writing. Wikis of 30 pages or more |
 | `wiki stale` | Code wikis: pages whose covered code changed since they were verified |
 | `wiki weekly [--week 2026-W40 \| current]` | With `[weekly]`: a note per finished week of work (pages added and changed, where the work went, sources, open questions, health, code) and a timeline, from git; `current` shows this week so far |
 | `wiki check <slug> \| --all [--verify-cache] [--strict] [--no-warnings] [--summary-ok]` | Frontmatter, summaries, types and their required sections and fields, uncited sources, ambiguous and unwritten links, stale summaries, code links |

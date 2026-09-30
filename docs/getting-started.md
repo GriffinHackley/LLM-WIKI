@@ -383,6 +383,7 @@ Health checks for the wiki itself:
 wiki check --all     # frontmatter errors, missing summaries, ambiguous and unwritten links
 wiki unwritten       # link targets with no page yet, most-linked first
 wiki orphans         # pages nothing links to
+wiki clusters        # groups of linked pages no hub page covers: pages worth writing (30+ pages)
 wiki suggest <slug>  # pages this one names but doesn't link, or resembles
 ```
 

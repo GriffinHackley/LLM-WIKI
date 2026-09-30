@@ -21,7 +21,7 @@ on) pull the guide into the prompt when they run.
 |---|---|---|
 | `ingest` | Pick a source (`wiki pending` lists those not ingested), read all of it, write its source page, decide what gets its own page, create or update those pages with inline citations, file contradictions, check, commit; one source at a time, oldest first, when ingesting several | The same for documents about the code (design docs, RFCs, postmortems); and to document a module, pull request or decision from the code itself: explain it, link the code with `code:` links, set `covers:` and `verified:`. Where a document and the code disagree about what the code does now, the code wins |
 | `query` | Answer from the wiki with `wiki nav`: search, read one section at a time, follow relations by their reasons, cite the pages; fall back to raw source text | The same; when the wiki can't answer, read the code, and offer to document what was learned |
-| `lint` | `wiki check --all`, `wiki unwritten`, `wiki orphans`, `wiki pending`, then contradictions, uncited facts, settled questions, stale summaries; fix and commit | Adds `wiki stale` and coverage of the code's folders |
+| `lint` | `wiki check --all`, `wiki unwritten`, `wiki orphans`, `wiki pending`, `wiki clusters`, then contradictions, uncited facts, settled questions, stale summaries; fix and commit | Adds `wiki stale` and coverage of the code's folders |
 | `sync` | (none) | After committing code: `wiki stale`, update each stale page and its `verified:`, check, commit the wiki |
 
 Each guide fills in what depends on the wiki: its page types (from `[types]` in

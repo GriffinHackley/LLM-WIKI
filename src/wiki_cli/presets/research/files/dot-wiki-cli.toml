@@ -48,6 +48,7 @@ fields = ["title", "type", "sources", "last_updated"]
 description = "Something that happened at a particular time."
 folder = "wiki/events"
 template = "templates/event.md"
+hub = true                      # other pages gather around it (wiki clusters)
 sections = ["Summary"]
 fields = ["title", "type", "date", "sources", "last_updated"]
 
@@ -55,6 +56,7 @@ fields = ["title", "type", "date", "sources", "last_updated"]
 description = "A thing found in the sources: a term, technique, law, policy, idea, product or tool."
 folder = "wiki/concepts"
 template = "templates/concept.md"
+hub = true                      # other pages gather around it (wiki clusters)
 sections = ["Summary"]
 fields = ["title", "type", "sources", "last_updated"]
 

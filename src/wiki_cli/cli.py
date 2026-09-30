@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
-from wiki_cli import __version__, audit, codebase, evaluate, guide, init, scaffold, sources, weekly
+from wiki_cli import __version__, audit, clusters, codebase, evaluate, guide, init, scaffold, sources, weekly
 from wiki_cli.cache import Cache, CacheUnavailable
 from wiki_cli.config import CONFIG_FILENAME, ConfigError, Settings, load_settings
 from wiki_cli.model import ERROR, WARNING, Issue
@@ -135,6 +135,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     orphans = commands.add_parser("orphans", parents=[common], help="pages nothing relates to")
     orphans.set_defaults(handler=cmd_orphans)
+    clusters_parser = commands.add_parser(
+        "clusters", parents=[common],
+        help="groups of densely linked pages that no hub page (a module, a concept) covers")
+    clusters_parser.add_argument("--all", action="store_true", help="also list clusters a hub page covers")
+    clusters_parser.add_argument("--min-size", type=_positive_int, default=clusters.MIN_CLUSTER,
+                                 help=f"smallest cluster listed (default {clusters.MIN_CLUSTER})")
+    clusters_parser.set_defaults(handler=cmd_clusters)
 
     neighbors = commands.add_parser("neighbors", parents=[common], help="a page's typed relations (no page bodies)")
     neighbors.add_argument("slug")
@@ -607,6 +614,40 @@ def cmd_orphans(args: argparse.Namespace, settings: Settings) -> int:
     else:
         for slug, path in rows:
             print(f"{slug}  ({path})")
+    return EXIT_OK
+
+
+def cmd_clusters(args: argparse.Namespace, settings: Settings) -> int:
+    with Cache(settings) as cache:
+        cache.refresh()
+        result = clusters.clusters(cache, min_size=args.min_size, include_covered=args.all)
+    if args.format == "json":
+        _print_json(result)
+        return EXIT_OK
+    if result.get("too_small"):
+        print(f"{result['pages']} pages: too few for clusters to mean anything (needs {result['too_small']})")
+        return EXIT_OK
+    hubs = result["hub_types"]
+    shown = [cluster for cluster in result["clusters"] if cluster["covered_by"] is None]
+    if hubs:
+        print(f"{len(shown)} clusters of {args.min_size}+ pages with no hub page ({', '.join(hubs)}) most of "
+              f"them link to; {result['covered']} covered")
+    else:
+        print(f"{len(shown)} clusters of {args.min_size}+ pages (no hub types declared: judge whether the most "
+              "linked page is about what each cluster shares)")
+    for number, cluster in enumerate(result["clusters"], start=1):
+        covered = cluster["covered_by"]
+        top = covered or cluster["most_linked"]
+        label = "covered by" if covered else "most linked"
+        where = (f"{top['slug']} ({top['type'] or 'no type'}), linked with {top['linked_from']} of its pages"
+                 if top else "none")
+        print(f"\n{number}. {cluster['size']} pages; {label}: {where}")
+        names = cluster["pages"]
+        print(f"   pages: {', '.join(names[:12])}{f' and {len(names) - 12} more' if len(names) > 12 else ''}")
+        if cluster["terms"]:
+            print(f"   shared terms: {', '.join(cluster['terms'])}")
+        if cluster["relations"]:
+            print(f"   relations: {', '.join(f'{kind} {count}' for kind, count in cluster['relations'].items())}")
     return EXIT_OK
 
 

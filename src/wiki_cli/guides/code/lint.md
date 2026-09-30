@@ -24,6 +24,11 @@ The code repo is `{{code_repo}}`.
    - `wiki orphans`: pages nothing links to. Link them from related pages, or report them.
    - `wiki pending`: documents in `raw/` no page links to yet. List them in the report;
      don't ingest them during lint.
+   - `wiki clusters`: groups of pages that link each other densely, with no module or
+     concept page most of them link to. For each, read the pages' summaries and the terms
+     they share. If they gather around an area of the code or an idea no page is about
+     (a feature a PR built, a pattern several files follow), list it in the report as a
+     module or concept page worth writing, with the cluster's pages; if not, leave it.
 3. **Coverage.** Compare the code's top-level folders (`git -C <code repo> ls-files`) with
    the `covers:` of the module pages (`wiki list --type module`): report important code no
    page covers.
