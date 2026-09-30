@@ -3,7 +3,7 @@
 Usage:
     python benchmarks/bench_synthetic.py [--pages 30000] [--relations 100000]
 
-Pages are laid out like the Politics wiki (typed folders, sections, list-item links
+Pages are laid out like a research wiki (typed folders, sections, list-item links
 with roles). Search uses a hash embedder at 384 dimensions (bge-small's size), so
 the numbers cover SQLite / FTS5 / sqlite-vec cost, not real model inference.
 """

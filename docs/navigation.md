@@ -7,17 +7,17 @@ relation reasons instead of opening candidates to see what they contain.
 ## A session
 
 ```bash
-wiki nav start "Who attended the Situation Room meeting with Boebert?" --format json
+wiki nav start "Who attended the East Gallery meeting with Dr. Quill?" --format json
 ```
 
 ```json
 {"session":"a41f0c","max_pages":6,"results":[
- {"slug":"situation-room-meeting-2025-11-12","title":"Situation Room meeting with Rep. Boebert",
+ {"slug":"gallery-meeting-2025-11-12","title":"East Gallery meeting with Dr. Quill",
   "type":"event","score":5.21,"summary":"On the morning of 2025-11-12 ...","section":"... > What happened"}]}
 ```
 
 ```bash
-wiki nav read a41f0c situation-room-meeting-2025-11-12 \
+wiki nav read a41f0c gallery-meeting-2025-11-12 \
   --why "Need the attendee list; the event page is the most direct source." --format json
 ```
 
@@ -25,7 +25,7 @@ Returns the page summary, the section that best matches the question (`content`)
 the page's other sections, and `pages_left`. The section is the one among sections
 of at least 200 characters whose stored vector is closest to the question's vector,
 saved at `nav start`, so a read loads no model and takes about 150 ms. Without
-embeddings the reranker chooses, then keyword match. On the Politics evaluation set
+embeddings the reranker chooses, then keyword match. On one wiki's evaluation set
 the reranker picked the same section on 51 of 68 answer pages, with no clear winner
 on the rest. Ask for `--section "<heading>"` or `--full` when the match
 is not enough; other parts of a page already read do not count against the limit.
@@ -35,8 +35,8 @@ wiki nav candidates a41f0c --format json
 ```
 
 ```json
-{"session":"a41f0c","from":"situation-room-meeting-2025-11-12",
- "linked":[{"slug":"abc-officials-met-boebert-2025-11-12","title":"ABC News, 2025-11-12 (Boebert meeting)",
+{"session":"a41f0c","from":"gallery-meeting-2025-11-12",
+ "linked":[{"slug":"gazette-board-met-quill-2025-11-12","title":"Harbor Gazette, 2025-11-12 (Quill meeting)",
             "type":"document","summary":"...","relation":"appears-in","reason":"anonymous sources"}],
  "similar":[...],"earlier":[...],"pages_left":5}
 ```
@@ -47,8 +47,8 @@ wiki nav candidates a41f0c --format json
 - `earlier`: unvisited candidates shown earlier, for backtracking.
 
 ```bash
-wiki nav search a41f0c "Which FBI officials were present?"   # when nothing fits
-wiki nav end a41f0c --cited situation-room-meeting-2025-11-12,abc-officials-met-boebert-2025-11-12
+wiki nav search a41f0c "Which board members were present?"   # when nothing fits
+wiki nav end a41f0c --cited gallery-meeting-2025-11-12,gazette-board-met-quill-2025-11-12
 wiki nav log a41f0c                                          # review the steps and reasons
 ```
 

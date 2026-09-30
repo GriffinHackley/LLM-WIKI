@@ -10,18 +10,18 @@ import yaml
 from wiki_cli.config import load_settings
 
 CONFIG = """\
-pages = ["wiki/**/*.md", "dossiers/*/claims.md"]
+pages = ["wiki/**/*.md", "notebooks/*/claims.md"]
 exclude = ["wiki/index.md"]
 raw = ["raw/*.txt"]
 
-""" + (Path(__file__).parent / "politics_rules.toml").read_text(encoding="utf-8")
+""" + (Path(__file__).parent / "research_rules.toml").read_text(encoding="utf-8")
 
 FOLDERS = {"person": "people", "organization": "organizations", "place": "places", "event": "events",
            "document": "documents", "topic": "topics", "claim": "claims"}
 
 
 class Wiki:
-    """A temporary Obsidian wiki laid out like the Politics repo."""
+    """A temporary Obsidian wiki with typed folders, claim pages and custom summary headings."""
 
     def __init__(self, root: Path):
         self.root = root
@@ -78,4 +78,4 @@ def fake_models(monkeypatch):
 
 @pytest.fixture
 def wiki(tmp_path: Path) -> Wiki:
-    return Wiki(tmp_path / "politics")
+    return Wiki(tmp_path / "research")

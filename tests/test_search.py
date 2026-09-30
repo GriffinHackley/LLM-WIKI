@@ -15,10 +15,10 @@ from wiki_cli.search import keyword_query, reciprocal_rank_fusion, search
 def corpus(wiki):
     wiki.page("document", "save-pipeline", {
         "Validation": "Every edit is validated before commit.",
-        "Persistence": "Changes are written to the mitigation table inside one transaction.",
-    }, summary="Persists mitigation edits.", title="Save pipeline memo")
-    wiki.page("person", "editor-admin", {"Documented role": "The admin screen lists mitigations and opens the widget."},
-              summary="Admin screen for mitigations.")
+        "Persistence": "Changes are written to the invoice table inside one transaction.",
+    }, summary="Persists invoice edits.", title="Save pipeline memo")
+    wiki.page("person", "editor-admin", {"Documented role": "The admin screen lists invoices and opens the widget."},
+              summary="Admin screen for invoices.")
     wiki.page("event", "nightly-backups", summary="Backups run nightly at two o'clock and are kept for thirty days.")
     wiki.raw_text("hearing-transcript.txt", "The witness described the zebra protocol in detail.\n")
     return wiki
@@ -36,7 +36,7 @@ def slugs(result):
 
 
 def test_keyword_query_drops_stopwords_and_quotes_terms():
-    assert keyword_query("How are the mitigation edits saved?") == '"mitigation" OR "edits" OR "saved"'
+    assert keyword_query("How are the invoice edits saved?") == '"invoice" OR "edits" OR "saved"'
     assert keyword_query("the a of") is None
 
 
@@ -53,12 +53,12 @@ def test_keyword_only_search(corpus):
 
 def test_hybrid_search_with_rerank_returns_best_section(corpus):
     with indexed(corpus) as cache:
-        result = search(cache.conn, "Where are mitigation changes written in a transaction?",
+        result = search(cache.conn, "Where are invoice changes written in a transaction?",
                         embedder=HashEmbedder(), reranker=OverlapReranker(), embed_model=cache.embed_model)
     assert result.modes == ["keyword", "vector", "rerank"]
     top = result.hits[0]
     assert (top.slug, top.section, top.summary, top.page_type) == (
-        "save-pipeline", "Save pipeline memo > Persistence", "Persists mitigation edits.", "document")
+        "save-pipeline", "Save pipeline memo > Persistence", "Persists invoice edits.", "document")
 
 
 def test_raw_text_only_with_include_raw(corpus):
@@ -72,24 +72,24 @@ def test_raw_text_only_with_include_raw(corpus):
 
 def test_exclude_slugs(corpus):
     with indexed(corpus) as cache:
-        result = search(cache.conn, "mitigation", embedder=None, reranker=None, embed_model=None,
+        result = search(cache.conn, "invoice", embedder=None, reranker=None, embed_model=None,
                         exclude=frozenset({"save-pipeline"}), limit=10)
     assert "save-pipeline" not in slugs(result) and "editor-admin" in slugs(result)
 
 
 def test_one_hit_per_page_and_limit(corpus):
     with indexed(corpus) as cache:
-        result = search(cache.conn, "mitigation validated written transaction admin", embedder=HashEmbedder(),
+        result = search(cache.conn, "invoice validated written transaction admin", embedder=HashEmbedder(),
                         reranker=OverlapReranker(), embed_model=cache.embed_model, limit=10)
         assert len(slugs(result)) == len(set(slugs(result)))
-        assert len(search(cache.conn, "mitigation", embedder=None, reranker=None, embed_model=None, limit=1).hits) == 1
+        assert len(search(cache.conn, "invoice", embedder=None, reranker=None, embed_model=None, limit=1).hits) == 1
 
 
 def test_mismatched_embed_model_skips_vectors(corpus):
     with indexed(corpus) as cache:
         other = HashEmbedder()
         other.name = "fake:other"
-        result = search(cache.conn, "mitigation", embedder=other, reranker=None, embed_model=cache.embed_model)
+        result = search(cache.conn, "invoice", embedder=other, reranker=None, embed_model=cache.embed_model)
     assert result.modes == ["keyword"] and "vector search skipped" in result.notes[0]
 
 
@@ -136,7 +136,7 @@ def run(corpus, capsys):
 
 def test_cli_search_json(run):
     run("index", "refresh")
-    code, out, _ = run("search", "mitigation changes transaction", "--format", "json", "--limit", "2")
+    code, out, _ = run("search", "invoice changes transaction", "--format", "json", "--limit", "2")
     payload = json.loads(out)
     assert code == 0 and payload["results"][0]["slug"] == "save-pipeline"
     assert payload["results"][0]["type"] == "document" and "notes" not in payload
@@ -180,9 +180,9 @@ class TestEval:
     def test_eval_run_metrics(self, corpus, run):
         self.write_questions(corpus, [
             {"id": "q1", "question": "When do nightly backups run?", "answers": ["nightly-backups"], "kind": "single"},
-            {"id": "q2", "question": "Which admin screen lists mitigations?", "answers": ["editor-admin"],
+            {"id": "q2", "question": "Which admin screen lists invoices?", "answers": ["editor-admin"],
              "kind": "single"},
-            {"id": "q3", "question": "How are admin mitigation edits persisted?",
+            {"id": "q3", "question": "How are admin invoice edits persisted?",
              "answers": ["editor-admin", "save-pipeline"], "kind": "multi"},
             {"id": "q4", "question": "What is the office wifi password?", "answers": [], "kind": "unanswerable"},
             {"id": "q5", "question": "Tuning only", "answers": ["nightly-backups"], "kind": "single", "split": "tune"},

@@ -115,7 +115,7 @@ class TestTemplateChecks:
         assert "report-2024-03" not in issue["message"]
 
     def test_a_plain_text_citation_counts(self, wiki, capsys):
-        # a wiki's own citation format, as in Politics: "(senate-report-2024, p. 4)"
+        # a wiki's own citation format: "(acme-report-2024, p. 4)"
         write(wiki, "wiki/people/ada.md", PERSON.replace("([[report-2024-03]], p. 1)", "(report-2024-03, p. 1)"))
         code, report = check(capsys, "ada", "--root", str(wiki))
         assert codes(report) == []

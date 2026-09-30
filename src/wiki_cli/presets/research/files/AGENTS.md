@@ -46,7 +46,7 @@ should probably link). Add `--format json` when you parse the output.
 - **Merge, don't append.** When a new source adds to an existing page, work the new facts
   into the existing prose. Never add a section per source.
 - **Cite every fact** with an inline link to its source page at the end of the sentence
-  or paragraph: `…signed in March ([[senate-report-2024]], p. 4)`. A fact with no
+  or paragraph: `…signed in March ([[acme-report-2024]], p. 4)`. A fact with no
   citation is a lint finding. Add the source to the page's `sources:` list too.
 - **Link on first mention** with `[[slug]]`. Linking to a page that does not exist yet is
   fine: it marks a page worth writing.

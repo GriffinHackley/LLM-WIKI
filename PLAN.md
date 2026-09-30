@@ -1,6 +1,6 @@
 # Starter Kit Plan (v3)
 
-Version 2 (search, relations and navigation, built for the Politics wiki and then made
+Version 2 (search, relations and navigation, built for one existing wiki and then made
 wiki-agnostic) is complete and archived at
 [docs/archive/upgrade-plan-v2.md](docs/archive/upgrade-plan-v2.md). Deferred ideas live in
 [FUTURE_IDEAS.md](FUTURE_IDEAS.md).
@@ -9,7 +9,7 @@ wiki-agnostic) is complete and archived at
 
 Make the tool a drop-in way to start and run an LLM wiki. Today it is a read-side layer
 for a wiki that already exists: everything that creates a wiki and keeps it growing lives
-in the Politics repo, most of it specific to Politics. After this plan, one install and
+in the repo of the wiki it was built for, most of it specific to that wiki. After this plan, one install and
 one command give an empty folder (or an existing vault) a working LLM wiki that any
 agent can ingest into, query, and audit, whether it is a research wiki built from
 sources or a wiki describing a codebase.
@@ -39,8 +39,8 @@ hooks, not agent hooks.
 | Setup never overwrites | `wiki new` creates only missing files and lists what it skipped, so it is safe on an existing repo |
 | `index.md` | Dropped. The kit has no hand-maintained index; `wiki list` covers enumeration (see below) |
 | Tool stays read-only | Agents write pages; the `wiki` command still never edits pages. `wiki new` writes only scaffold files |
-| Politics | Unaffected until Phase 8, when converting it to the kit is the final test of the research phases. Until then its tests and evaluation must still pass |
-| Second agent for testing | OpenCode (open source, reads `AGENTS.md`) with a local model through Ollama on the RX 7900 XT: free, unlimited, and a weaker model is a harder test of the guides |
+| The original wiki | Unaffected until Phase 8, when converting it to the kit is the final test of the research phases. Until then its tests and evaluation must still pass |
+| Second agent for testing | OpenCode (open source, reads `AGENTS.md`) with a local model through Ollama: free, unlimited, and a weaker model is a harder test of the guides |
 
 ### Why no `index.md`
 
@@ -48,7 +48,7 @@ The only real job an index does that the tool can't is enumeration ("what people
 the wiki?"): search returns its top few pages, and nothing lists them all. Browsing is
 covered by Obsidian's file tree and GitHub's folder view, and "is there already a page
 for X?" by `wiki search` and `wiki suggest`. Against it: it is maintained by hand, it
-drifts (Politics' `/lint` has a step just for drift), and it costs about 11k tokens to
+drifts (the original wiki's `/lint` had a step just for drift), and it costs about 11k tokens to
 read. `wiki list [--type T] [--format json]` prints slug, title, type and summary for
 every page, from the cache, so it can never drift.
 
@@ -56,7 +56,7 @@ every page, from the cache, so it can never drift.
 
 `wiki new [folder] [--preset research|code|<folder>]` turns an empty folder into a wiki,
 or adds what is missing to an existing one. This phase builds the preset mechanism and
-the `research` preset, the default, suited to news, politics, history and papers. It
+the `research` preset, the default, suited to news, history and papers. It
 writes:
 
 ```
@@ -116,11 +116,11 @@ alone is enough for most.
 
   Every page has a `## Summary`. List items are written `[[page]] — why it matters`, so
   the reasons are useful to navigation.
-- **Starter `AGENTS.md`.** The generic core of Politics' `CLAUDE.md`, without dossiers,
-  claims or quotes: the agent is the librarian; `raw/` is immutable; merge new facts into
+- **Starter `AGENTS.md`.** The generic core of the original wiki's `CLAUDE.md`, without
+  its domain rules: the agent is the librarian; `raw/` is immutable; merge new facts into
   existing prose instead of appending per source; cite the source page for every fact
   with an inline link at the end of the sentence or paragraph,
-  `…signed in March ([[senate-report-2024]], p. 4)`, which the tool also turns into a
+  `…signed in March ([[acme-report-2024]], p. 4)`, which the tool also turns into a
   relation whose reason is that sentence;
   put contradictions in `open-questions.md`; commit after each unit of work with a
   message that records it; use `wiki` instead of grepping; for each workflow, run
@@ -134,12 +134,12 @@ alone is enough for most.
 
 Done when: `wiki new` on an empty folder followed by `wiki index refresh` and
 `wiki check --all` reports no errors, re-running it changes nothing, and running it in a
-copy of Politics creates no file that Politics already has.
+copy of the original wiki creates no file that it already has.
 
 ## Phase 2 (done): Ingest guide
 
-`wiki guide ingest`: a generic ingest workflow, modelled on Politics' `/ingest` without
-its domain rules.
+`wiki guide ingest`: a generic ingest workflow, modelled on the original wiki's `/ingest`
+without its domain rules.
 
 1. With no source named, list the files in `raw/` and ask which to ingest.
 2. Read the whole source (PDFs in page batches, long text in chunks).
@@ -160,8 +160,8 @@ PDF, notes) into a fresh wiki, yielding source and entity pages with typed relat
 `wiki check` errors, and one commit per source. Tried with Claude Code and at least one
 other agent (OpenCode with a local model).
 
-Result: Claude, following only `wiki guide ingest`, ingested an NPR web page, a UN
-resolution PDF and a notes file into a fresh wiki: 3 source pages and 12 entity pages,
+Result: Claude, following only `wiki guide ingest`, ingested a news web page, a PDF
+report and a notes file into a fresh wiki: 3 source pages and 12 entity pages,
 typed relations with the citing sentences as reasons, no `wiki check` errors, one commit
 per source. The trial added two things to the kit: `place` covers countries, and the guide
 says what to do about `summary-stale` after merging facts into a page. **Pending:** the
@@ -324,12 +324,12 @@ first answered query.
 
 ## Phase 7 (done, second agent pending): Dry run
 
-Start a `research` wiki on a topic unrelated to Politics: ingest about ten sources
+Start a `research` wiki on a topic unrelated to the original wiki: ingest about ten sources
 following the guides, answer five questions with the query guide, run the lint guide.
 Start a `code` wiki for a real repo other than this one, working from the code repo:
 document it, change some code, sync. Use Claude Code for most of it and OpenCode with a
 local model for part. Fix the rough edges found, as for the Phase 7 dry run of v2.
-Re-run the test suite and the Politics evaluation to confirm nothing regressed.
+Re-run the test suite and the original wiki's evaluation to confirm nothing regressed.
 
 Result:
 - **Research wiki** on an unrelated topic: ten sources (the package metadata of the
@@ -340,11 +340,10 @@ Result:
   reported as a gap the sources do not cover. One answer filed as an `analysis` page.
   The lint pass found the analysis orphaned and an uncited line in it; fixed, and caught
   a link broken by the fix. Ends at 0 errors, 0 warnings.
-- **Code wiki** for a copy of the D&D character sheet app (its `app/` folder, as a git
-  repo), worked from the code repo: four modules, a concept and a decision documented
+- **Code wiki** for a copy of a small web app (its `app/` folder, as a git repo), worked from the code repo: four modules, a concept and a decision documented
   with `code:` links; a change to `compute.ts` showed in `wiki stale` and the sync guide
   brought it back to clean; the coverage step names the UI folders no page covers yet.
-- **Regressions:** 228 tests pass; the Politics evaluation is identical before and after
+- **Regressions:** 228 tests pass; the original wiki's evaluation is identical before and after
   the kit (hit@1 0.511, hit@3 0.778, MRR 0.639 on all 50 questions).
 - **Fixed from the dry run:** `concept` covers products and tools (a software library had
   no type); summaries keep underscores inside words (`huggingface_hub` showed as
@@ -353,56 +352,52 @@ Result:
 - **Pending:** the part run with OpenCode and a local model (needs OpenCode and Ollama
   installed).
 
-## Phase 8 (done, pull request open): Convert Politics
+## Phase 8 (done): Convert the original wiki
 
 The final test of the research phases, started only once Phases 1 to 7 are done and the
-kit is in good shape. Politics becomes a wiki built on the kit, with its own rules on
-top, instead of a parallel set of skills:
+kit is in good shape. The wiki the tool was first built for becomes a wiki built on the
+kit, with its own rules on top, instead of a parallel set of skills:
 
 - Its page types move into `[types]`; its `CLAUDE.md` becomes `AGENTS.md` (plus the
-  Claude adapter's `CLAUDE.md` importing it), with the dossier, claims, quote and
-  editorial rules in "Your rules".
+  Claude adapter's `CLAUDE.md` importing it), with its domain and editorial rules in
+  "Your rules".
 - `/query`, `/ingest` and `/lint` become the generic guides plus those rules. Where a
-  Politics step cannot be expressed as a rule on top of a generic guide (the claims
-  ledger pass in ingest, the presentation checks in lint), note why: each is a gap in
-  the kit's customisation model to fix, or a reason for Politics to keep its own guide.
-- `/claims` and `/new-dossier` stay Politics' own workflows.
+  step cannot be expressed as a rule on top of a generic guide, note why: each is a gap
+  in the kit's customisation model to fix, or a reason for the wiki to keep its own guide.
+- Workflows with no generic counterpart stay the wiki's own.
 - `wiki/index.md` is removed; anything that read it uses `wiki list`.
 - Its Claude-only guardrail hooks are kept or replaced by the pre-commit hook, case by
   case.
 
-Done on a branch, delivered as a pull request, as in v2 Phase 6. Done when: search
-quality on its 50 evaluation questions is within noise of today, an ingest and a query
-following the converted workflows match the quality of the current skills, and the
-notes on customisation gaps are resolved or recorded in FUTURE_IDEAS.md.
+Done on a branch, delivered as a pull request. Done when: search quality on its 50
+evaluation questions is within noise of today, an ingest and a query following the
+converted workflows match the quality of the current skills, and the notes on
+customisation gaps are resolved or recorded in FUTURE_IDEAS.md.
 
-Result, on the Politics branch `wiki-starter-kit`:
+Result:
 - `AGENTS.md` holds what `CLAUDE.md` held: workflows point at the guides, and everything
-  specific to Politics (editorial rules, source tiers, page conventions, and the dossier,
-  claims, quote and presentation steps) sits under "Your rules", headings unchanged, with
-  a "Workflow additions" subsection for ingest, query and lint. `CLAUDE.md` imports it.
-  `/ingest`, `/query` and `/lint` are stubs that run their guides; `/claims` and
-  `/new-dossier` stay Politics' own. Types are in `[types]`; `index.md` is gone.
+  specific to the wiki sits under "Your rules", with a "Workflow additions" subsection
+  for ingest, query and lint. `CLAUDE.md` imports it. `/ingest`, `/query` and `/lint`
+  are stubs that run their guides. Types are in `[types]`; `index.md` is gone.
 - Search quality is identical (hit@1 0.511, hit@3 0.778, MRR 0.639).
 - **Ingest:** a document page removed in a scratch copy and re-ingested through the
   converted workflow came out more complete than the original (eight entities against
-  three, three verified quotes against one, dated facts, a stated gap), with quotes
-  passing `check_quotes.py` and `fix_links.py` updating every use of the title.
+  three, dated facts, a stated gap).
 - **Query:** a two-part question with a judgment part was answered from two pages with
-  claim statuses and a stated scope, as the old skill required.
+  a stated scope, as the old skill required.
 - **Customisation gaps**, and what happened to each:
   - The guides assumed a type named `source` and a `wiki/open-questions.md`: fixed, the
     guides now say "the source type" and "where the wiki keeps open questions".
-  - Politics' query skill had steps every wiki needs (split the question into parts, a
+  - The wiki's query skill had steps every wiki needs (split the question into parts, a
     gap check before saying the wiki lacks something, `--keyword-only` for exact
     strings): moved into the generic query guide.
   - Additions are prose layered on the guides, placed by reference ("before the guide's
     check step"); that worked, so the guides need no numbered insertion points yet.
   - The generic pre-commit hook cannot exempt a manifest that lives in `raw/`
-    (`raw/SOURCES.md`): Politics keeps its own hook with the exemption; recorded in
+    (`raw/SOURCES.md`): the wiki keeps its own hook with the exemption; recorded in
     FUTURE_IDEAS.md.
-  - The "read the rules before editing" guardrail (`require_rules.py`) has no generic
-    equivalent and stays a Claude Code hook in Politics.
+  - A "read the rules before editing" guardrail has no generic equivalent and stays a
+    Claude Code hook in that wiki.
 
 ## Phase 9 (done, OpenCode run pending): One robust ingest guide
 
@@ -430,14 +425,14 @@ postmortems). Decided:
   ingest edits; several sources in one run; what to do with a file that cannot be read.
 
 Done when: the tests pass; the guide renders for both presets; a fresh research wiki and
-a fresh code wiki each ingest sources following it with no changes; Politics' evaluation
-is unchanged; and OpenCode with a local model ingests into a fresh wiki from the
+a fresh code wiki each ingest sources following it with no changes; the original wiki's
+evaluation is unchanged; and OpenCode with a local model ingests into a fresh wiki from the
 unchanged guide (the robustness test).
 
 Result (done, except the OpenCode run):
-- `wiki pending` works on Politics as it stands: 139 sources ingested, and the six it
-  lists are real (each named only in a dossier `TODO.md`), plus `raw/SOURCES.md`, which
-  Politics can skip with `[pending] ignore`. 0.4 s.
+- `wiki pending` works on the original wiki as it stands: 139 sources ingested, and the
+  six it lists are real (each named only in a to-do list), plus `raw/SOURCES.md`, which
+  it can skip with `[pending] ignore`. 0.4 s.
 - **Research trial:** a fresh wiki with three package READMEs and a byte-identical copy of
   one. `wiki pending` flagged the copy; ingesting the h11 README following the guide gave
   a source page, five pages that pass the page test (the library, its author, the person
@@ -450,7 +445,7 @@ Result (done, except the OpenCode run):
   code and gives the note as history; the question is filed; the note's page and the
   module page relate as `discusses` / `draws-on`. `check`, `pending` and `stale` are
   clean.
-- 246 tests pass; the Politics evaluation is identical (hit@1 0.511, hit@3 0.778, MRR
+- 246 tests pass; the original wiki's evaluation is identical (hit@1 0.511, hit@3 0.778, MRR
   0.639 on all 50 questions).
 - **First OpenCode run** (qwen3:14b through Ollama): it ran `wiki guide ingest` five
   times, taking it for the command that ingests, then tried `wiki ingest`; and OpenCode's
@@ -471,11 +466,11 @@ Result (done, except the OpenCode run):
   what only the guide said, so the guide's rules became checks: `[types.<name>]` takes
   `sections` and `fields` that `wiki check` requires (`missing-section`,
   `missing-field`), `uncited-sources` flags sources a page lists but never cites (19 real
-  cases in Politics), and `wiki check <source> --ingested` checks the whole ingest
+  cases in the original wiki), and `wiki check <source> --ingested` checks the whole ingest
   (original linked, what it discusses named, cited by the pages it touched, those pages
   clean, pages and sources committed). The guide's commit step gives the git commands
   and its last step runs the ingest check until clean. On the second run's pages the
-  checks name every gap; the h11 trial and a Politics source page pass.
+  checks name every gap; the h11 trial and a source page from the original wiki pass.
 - **Pending:** a third OpenCode run, and a check of the skills in Copilot.
 
 ## Open decisions

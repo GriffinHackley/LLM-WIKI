@@ -14,7 +14,7 @@ wiki new <folder> --preset <path to a preset folder>
 
 ## `research`
 
-For a wiki built from sources: news, politics, history, papers, a hobby, any topic you
+For a wiki built from sources: news, history, papers, a hobby, any topic you
 research. Sources go in `raw/` and are never edited; the agent turns each into a source
 page and works what it says into the pages it discusses.
 
@@ -29,7 +29,7 @@ page and works what it says into the pages it discusses.
 | `analysis` | The wiki's own synthesis, answering a question across pages | `## Key pages` -> `synthesizes` |
 
 Every page lists its sources in `sources:` (`draws-on`), and cites each fact inline:
-`…signed in March ([[senate-report-2024]], p. 4)`. The relation takes the citing
+`…signed in March ([[acme-report-2024]], p. 4)`. The relation takes the citing
 sentence as its reason. `wiki/open-questions.md` collects contradictions and gaps.
 
 Guides: `ingest`, `query`, `lint`.

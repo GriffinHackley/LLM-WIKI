@@ -22,13 +22,13 @@ def run_json(run, *args):
 
 
 def test_neighbors(wiki, run):
-    wiki.page("person", "mike-johnson", {"Relationships": "- [[adelita-grijalva]] — administered her oath"})
-    wiki.page("person", "adelita-grijalva")
-    code, result = run_json(run, "neighbors", "adelita-grijalva")
-    assert code == 0 and result == {"page": "adelita-grijalva", "neighbors": [
-        {"slug": "mike-johnson", "direction": "incoming", "type": "associated-with", "reason": "administered her oath"}]}
-    code, out, _ = run("neighbors", "mike-johnson")
-    assert out.strip() == "-> associated-with  adelita-grijalva  administered her oath"
+    wiki.page("person", "charles-babbage", {"Relationships": "- [[ada-lovelace]] — tutored her"})
+    wiki.page("person", "ada-lovelace")
+    code, result = run_json(run, "neighbors", "ada-lovelace")
+    assert code == 0 and result == {"page": "ada-lovelace", "neighbors": [
+        {"slug": "charles-babbage", "direction": "incoming", "type": "associated-with", "reason": "tutored her"}]}
+    code, out, _ = run("neighbors", "charles-babbage")
+    assert out.strip() == "-> associated-with  ada-lovelace  tutored her"
 
 
 def test_neighbors_unknown_page(wiki, run):
@@ -69,8 +69,8 @@ class TestCheck:
     def test_errors_and_warnings(self, wiki, run):
         wiki.write("wiki/documents/bad.md", raw='---\nheadline: "RE: x" — tail\n---\n# Bad\n')
         wiki.write("wiki/people/nofront.md", raw="# No frontmatter\n")
-        wiki.write("dossiers/a/claims.md", {"title": "A"})
-        wiki.write("dossiers/b/claims.md", {"title": "B"})
+        wiki.write("notebooks/a/claims.md", {"title": "A"})
+        wiki.write("notebooks/b/claims.md", {"title": "B"})
         wiki.page("person", "linker", {"Timeline": "See [[claims]] and [[ghost-1]], [[ghost-2]]."}, summary=None)
         assert self.codes(run, "bad") == (1, ["invalid-frontmatter"])
         assert self.codes(run, "nofront") == (1, ["missing-frontmatter"])

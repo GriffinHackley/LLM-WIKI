@@ -104,7 +104,7 @@ template.
 {{/code}}
 {{^code}}
    - **A document gets a source page.** Pick a stable, descriptive slug: the author or
-     outlet, the subject, and the date (`senate-report-budget-2024-03`). Copy the source
+     outlet, the subject, and the date (`acme-annual-report-2024-03`). Copy the source
      type's template into its folder and fill it:
      - frontmatter: its title, author or issuer, date, and where it came from, as far as
        known;
@@ -144,7 +144,7 @@ template.
 6. **Names and slugs.**
    - **Slugs** are lowercase kebab-case of the name the sources use most: `ada-lovelace`,
      `bank-of-england`. An event's slug starts with its date or year:
-     `2024-03-senate-budget-hearing`.
+     `2024-03-acme-shareholder-meeting`.
    - **Search every name** the source uses for a thing before creating its page: full
      name, surname, initials, title ("the Secretary"), acronym, former name.
      `wiki search "<name>" --keyword-only` matches exact names.

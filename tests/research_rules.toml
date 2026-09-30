@@ -1,5 +1,5 @@
-# The Politics wiki's conventions, as its .wiki-cli.toml declares them. Tests use this to
-# check that the generic rule format reproduces that wiki's typed relations.
+# The fixture wiki's conventions: typed relations for a research wiki with people, places,
+# events, documents, topics and claims. Tests use this to check the generic rule format.
 
 [summary]
 headings = ["Summary", "What this is", "What happened", "Claim", "Question this page answers", "Synthesis"]

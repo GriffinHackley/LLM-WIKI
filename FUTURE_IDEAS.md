@@ -18,8 +18,7 @@ Deferred from the starter kit plan: `/wiki-ingest` assumes a readable file is al
 `raw/`.
 
 - **`wiki add <url | file>`:** save a web page as HTML plus extracted text, and a PDF or
-  DOCX as extracted text beside the original, so the raw search tier covers it. Politics'
-  `.claude/fetch_html.py` is a rough version for web pages.
+  DOCX as extracted text beside the original, so the raw search tier covers it.
 - **Provenance:** URL, retrieval date and original file name, in the text file's header
   or a `raw/SOURCES.md`.
 - **`wiki extract <file>`:** write `raw/<name>.txt` beside a PDF or HTML original, and
@@ -56,8 +55,8 @@ no notice requirement. Needs the copyright holder's name.
 ## Editable files in raw/
 
 The pre-commit hook (`wiki new --git-hook`) refuses any edit, rename or deletion under
-`raw/`. Politics keeps a manifest there (`raw/SOURCES.md`) that it updates as sources
-arrive, so it keeps its own hook with an exemption. If other wikis do the same, let the
+`raw/`. A wiki that keeps a manifest there (`raw/SOURCES.md`), updated as sources
+arrive, needs its own hook with an exemption. If wikis do this, let the
 config name files in `raw/` that may change (`[raw] editable = ["raw/SOURCES.md"]`) and
 have the hook read it.
 
@@ -129,14 +128,14 @@ relation signal may be too sparse to help, and hand-set weights are easy to over
   ~230 MB of float32 chunk vectors at 30k pages and speed up the ~150 ms exact
   vector scan, rescoring the top candidates with full-precision vectors.
 - **Embed plain text:** send link-stripped chunk text (`[[a|B]]` -> `B`) to the embedding
-  model and reranker instead of raw Markdown. Linking claim IDs in the Politics wiki moved
+  model and reranker instead of raw Markdown. Linking claim IDs in one evaluated wiki moved
   one evaluation question from rank 3 to 4, which suggests the markup is noise.
-  *Tested for the reranker (2026-09-26), no effect:* on the 50 Politics questions, plain
+  *Tested for the reranker (2026-09-26), no effect:* on a 50-question evaluation set, plain
   text left hit@3 at 0.778 and moved MRR from 0.639 to 0.650; four questions changed rank,
   two up and two down. Replacing bare `[[slug]]` links with page titles did no better.
   Link markup is 7% of chunk characters and the reranker ignores it. Not worth
   re-embedding for; revisit only if a wiki's pages are much denser in links.
-- **GPU embedding:** Ollama or ONNX Runtime with DirectML on the AMD RX 7900 XT,
-  if CPU embedding time becomes a bottleneck.
+- **GPU embedding:** Ollama, or ONNX Runtime with a GPU execution provider, if CPU
+  embedding time becomes a bottleneck.
 - **Rust implementation:** a single fast binary, if the tool needs distributing
   or much higher query volume.

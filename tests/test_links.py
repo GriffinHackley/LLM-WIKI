@@ -4,11 +4,11 @@ from wiki_cli import links
 
 
 @pytest.mark.parametrize("inner, expected", [
-    ("mike-johnson", ("mike-johnson", None, None)),
+    ("charles-babbage", ("charles-babbage", None, None)),
     ("doc-slug|Short cite", ("doc-slug", None, "Short cite")),
     ("doc-slug\\|Cite in table", ("doc-slug", None, "Cite in table")),
     ("doc-slug#^q-no-list", ("doc-slug", "^q-no-list", None)),
-    ("dossiers/epstein-files/claims|EF claims", ("dossiers/epstein-files/claims", None, "EF claims")),
+    ("notebooks/difference-engine/claims|N claims", ("notebooks/difference-engine/claims", None, "N claims")),
     ("page.md#Heading|Label", ("page", "Heading", "Label")),
     ("folder\\sub\\page", ("folder/sub/page", None, None)),
 ])
@@ -20,7 +20,7 @@ def test_extract_links_tracks_sections_and_embeds():
     body = (
         "Intro [[a]].\n\n"
         "## Entities mentioned\n"
-        "- [[mike-johnson]] — Speaker\n"
+        "- [[charles-babbage]] — Inventor\n"
         "- [[doc|Cite]]; ![[doc2#^q-x]]\n"
         "\n---\n"
         "Footer [[ledger]]\n"
@@ -28,7 +28,7 @@ def test_extract_links_tracks_sections_and_embeds():
     found = [(link.target, link.section, link.embed, link.anchor) for link in links.extract_links(body)]
     assert found == [
         ("a", "", False, None),
-        ("mike-johnson", "entities mentioned", False, None),
+        ("charles-babbage", "entities mentioned", False, None),
         ("doc", "entities mentioned", False, None),
         ("doc2", "entities mentioned", True, "^q-x"),
         ("ledger", "", False, None),  # a horizontal rule ends the section

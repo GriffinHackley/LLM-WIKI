@@ -13,11 +13,11 @@ from wiki_cli.validation import compare_cache
 
 @pytest.fixture
 def graph(wiki):
-    wiki.page("person", "mike-johnson", {"Relationships": "- [[adelita-grijalva]] — administered her oath",
+    wiki.page("person", "charles-babbage", {"Relationships": "- [[ada-lovelace]] — tutored her",
                                          "Appearances in sources": "- [[abc-doc]] — quoted (p. 2)"})
-    wiki.page("person", "adelita-grijalva")
-    wiki.page("document", "abc-doc", {"Entities mentioned": "- [[mike-johnson]] — Speaker\n- [[unwritten-person]]"})
-    wiki.page("event", "swearing-in", {"Participants": "- [[mike-johnson]] — presided"})
+    wiki.page("person", "ada-lovelace")
+    wiki.page("document", "abc-doc", {"Entities mentioned": "- [[charles-babbage]] — Inventor\n- [[unwritten-person]]"})
+    wiki.page("event", "engine-demo", {"Participants": "- [[charles-babbage]] — presided"})
     return wiki
 
 
@@ -27,12 +27,12 @@ def pairs(results, direction=None):
 
 def test_neighbors_both_directions(graph):
     with Cache(graph.settings()) as cache:
-        assert cache.ensure_fresh("mike-johnson")
-        results = cache.neighbors("mike-johnson")
-    assert pairs(results, "outgoing") == [("adelita-grijalva", "associated-with"), ("abc-doc", "appears-in")]
-    assert pairs(results, "incoming") == [("swearing-in", "participant-in"), ("abc-doc", "mentioned-in")]
+        assert cache.ensure_fresh("charles-babbage")
+        results = cache.neighbors("charles-babbage")
+    assert pairs(results, "outgoing") == [("ada-lovelace", "associated-with"), ("abc-doc", "appears-in")]
+    assert pairs(results, "incoming") == [("engine-demo", "participant-in"), ("abc-doc", "mentioned-in")]
     incoming_doc = next(r for r in results if r["direction"] == "incoming" and r["slug"] == "abc-doc")
-    assert incoming_doc["reason"] == "Speaker"
+    assert incoming_doc["reason"] == "Inventor"
 
 
 def test_unresolved_targets_marked_and_last(graph):
@@ -47,18 +47,18 @@ def test_unresolved_targets_marked_and_last(graph):
 def test_filters_and_limit(graph):
     with Cache(graph.settings()) as cache:
         cache.refresh()
-        assert pairs(cache.neighbors("mike-johnson", incoming=False, relation_type="appears-in")) == [
+        assert pairs(cache.neighbors("charles-babbage", incoming=False, relation_type="appears-in")) == [
             ("abc-doc", "appears-in")]
-        assert len(cache.neighbors("mike-johnson", limit=2)) == 2
+        assert len(cache.neighbors("charles-babbage", limit=2)) == 2
 
 
 def test_titles_included_when_different(wiki):
-    wiki.page("document", "abc-doc", title="ABC News, 2025-10-20")
+    wiki.page("document", "abc-doc", title="Harbor Gazette, 2025-10-20")
     wiki.page("person", "p", {"Appearances in sources": "- [[abc-doc]] — quoted"})
     with Cache(wiki.settings()) as cache:
         cache.refresh()
         [entry] = cache.neighbors("p")
-    assert entry["title"] == "ABC News, 2025-10-20"
+    assert entry["title"] == "Harbor Gazette, 2025-10-20"
 
 
 def test_writing_a_page_resolves_links_to_it(graph):
@@ -74,21 +74,21 @@ def test_writing_a_page_resolves_links_to_it(graph):
 def test_deleting_a_page_unresolves_links(graph):
     with Cache(graph.settings()) as cache:
         cache.refresh()
-        (graph.root / "wiki" / "people" / "adelita-grijalva.md").unlink()
+        (graph.root / "wiki" / "people" / "ada-lovelace.md").unlink()
         cache.refresh()
-        entry = next(r for r in cache.neighbors("mike-johnson") if r["slug"] == "adelita-grijalva")
+        entry = next(r for r in cache.neighbors("charles-babbage") if r["slug"] == "ada-lovelace")
         assert entry["unresolved"] is True
 
 
 def test_duplicate_name_changes_slugs(wiki):
-    wiki.write("dossiers/a/claims.md", {"title": "A claims"})
+    wiki.write("notebooks/a/claims.md", {"title": "A claims"})
     wiki.page("person", "p", {"Timeline": "See [[claims]]."})
     with Cache(wiki.settings()) as cache:
         cache.refresh()
         assert "unresolved" not in cache.neighbors("p")[0]
-        wiki.write("dossiers/b/claims.md", {"title": "B claims"})
+        wiki.write("notebooks/b/claims.md", {"title": "B claims"})
         cache.refresh()
-        assert cache.page_exists("dossiers/a/claims") and not cache.page_exists("claims")
+        assert cache.page_exists("notebooks/a/claims") and not cache.page_exists("claims")
         assert cache.neighbors("p")[0]["unresolved"] is True  # [[claims]] is now ambiguous
 
 
@@ -97,8 +97,8 @@ def test_incremental_refresh(graph):
         assert cache.refresh().added == 4
         assert cache.refresh().unchanged == 4
         graph.page("person", "new")
-        swearing = graph.page("event", "swearing-in", {"Participants": "- [[adelita-grijalva]] — sworn in"})
-        bump(swearing)
+        demo = graph.page("event", "engine-demo", {"Participants": "- [[ada-lovelace]] — demonstrated it"})
+        bump(demo)
         (graph.root / "wiki" / "documents" / "abc-doc.md").rename(graph.root / "wiki" / "documents" / "abc-doc-2.md")
         stats = cache.refresh()
     assert (stats.added, stats.changed, stats.removed, stats.moved) == (2, 1, 1, 1)
@@ -107,7 +107,7 @@ def test_incremental_refresh(graph):
 def test_touched_file_is_not_reparsed(graph, monkeypatch):
     with Cache(graph.settings()) as cache:
         cache.refresh()
-        bump(graph.root / "wiki" / "people" / "mike-johnson.md")
+        bump(graph.root / "wiki" / "people" / "charles-babbage.md")
         monkeypatch.setattr(cache_module, "parse", lambda *a, **k: pytest.fail("unchanged content was reparsed"))
         stats = cache.refresh()
     assert stats.touched == 1
@@ -116,18 +116,18 @@ def test_touched_file_is_not_reparsed(graph, monkeypatch):
 def test_ensure_fresh_refreshes_one_changed_page(graph, monkeypatch):
     with Cache(graph.settings()) as cache:
         cache.refresh()
-        path = graph.page("person", "mike-johnson", {"Relationships": "- [[swearing-in]] — presided"})
+        path = graph.page("person", "charles-babbage", {"Relationships": "- [[engine-demo]] — presided"})
         bump(path)
         monkeypatch.setattr(Cache, "refresh", lambda self: pytest.fail("full scan for one changed page"))
-        assert cache.ensure_fresh("mike-johnson")
-        assert pairs(cache.neighbors("mike-johnson", incoming=False)) == [("swearing-in", "associated-with")]
+        assert cache.ensure_fresh("charles-babbage")
+        assert pairs(cache.neighbors("charles-babbage", incoming=False)) == [("engine-demo", "associated-with")]
 
 
 def test_ensure_fresh_after_rebuild_does_not_rescan(graph, monkeypatch):
     with Cache(graph.settings()) as cache:
         cache.rebuild()
         monkeypatch.setattr(Cache, "refresh", lambda self: pytest.fail("full refresh after rebuild"))
-        assert cache.ensure_fresh("mike-johnson")
+        assert cache.ensure_fresh("charles-babbage")
 
 
 def test_schema_mismatch_rebuilds(graph):
@@ -148,7 +148,7 @@ def test_rollback_on_interrupted_refresh(graph, monkeypatch):
     with Cache(graph.settings()) as cache:
         cache.refresh()
         before = cache.snapshot()
-        for slug in ("mike-johnson", "adelita-grijalva"):
+        for slug in ("charles-babbage", "ada-lovelace"):
             bump(graph.page("person", slug, {"Timeline": "Changed."}))
         real_store, calls = Cache._store, []
 

@@ -3,7 +3,7 @@
 This guide gets an LLM-maintained wiki running with your agent, on one of three paths:
 
 - **[A new research wiki](#3-start-a-new-research-wiki):** sources go in, the agent writes
-  and links the pages. News, politics, history, papers, any topic you research.
+  and links the pages. News, history, papers, any topic you research.
 - **[A wiki about a codebase](#4-start-a-wiki-about-a-codebase):** a wiki in its own repo,
   kept current by the agent that changes the code.
 - **[An existing folder of notes](#5-add-to-an-existing-wiki):** an Obsidian vault, a
@@ -34,7 +34,7 @@ cd my-wiki
   page.
 - No GPU. Search runs locally on the CPU; nothing is sent to a server.
 
-The default models are English-only. The tool is developed on Windows 11; its tests run
+The default models are English-only. The tool is developed on Windows; its tests run
 on Windows, macOS and Linux.
 
 ## 2. Install the tool (once per machine)

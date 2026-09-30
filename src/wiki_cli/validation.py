@@ -118,7 +118,7 @@ def _uncited_sources(page: Page, resolver: Resolver) -> list[Issue]:
         target = _link_value(item)
         if (resolver.resolve(target) or target) in linked:
             continue
-        # a wiki's own citation format may name the source in plain text: "(senate-report-2024, p. 4)"
+        # a wiki's own citation format may name the source in plain text: "(acme-report-2024, p. 4)"
         name = target.rsplit("/", 1)[-1]
         if re.search(rf"(?<![\w-]){re.escape(name)}(?![\w-])", page.body, re.IGNORECASE):
             continue

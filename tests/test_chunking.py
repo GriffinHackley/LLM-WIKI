@@ -65,7 +65,7 @@ def test_huge_single_line_is_split():
 
 
 def test_heading_links_are_cleaned():
-    _, chunks = chunks_of("# See [[tms/save|Save]] and [docs](http://x)\n\nText.\n")
+    _, chunks = chunks_of("# See [[app/save|Save]] and [docs](http://x)\n\nText.\n")
     assert chunks[1].heading_path == "See Save and docs"
 
 

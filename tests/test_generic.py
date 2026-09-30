@@ -1,4 +1,4 @@
-"""The tool on wikis that are not the Politics wiki: no config, Markdown links, custom rules."""
+"""The tool on wikis laid out unlike the fixture wiki: no config, Markdown links, custom rules."""
 
 import json
 import tomllib
