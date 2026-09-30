@@ -121,6 +121,10 @@ results = 3                       # default; pages from search, nav start and na
 [pending]
 ignore = ["raw/SOURCES.md"]       # files in raw/ that are not sources (default none)
 
+[weekly]                          # weekly notes (`wiki weekly`); off without this table
+folder = "weekly"                 # default; never indexed
+group_by = "module"               # "where the work went" by module, or "type" (default)
+
 [guides]
 dir = "guides"                    # the wiki's own guides, overriding built-in ones by name
 
@@ -184,6 +188,7 @@ re-embedding.
 | `wiki unwritten [--limit N]` | Link targets with no page, most-linked first |
 | `wiki orphans` | Pages nothing relates to |
 | `wiki stale` | Code wikis: pages whose covered code changed since they were verified |
+| `wiki weekly [--week 2026-W40 \| current]` | With `[weekly]`: a note per finished week of work (pages added and changed, where the work went, sources, open questions, health, code) and a timeline, from git; `current` shows this week so far |
 | `wiki check <slug> \| --all [--verify-cache] [--strict] [--no-warnings] [--summary-ok]` | Frontmatter, summaries, types and their required sections and fields, uncited sources, ambiguous and unwritten links, stale summaries, code links |
 | `wiki check <source-slug> --ingested` | Whether an ingest is complete: original linked, discussed pages named and citing it, all clean and committed |
 | `wiki index refresh \| rebuild [--no-embed] \| status` | Manage the cache and embeddings |

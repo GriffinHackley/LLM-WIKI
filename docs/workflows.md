@@ -143,7 +143,13 @@ relation types in effect, and `wiki neighbors <slug>` shows what a page's links 
   lists them, most-linked first, as the pages most worth writing.
 - **The pre-commit hook** (`wiki new --git-hook`) refuses commits that edit, rename or
   delete sources in `raw/`, or that leave `wiki check` errors: a backstop for edits made
-  outside the workflows.
+  outside the workflows. In a wiki with `[weekly]`, it also writes last week's note on
+  the first commit of a new week and adds it to that commit.
+- **Weekly notes.** `wiki weekly` writes a note for each finished week from the git
+  history, with no agent: pages added and changed, where the work went, sources, open
+  questions, health and, in code wikis, what changed in the code; plus
+  `weekly/timeline.md` across all weeks. The only part for an agent is a note's
+  `## Highlights`, if the wiki's rules ask for it.
 - **Code wikis.** `wiki stale` lists pages whose covered code changed since they were
   verified; `wiki check` warns on `code:` links to files that are gone and `covers:`
   globs that match nothing.

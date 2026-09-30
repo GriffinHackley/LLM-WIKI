@@ -19,6 +19,8 @@ point `wiki` commands here. This file is for sessions started in the wiki itself
 raw/                   Documents about the code. Never edit, rename or delete anything here.
 wiki/                  The wiki: one folder per page type (wiki/modules/, wiki/decisions/, ...).
 wiki/open-questions.md Things the code and the wiki disagree about, and gaps worth chasing.
+weekly/                Weekly notes and a timeline, written by `wiki weekly` from git. Not pages:
+                       add to a note only under its `## Highlights`.
 templates/             One template per page type. New pages start from these.
 .wiki-cli.toml         Page types, relation rules, and where the code repo is.
 .cache/                Search index. Disposable; never commit it.

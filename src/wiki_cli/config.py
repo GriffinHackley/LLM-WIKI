@@ -26,8 +26,11 @@ DEFAULT_SUMMARY_HEADINGS = ("summary",)
 DEFAULT_SEARCH_RESULTS = 3
 MAX_SEARCH_RESULTS = 20  # search reranks 20 passages (search.RERANK_K), so it never returns more pages
 _TOP_LEVEL = {"pages", "exclude", "raw", "embed_model", "reranker", "relations", "summary", "page_type",
-              "check", "suggest", "search", "preset", "types", "guides", "code", "pending"}
+              "check", "suggest", "search", "preset", "types", "guides", "code", "pending", "weekly"}
 _CODE_KEYS = {"repo", "origin"}
+_WEEKLY_KEYS = {"folder", "template", "sections", "group_by"}
+WEEKLY_SECTIONS = ("summary", "activity", "pages", "work", "sources", "questions", "health", "code")
+WEEKLY_GROUPS = ("type", "module")
 REDIRECT_KEY = "wiki"  # a config holding only this key says "the wiki for this folder is over there"
 _TYPE_KEYS = {"description", "folder", "template"}
 _TYPE_LISTS = {"sections", "fields"}
@@ -51,6 +54,16 @@ class PageType:
     sections: tuple[str, ...] = ()
     fields: tuple[str, ...] = ()
     values: tuple[tuple[str, tuple[str, ...]], ...] = ()  # (field, allowed values)
+
+
+@dataclass(frozen=True)
+class Weekly:
+    """`[weekly]`: where weekly notes go, the template they start from, which generated
+    sections they show, and what "where the work went" groups changed pages by."""
+    folder: str = "weekly"
+    template: str = "templates/weekly.md"
+    sections: tuple[str, ...] = WEEKLY_SECTIONS
+    group_by: str = "type"
 
 
 @dataclass(frozen=True)
@@ -78,6 +91,7 @@ class Settings:
     code_repo: Path | None = None  # the code a code wiki describes ([code] repo, or $WIKI_CODE_REPO)
     code_origin: str | None = None  # the code repo's origin URL, to tell a wrong pointer
     pending_ignore: tuple[str, ...] = ()  # files under raw/ that are not sources (`wiki pending` skips them)
+    weekly: Weekly | None = None  # weekly notes, when [weekly] turns them on
     redirected_from: Path | None = field(default=None, compare=False)  # a code repo that pointed here
     vocabulary: Vocabulary = field(default_factory=Vocabulary, compare=False)
     root_note: str | None = field(default=None, compare=False)  # set when no config chose the root
@@ -209,6 +223,7 @@ def load_settings(
         code_repo=code_repo,
         code_origin=code.get("origin") or None,
         pending_ignore=_patterns(_table(config, "pending"), "ignore", (), "[pending] ignore"),
+        weekly=_weekly(config),
         redirected_from=redirected_from,
         vocabulary=Vocabulary(rules),
         root_note=root_note,
@@ -225,6 +240,30 @@ def _follow_redirect(folder: Path, config: dict) -> Path:
         raise ConfigError(f"{folder / CONFIG_FILENAME} points at {target}, which is not a wiki "
                           f"(no {CONFIG_FILENAME} there)")
     return target
+
+
+def _weekly(config: dict) -> Weekly | None:
+    if "weekly" not in config:
+        return None
+    table = _table(config, "weekly")
+    unknown = set(table) - _WEEKLY_KEYS
+    if unknown:
+        raise ConfigError(f"{CONFIG_FILENAME}: [weekly]: unknown key(s) {', '.join(sorted(unknown))}")
+    for key in ("folder", "template", "group_by"):
+        if key in table and (not isinstance(table[key], str) or not table[key].strip()):
+            raise ConfigError(f"{CONFIG_FILENAME}: [weekly] {key} must be a non-empty string")
+    sections = tuple(name.strip().lower() for name in _patterns(table, "sections", WEEKLY_SECTIONS,
+                                                                 "[weekly] sections"))
+    wrong = [name for name in sections if name not in WEEKLY_SECTIONS]
+    if wrong:
+        raise ConfigError(f"{CONFIG_FILENAME}: [weekly] sections: no section {', '.join(wrong)}; "
+                          f"choose from {', '.join(WEEKLY_SECTIONS)}")
+    group_by = table.get("group_by", "type").strip().lower()
+    if group_by not in WEEKLY_GROUPS:
+        raise ConfigError(f"{CONFIG_FILENAME}: [weekly] group_by must be {' or '.join(WEEKLY_GROUPS)}")
+    return Weekly(folder=table.get("folder", "weekly").strip().strip("/"),
+                  template=table.get("template", "templates/weekly.md").strip(), sections=sections,
+                  group_by=group_by)
 
 
 def _types(table: dict) -> tuple[PageType, ...]:

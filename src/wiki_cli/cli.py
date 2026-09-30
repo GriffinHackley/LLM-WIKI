@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
-from wiki_cli import __version__, audit, codebase, evaluate, guide, init, scaffold, sources
+from wiki_cli import __version__, audit, codebase, evaluate, guide, init, scaffold, sources, weekly
 from wiki_cli.cache import Cache, CacheUnavailable
 from wiki_cli.config import CONFIG_FILENAME, ConfigError, Settings, load_settings
 from wiki_cli.model import ERROR, WARNING, Issue
@@ -63,7 +63,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"note: {settings.root_note}", file=sys.stderr)
         return args.handler(args, settings)
     except (ConfigError, PageNotFound, CacheUnavailable, UsageError, ModelUnavailable, evaluate.EvalError,
-            guide.GuideError, scaffold.ScaffoldError) as exc:
+            guide.GuideError, scaffold.ScaffoldError, weekly.WeeklyError) as exc:
         print(f"wiki: {exc}", file=sys.stderr)
         return EXIT_ERROR
 
@@ -210,6 +210,15 @@ def build_parser() -> argparse.ArgumentParser:
     pending_parser = commands.add_parser("pending", parents=[common],
                                          help="sources in raw/ that no page links to yet")
     pending_parser.set_defaults(handler=cmd_pending)
+
+    weekly_parser = commands.add_parser("weekly", parents=[common],
+                                        help="write a note for each finished week of work on the wiki, and a timeline")
+    weekly_parser.add_argument("--week", help="only this week (2026-W40), rewriting its generated part; "
+                                              "'current' shows this week so far without writing it")
+    weekly_parser.add_argument("--hook", action="store_true",
+                               help="for the pre-commit hook: stage what it writes, and do nothing when [weekly] "
+                                    "is not in the config")
+    weekly_parser.set_defaults(handler=cmd_weekly)
 
     list_parser = commands.add_parser("list", parents=[common], help="every page, with its type and summary")
     list_parser.add_argument("--type", dest="page_type", help="only pages of this type")
@@ -481,6 +490,24 @@ def cmd_pending(args: argparse.Namespace, settings: Settings) -> int:
         note = f"  (same content as {source.duplicate_of})" if source.duplicate_of else ""
         print(f"{source.key}: {', '.join(source.files)}{note}")
     print(f"{len(waiting)} pending, {ingested} ingested (in {', '.join(f + '/' for f in folders)})")
+    return EXIT_OK
+
+
+def cmd_weekly(args: argparse.Namespace, settings: Settings) -> int:
+    if args.hook and (settings.weekly is None or args.week):
+        return EXIT_OK  # the hook runs in every wiki; notes are only for those that turn them on
+    result = weekly.run(settings, week=args.week)
+    if args.hook:
+        weekly.stage(settings, result["written"])
+    if args.format == "json":
+        _print_json(result)
+    elif result["preview"] is not None:
+        print(result["preview"], end="")
+    elif not args.hook:
+        for rel in result["written"]:
+            print(f"wrote {rel}")
+        if not result["written"]:
+            print("weekly notes are up to date")
     return EXIT_OK
 
 

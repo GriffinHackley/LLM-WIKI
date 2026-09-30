@@ -21,6 +21,14 @@ summary_types = ["file", "module", "concept", "decision", "instruction", "ticket
 [suggest]
 named_types = ["module", "concept", "dependency"]
 
+# Weekly notes: `wiki weekly` writes one per finished week from the git history, and a
+# timeline, in weekly/ (kept apart from the pages: not searched, not in the graph). The
+# pre-commit hook writes last week's on the first commit of a new week.
+[weekly]
+folder = "weekly"
+template = "templates/weekly.md"
+group_by = "module"             # "where the work went" by module; or "type"
+
 # Page types. A page's type comes from its `type:` frontmatter, else from its folder.
 # `wiki check` warns when a page lacks one of its type's `sections` or frontmatter `fields`,
 # or when a field listed under `values` holds something else.
