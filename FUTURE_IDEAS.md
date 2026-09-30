@@ -116,6 +116,19 @@ feed the ranking:
 Test any of these with `wiki eval` against plain similarity first: on small wikis the
 relation signal may be too sparse to help, and hand-set weights are easy to overfit.
 
+## A combined relatedness score for `wiki suggest`
+
+[nashsu/llm_wiki](https://github.com/nashsu/llm_wiki) scores every pair of pages with
+four weighted signals: a direct link (x3), a shared raw source (x4), shared neighbors
+by Adamic-Adar (x1.5) and the same page type (x1). `wiki suggest` keeps its signals
+apart instead, each with its own reason (named but not linked, shares linked pages,
+similar summary), because the agent reading them weighs a stated reason better than a
+single number; and it already discounts hub pages by Adamic-Adar. Revisit a combined
+score, with shared sources as their own signal, only if suggest ranks badly on a real
+wiki, and tune its weights by link prediction: hide a sample of existing links and
+measure how often the score ranks the hidden target near the top. Same-type alone is
+too weak to find candidates; at most it breaks ties.
+
 ## Weekly notes in search and the graph
 
 Weekly notes (PLAN.md, Phase 10) start outside the wiki: not searched, not in the
