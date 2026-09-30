@@ -206,6 +206,26 @@ def test_suggest(wiki_graph):
     assert "oren-vale" not in results  # already linked
 
 
+def test_suggest_discounts_hub_pages(wiki):
+    """Pages sharing only hubs that most pages link to are not leads; sharing rarer pages is."""
+    def links(*targets):
+        return {"Related": "\n".join(f"- [[{target}]] — related" for target in targets)}
+    for hub in ("museum", "archive"):
+        wiki.page("topic", hub, summary=f"The {hub}.")
+    for index in range(12):
+        wiki.page("topic", f"filler-{index}", links("museum", "archive"), summary=f"Filler {index}.")
+    for rare in ("loan-memo", "east-gallery"):
+        wiki.page("topic", rare, summary=f"The {rare}.")
+    wiki.page("topic", "subject", links("museum", "archive", "loan-memo", "east-gallery"), summary="Subject.")
+    wiki.page("topic", "close", links("loan-memo", "east-gallery"), summary="Close.")
+    wiki.page("topic", "mixed", links("museum", "loan-memo"), summary="Mixed.")
+    with Cache(wiki.settings()) as cache:
+        cache.refresh()
+        results = [item["slug"] for item in suggest(cache, "subject", limit=20)
+                   if any(reason.startswith("Shares") for reason in item["reasons"])]
+    assert results == ["close", "mixed"]  # no filler: they share only the two hubs
+
+
 @pytest.fixture
 def run(wiki_graph, capsys):
     def invoke(*args):

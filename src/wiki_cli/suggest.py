@@ -7,6 +7,7 @@ Suggestions are leads for review, never edits.
 
 from __future__ import annotations
 
+import math
 import re
 
 from wiki_cli.cache import Cache
@@ -14,6 +15,9 @@ from wiki_cli.pages import PageFile, load
 
 MIN_NAME_LENGTH = 4
 SHARED_MINIMUM = 2
+# Two shared pages each linked from 10 pages score 2 / ln 10: sharing only broader hubs
+# than that is not a lead.
+MIN_SHARED_SCORE = 2 / math.log(10)
 SIMILAR_LIMIT = 5
 
 
@@ -32,18 +36,13 @@ def suggest(cache: Cache, slug: str, *, limit: int = 10) -> list[dict]:
             f"Named in the text as '{name}' but not linked.")
         found[target]["rank"] = (0, 0.0)
 
-    for source, count, targets in cache.conn.execute(
-            """SELECT r2.source_slug, COUNT(*), GROUP_CONCAT(r2.target_slug, ', ')
-               FROM relations r1 JOIN relations r2 ON r1.target_slug = r2.target_slug
-               WHERE r1.source_slug = ? AND r2.source_slug != ? AND r1.resolved = 1 AND r2.resolved = 1
-               GROUP BY r2.source_slug HAVING COUNT(*) >= ? ORDER BY COUNT(*) DESC""",
-            (slug, slug, SHARED_MINIMUM)):
+    for source, score, targets in _shared(cache, slug):
         if source in skip:
             continue
         entry = found.setdefault(source, {"slug": source, "reasons": []})
-        shown = ", ".join(targets.split(", ")[:3]) + (", …" if count > 3 else "")
-        entry["reasons"].append(f"Shares {count} linked pages: {shown}.")
-        entry.setdefault("rank", (1, -float(count)))
+        shown = ", ".join(targets[:3]) + (", …" if len(targets) > 3 else "")
+        entry["reasons"].append(f"Shares {len(targets)} linked pages: {shown}.")
+        entry.setdefault("rank", (1, -score))
 
     if cache.has_vectors:
         own = cache.conn.execute("SELECT s.embedding FROM summary_vectors s JOIN pages p ON p.id = s.rowid "
@@ -72,6 +71,37 @@ def suggest(cache: Cache, slug: str, *, limit: int = 10) -> list[dict]:
             if page["type"]:
                 entry["type"] = page["type"]
     return results
+
+
+def _shared(cache: Cache, slug: str) -> list[tuple[str, float, list[str]]]:
+    """Pages linking to at least two of the pages this one links to, as
+    ``(slug, score, shared targets, rarest first)``, best first. A shared target counts
+    ``1 / log(pages linking to it)`` (Adamic-Adar), so a hub that most pages link to
+    adds little: pages that share only hubs fall below ``MIN_SHARED_SCORE``."""
+    pairs = cache.conn.execute(
+        """SELECT DISTINCT r2.source_slug, r2.target_slug
+           FROM relations r1 JOIN relations r2 ON r1.target_slug = r2.target_slug
+           WHERE r1.source_slug = ? AND r2.source_slug != ? AND r2.target_slug != ?
+             AND r1.resolved = 1 AND r2.resolved = 1""", (slug, slug, slug)).fetchall()
+    targets = sorted({target for _, target in pairs})
+    if not targets:
+        return []
+    marks = ",".join("?" * len(targets))
+    degree = dict(cache.conn.execute(
+        f"SELECT target_slug, COUNT(DISTINCT source_slug) FROM relations WHERE resolved = 1 "
+        f"AND target_slug IN ({marks}) GROUP BY target_slug", targets))
+    shared: dict[str, list[str]] = {}
+    for source, target in pairs:
+        shared.setdefault(source, []).append(target)
+    results = []
+    for source, common in shared.items():
+        if len(common) < SHARED_MINIMUM:
+            continue
+        score = sum(1 / math.log(max(degree.get(target, 2), 2)) for target in common)
+        if score >= MIN_SHARED_SCORE:
+            common.sort(key=lambda target: (degree.get(target, 2), target))
+            results.append((source, score, common))
+    return sorted(results, key=lambda item: (-item[1], item[0]))
 
 
 def _named(cache: Cache, slug: str, info: dict, skip: set[str]) -> list[tuple[str, str]]:
