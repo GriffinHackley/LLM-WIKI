@@ -92,6 +92,7 @@ class TestNew:
         assert (root / "CLAUDE.md").read_text(encoding="utf-8") == "@AGENTS.md\n"
         settings = json.loads((root / ".claude/settings.json").read_text(encoding="utf-8"))
         assert settings["permissions"]["allow"] == ["Bash(wiki:*)"]
+        assert settings["permissions"]["deny"] == ["Edit(/raw/**)"]  # sources are never changed
         stub = (root / ".claude/skills/wiki-query/SKILL.md").read_text(encoding="utf-8")
         front = yaml.safe_load(stub.split("---")[1])
         assert front["name"] == "wiki-query" and "wiki guide query" in front["description"]
@@ -146,8 +147,10 @@ class TestNew:
         root = tmp_path / "w"
         write(root, ".claude/settings.json", '{"permissions": {"allow": ["Bash(git:*)"]}}')
         result = scaffold(root, agent="claude")
-        assert any(item["file"] == ".claude/settings.json" and "Bash(wiki:*)" in item["text"]
-                   for item in result["add"])
+        added = [item["text"] for item in result["add"] if item["file"] == ".claude/settings.json"]
+        assert added == ['"permissions": {"allow": ["Bash(wiki:*)"], "deny": ["Edit(/raw/**)"]}\n']
+        write(root, ".claude/settings.json", '{"permissions": {"allow": ["Bash(wiki:*)"], "deny": ["Edit(/raw/**)"]}}')
+        assert not [item for item in scaffold(root, agent="claude")["add"] if item["file"] == ".claude/settings.json"]
 
     def test_refusals(self, tmp_path, capsys):
         with pytest.raises(ScaffoldError, match="not a wiki folder"):

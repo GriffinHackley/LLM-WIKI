@@ -82,6 +82,10 @@ class TestNew:
         assert "wiki guide sync" in files["AGENTS.md"]
         claude = json.loads(files[".claude/settings.json"])
         assert claude["permissions"]["additionalDirectories"] == [(tmp_path / "w").resolve().as_posix()]
+        wiki_raw = (tmp_path / "w/raw").resolve().as_posix()
+        if wiki_raw[1] == ":":  # Claude Code matches C:/Users as /c/Users
+            wiki_raw = f"/{wiki_raw[0].lower()}{wiki_raw[2:]}"
+        assert claude["permissions"]["deny"] == [f"Edit(/{wiki_raw}/**)"]
         assert not (code_repo / ".wiki-cli.toml").exists() and not (code_repo / "AGENTS.md").exists()
         wiki_settings = json.loads((tmp_path / "w/.claude/settings.json").read_text(encoding="utf-8"))
         assert wiki_settings["permissions"]["additionalDirectories"] == [code_repo.resolve().as_posix()]

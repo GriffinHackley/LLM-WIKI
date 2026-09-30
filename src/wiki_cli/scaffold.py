@@ -20,6 +20,7 @@ from pathlib import Path
 from wiki_cli import codebase, guide
 from wiki_cli.config import CONFIG_FILENAME, ConfigError, load_settings
 from wiki_cli.models import is_downloaded
+from wiki_cli.sources import raw_dirs
 
 PRESETS_DIR = Path(__file__).parent / "presets"
 HOOKS_DIR = Path(__file__).parent / "hooks"
@@ -115,7 +116,7 @@ def scaffold(target: Path, preset: str = DEFAULT_PRESET, agent: str | Sequence[s
         _opencode(target, settings, result)
     if code_repo is not None:
         result["code_repo"] = str(code_repo)
-        result["code_setup"] = _code_setup(code_repo, target, folder, agents)
+        result["code_setup"] = _code_setup(code_repo, target, folder, agents, _raw_folders(settings))
     result["models_missing"] = settings is not None and not all((
         is_downloaded(settings.embed_model, settings.models_dir, reranker=False),
         is_downloaded(settings.reranker, settings.models_dir, reranker=True)))
@@ -148,7 +149,8 @@ def _relative(path: Path, start: Path) -> str:
         return path.as_posix()
 
 
-def _code_setup(code_repo: Path, target: Path, preset: Path, agents: tuple[str, ...]) -> list[dict]:
+def _code_setup(code_repo: Path, target: Path, preset: Path, agents: tuple[str, ...],
+                raw_folders: list[str]) -> list[dict]:
     """What the code repo needs so an agent working there finds and keeps the wiki. Never
     written by `wiki new`: the code repo is the user's to change."""
     wiki_path = _relative(target, code_repo)
@@ -162,9 +164,13 @@ def _code_setup(code_repo: Path, target: Path, preset: Path, agents: tuple[str, 
         setup.append({"file": "AGENTS.md", "text": section,
                       "why": "tells the agent working on the code to keep the wiki current"})
     if "claude" in agents:
-        settings = {"permissions": {"allow": [CLAUDE_PERMISSION], "additionalDirectories": [target.as_posix()]}}
+        # From the code repo the wiki is another folder, so its raw folders are named absolutely.
+        deny = [f"Edit(/{_posix_absolute(target)}/{raw}/**)" for raw in raw_folders]
+        settings = {"permissions": {"allow": [CLAUDE_PERMISSION], "deny": deny,
+                                    "additionalDirectories": [target.as_posix()]}}
         setup.append({"file": ".claude/settings.json", "text": json.dumps(settings, indent=2) + "\n",
-                      "why": "lets Claude Code run wiki commands and read and edit the wiki from the code repo"})
+                      "why": "lets Claude Code run wiki commands and read and edit the wiki from the code repo, "
+                             "but not change the sources in its raw/"})
     return setup
 
 
@@ -282,7 +288,8 @@ def _claude(target: Path, settings, result: dict, extra_dir: Path | None = None)
         result["add"].append({"file": "CLAUDE.md", "text": "@AGENTS.md\n"})
 
     settings_file = target / ".claude" / "settings.json"
-    permissions = {"allow": [CLAUDE_PERMISSION]}
+    deny = _raw_deny(settings)
+    permissions = {"allow": [CLAUDE_PERMISSION], "deny": deny}
     if extra_dir is not None:  # a code wiki reads the code repo
         permissions["additionalDirectories"] = [extra_dir.as_posix()]
     if not settings_file.exists():
@@ -292,14 +299,39 @@ def _claude(target: Path, settings, result: dict, extra_dir: Path | None = None)
     else:
         result["kept"].append(".claude/settings.json")
         try:
-            allowed = json.loads(settings_file.read_text(encoding="utf-8")).get("permissions", {}).get("allow", [])
+            existing = json.loads(settings_file.read_text(encoding="utf-8")).get("permissions", {})
+            allowed, denied = existing.get("allow", []), existing.get("deny", [])
         except (ValueError, AttributeError):
-            allowed = []
+            allowed, denied = [], []
+        missing = {}
         if CLAUDE_PERMISSION not in allowed:
+            missing["allow"] = [CLAUDE_PERMISSION]
+        if any(rule not in denied for rule in deny):
+            missing["deny"] = [rule for rule in deny if rule not in denied]
+        if missing:
             result["add"].append({"file": ".claude/settings.json",
-                                  "text": f'"permissions": {{"allow": ["{CLAUDE_PERMISSION}"]}}\n'})
+                                  "text": f'"permissions": {json.dumps(missing)}\n'})
 
     _write_skills(target, ".claude/skills", settings, result)
+
+
+def _raw_folders(settings) -> list[str]:
+    return raw_dirs(settings) if settings is not None else ["raw"]
+
+
+def _raw_deny(settings) -> list[str]:
+    """Claude Code rules that stop its file tools, and the Bash file commands it recognizes,
+    from changing sources. A leading `/` anchors a project rule at the folder Claude Code
+    was started in."""
+    return [f"Edit(/{raw}/**)" for raw in _raw_folders(settings)]
+
+
+def _posix_absolute(path: Path) -> str:
+    """A path as Claude Code matches it: `C:\\Users\\me` is `/c/Users/me` on Windows."""
+    posix = path.resolve().as_posix()
+    if len(posix) > 1 and posix[1] == ":":
+        posix = f"/{posix[0].lower()}{posix[2:]}"
+    return posix
 
 
 def _copilot(target: Path, settings, result: dict, *, with_claude: bool) -> None:

@@ -84,6 +84,18 @@ extension) for `/lint` could report, over the relations graph:
 upstream finds the most valuable link suggestions. Community detection is noise on
 small graphs; upstream skips it below 30 pages.
 
+**Clusters with no page about them.** A cluster of pages that link each other densely
+usually shares an idea: the files and PRs around a caching layer, the people around a
+negotiation. When no page in the cluster is about that idea (no `concept`, `module` or
+similar page that most of the cluster links to), report it as a page worth writing:
+list the cluster's pages, the names and phrases they share, and the typed relations
+between them, so the agent can name the idea and write its page (`wiki guide ingest`),
+then link the cluster to it. Weight relations by type when clustering: `part-of` and
+`implements` bind pages more than a passing `links-to`. Where the wiki declares hub
+types (`[types]` could mark `concept` and `module` as such), a cluster already linked
+to one of those pages is covered. Pairs well with `wiki unwritten`, which finds pages
+that are linked but not written; this finds ones nobody has linked yet.
+
 ## Relation-aware ranking in traversal
 
 `wiki nav candidates` ranks a page's linked neighbors by similarity to the question
