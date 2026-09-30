@@ -79,8 +79,9 @@ template.
      long source from getting lost by the end.
    - **If you cannot read the file** (a scan with no text layer, audio, a format you cannot
      open): if a tool you have converts it (for example `pdftotext` for a PDF), save the
-     text beside the original as `raw/<same name>.txt` and read that. Otherwise stop and
-     tell the user what is needed. Never ingest a source from its file name or a guess.
+     text beside the original as `raw/<same name>.txt` and read that. If your permissions
+     stop you writing in `raw/`, ask the user to save it there. Otherwise stop and tell the
+     user what is needed. Never ingest a source from its file name or a guess.
 {{#code}}
    - **Code:** read the files involved fully enough to explain them: entry points, the
      main types and functions, how data flows, and the tests, which show what the code is

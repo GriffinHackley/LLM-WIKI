@@ -342,7 +342,7 @@ commands only remove a step, which matters most for smaller models.
 
 | `--agent` | Writes | Notes |
 |---|---|---|
-| `claude` | `CLAUDE.md` (`@AGENTS.md`), `.claude/settings.json` allowing `Bash(wiki:*)` (and, for a code wiki, the code repo in `additionalDirectories`), skills in `.claude/skills/` | The skills may run `wiki` without asking |
+| `claude` | `CLAUDE.md` (`@AGENTS.md`), `.claude/settings.json` allowing `Bash(wiki:*)` and denying edits under `raw/` (`Edit(/raw/**)`), and, for a code wiki, the code repo in `additionalDirectories`; skills in `.claude/skills/` | The skills may run `wiki` without asking; Claude Code refuses to change sources |
 | `copilot` | `.github/copilot-instructions.md` pointing at `AGENTS.md`, skills in `.github/skills/` | Copilot also reads `.claude/skills/`, so with `claude` too the skills are written once. Copilot's docs describe no embedded commands, so Copilot is told to run `wiki guide` itself; allow `wiki` in its terminal auto-approve settings to skip the prompts |
 | `opencode` | Commands in `.opencode/commands/` | Run by OpenCode's build agent, which can edit files |
 
