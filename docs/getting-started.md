@@ -142,10 +142,68 @@ out somewhere else, set `WIKI_CODE_REPO` to its path.
 
 ## 5. Add to an existing wiki
 
-For a folder of notes that already exists. `wiki new . --agent claude` (or without
-`--agent`) adds the agent files; when the folder already has its own `.wiki-cli.toml`,
-it adds no templates or pages, only what connects agents to the wiki. The rest of this
-section tunes search and relations for your pages.
+For a folder of notes that already exists: an Obsidian vault, a `docs/` folder, a wiki
+an agent already keeps. Your pages, folders, templates and instructions stay as they are;
+nothing is moved, renamed or rewritten.
+
+**The whole path:**
+
+```bash
+cd my-notes
+wiki new . --agent claude     # --agent is optional; also copilot, opencode
+# review .wiki-cli.toml, and paste the section it prints into your agent instructions
+wiki index refresh            # index and embed: about 2 minutes per 500 pages on CPU
+wiki check --all              # what the checks find in your pages as they are
+```
+
+`wiki new .` sees that the folder already holds pages and adopts it rather than laying a
+new wiki over it:
+
+```
+existing wiki in ...\my-notes (6 pages): added the research workflows, and left your pages as they are
+created: .wiki-cli.toml, .gitignore, .claude/settings.json, .claude/skills/wiki-ingest/SKILL.md, ...
+not added: the preset's own pages and templates (8 files); your wiki keeps its own
+note: drafted .wiki-cli.toml from a survey of your pages, as 'wiki init --write' does: review it ...
+
+add to CLAUDE.md:
+## LLM wiki
+...
+```
+
+- **The config** is drafted from a survey of your pages, as [`wiki init`](#draft-a-config-with-wiki-init)
+  does (below: what to review in it).
+- **Agent instructions.** If the wiki has none, it writes an `AGENTS.md` holding just the
+  workflow section. If it has some (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md` or
+  `.github/copilot-instructions.md`), it prints the section to paste into the first of them
+  and leaves the file alone. The workflows apply your own rules over their own, so keep
+  what your instructions already say.
+- **Agent files** (`--agent`) are written as for a new wiki ([section 7](#7-connect-your-agent)).
+- **Not added:** the preset's templates and starter pages. Your wiki keeps its own layout,
+  and the workflows follow the pages you have.
+
+Running `wiki new .` again is safe: it adds only what is missing and prints only what is
+still to add. A folder holding only a `README.md` counts as empty, and gets the full preset.
+
+**A wiki about a codebase** adopts the same way, with the code repo named:
+`wiki new . --preset code --code ../my-app`. The config then points at the code, the
+guides include the code steps and `wiki guide sync`, and the lines for the code repo are
+printed as in [section 4](#4-start-a-wiki-about-a-codebase).
+
+**The preset's page types, templates and weekly notes** are not added to an existing
+wiki, since its pages have their own shape. To adopt them:
+
+```bash
+wiki init --preset code       # prints the preset's [types], [[relations]] and [weekly] tables
+```
+
+Merge what fits into `.wiki-cli.toml` (it leaves out what the config already declares, and
+puts each type's `folder` under your page folder, so new pages are indexed), then run
+`wiki new . --preset code` again: it adds the templates the config now names. Pages
+without a `type:` get one from their folder, and `wiki check --all` then says which
+pages lack a type's required sections or fields.
+
+The rest of this section explains how the command finds the wiki, and how to tune the
+drafted config.
 
 ### Run it from inside the wiki
 
@@ -174,11 +232,13 @@ note: vector search skipped: no embeddings yet; run 'wiki index refresh'
 ### Draft a config with `wiki init`
 
 A config makes results better by telling the tool which files are pages, where summaries
-live, and what your headings mean. `wiki init` surveys the repo and drafts one:
+live, and what your headings mean. `wiki new .` drafts one when it adopts a folder; `wiki
+init` drafts one on its own:
 
 ```bash
-wiki init            # print the draft
-wiki init --write    # save it as .wiki-cli.toml (never overwrites an existing file)
+wiki init                  # print the draft
+wiki init --write          # save it as .wiki-cli.toml (never overwrites an existing file)
+wiki init --preset code    # also the preset's page types, relation rules and weekly notes
 ```
 
 Open `.wiki-cli.toml` and review four things:
@@ -193,8 +253,8 @@ Open `.wiki-cli.toml` and review four things:
    ```
 
    Keep it if the left-out files aren't wiki content (a README, contributor docs).
-   Add `exclude` globs for anything else that isn't a page. When there is a `templates/`
-   folder, the draft already excludes it.
+   Add `exclude` globs for anything else that isn't a page. The draft already excludes a
+   `templates/` folder and agent instructions (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`).
 
 2. **Summaries.** Search results and navigation show each page's summary, taken from the
    first of: a frontmatter field (`summary`, `description`), a heading (`## Summary`), or
@@ -202,7 +262,8 @@ Open `.wiki-cli.toml` and review four things:
    `headings = ["Overview", "TL;DR"]`.
 
 3. **Page types.** If pages have a frontmatter field like `type: person`, the draft finds
-   it. If your types are folders instead, map them:
+   it. If your types are folders instead, the draft suggests a mapping from the folders
+   pages are in (up to two deep); uncomment the lines that are types:
 
    ```toml
    [page_type.folders]
@@ -211,8 +272,9 @@ Open `.wiki-cli.toml` and review four things:
 
 4. **Relation rules.** This is the step worth a few minutes. Every link is already a
    relation (`links-to`) whose reason is the sentence around it. A rule gives the links
-   under a heading, or in a frontmatter field, a name. The draft lists headings that hold
-   links on at least three pages, commented out:
+   under a heading, or in a frontmatter field, a name. The draft lists headings and
+   frontmatter fields that hold links on at least three pages, commented out (never
+   `title`, `aliases` or `tags`, which name a page rather than relate it):
 
    ```toml
    # Heading 'Works with': 4 links on 3 pages  # mostly on: person
@@ -249,6 +311,9 @@ and re-derives relations without re-embedding anything (summary settings trigger
 rebuild).
 
 ### Keep the cache out of git
+
+`wiki new` writes a `.gitignore` holding `.cache/`, or prints the line to add to yours.
+Without `wiki new`:
 
 ```bash
 echo ".cache/" >> .gitignore
@@ -387,7 +452,7 @@ questions about) and `wiki eval run`.
 | Symptom | Cause and fix |
 |---|---|
 | `...is not a wiki folder; cd into the wiki, pass --root, or add a config` | You ran `wiki` from your home folder or a drive root. `cd` into the wiki first. |
-| `note: no .wiki-cli.toml found; using ... as the wiki root` | No config yet. Check the folder is the one you meant, then run `wiki init --write`. |
+| `note: no .wiki-cli.toml found; using ... as the wiki root` | No config yet. Check the folder is the one you meant, then run `wiki new .` (or just `wiki init --write`). |
 | `vector search skipped: no embeddings yet` | Run `wiki index refresh`. |
 | `N files are not embedded yet` | Pages changed since the last refresh; run `wiki index refresh`. |
 | `embedding model ... is not downloaded` | Run `wiki models download`. |

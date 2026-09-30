@@ -82,9 +82,44 @@ class TestNew:
         assert not (root / "templates").exists() and not (root / "wiki").exists()
         assert not (root / "AGENTS.md").exists()
         assert (root / "CLAUDE.md").read_text(encoding="utf-8") == "# Our rules\n"
-        assert "templates/person.md" in result["skipped"] and "AGENTS.md" in result["skipped"]
-        assert any("agent instructions" in item["file"] for item in result["add"])
+        assert "templates/person.md" in result["skipped"] and result["established"]
+        [section] = [item for item in result["add"] if item["file"] == "CLAUDE.md"]  # its own instructions file
+        assert "wiki guide ingest" in section["text"]
         assert (root / ".claude/skills/wiki-query/SKILL.md").is_file()
+        assert "person" in result["preset_types"]  # the preset's types are offered, not added
+        write(root, "CLAUDE.md", "# Our rules\n\n" + section["text"])
+        assert not [item for item in scaffold(root)["add"] if item["file"] == "CLAUDE.md"]
+
+    def test_an_existing_folder_of_pages_is_adopted(self, tmp_path, capsys):
+        root = tmp_path / "vault"
+        write(root, "CLAUDE.md", "# Our rules\n")
+        write(root, "README.md", "# Vault\n")
+        for name in ("ada", "grace", "alan"):
+            write(root, f"notes/people/{name}.md", f"---\ntitle: {name}\n---\n## Overview\n{name}.\n")
+        write(root, "templates/person.md", "# Template\n")
+        code, result = run_json(capsys, "new", str(root), "--agent", "claude")
+        assert code == 0 and result["adopted"] == 3 and result["established"]
+        assert not (root / "wiki").exists() and not (root / "AGENTS.md").exists()
+        assert not (root / "templates/source.md").exists() and ".wiki-cli.toml" in result["created"]
+        settings = load_settings(root)
+        assert settings.pages == ("notes/**/*.md",) and settings.preset == "research"
+        assert "CLAUDE.md" in settings.exclude and "templates/**" in settings.exclude
+        assert [item["file"] for item in result["add"]] == ["CLAUDE.md"]
+        assert main(["new", str(root)]) == 0
+        assert "existing wiki" not in capsys.readouterr().out  # adopted once; now an established wiki
+
+    def test_a_folder_with_only_a_readme_gets_the_preset(self, tmp_path):
+        root = tmp_path / "w"
+        write(root, "README.md", "# New wiki\n")
+        result = scaffold(root)
+        assert not result["adopted"] and (root / "wiki/open-questions.md").is_file()
+
+    def test_an_established_wiki_gets_the_templates_its_config_names(self, tmp_path):
+        root = tmp_path / "vault"
+        write(root, ".wiki-cli.toml", '[types.person]\ntemplate = "templates/person.md"\n[weekly]\n')
+        result = scaffold(root)
+        assert (root / "templates/person.md").is_file() and "templates/person.md" in result["created"]
+        assert not (root / "templates/source.md").exists()
 
     def test_claude_adapter(self, tmp_path):
         root = tmp_path / "w"

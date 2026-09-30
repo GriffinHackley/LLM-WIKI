@@ -3,7 +3,9 @@
 Every setting, its type, its default, and what checks it. Every setting is optional: with
 no config at all, every `*.md` file under the wiki's folder is a page and nothing else is
 checked. `wiki new` writes a config from a preset ([presets.md](presets.md) lists what each
-preset declares); `wiki init --write` drafts one from a survey of an existing folder.
+preset declares); in a folder that already has pages, `wiki new .` and `wiki init --write`
+draft one from a survey of them, and `wiki init --preset <name>` adds a preset's page
+types, relation rules and weekly notes to the draft.
 
 An unknown key, or a value of the wrong type, is an error when any command loads the
 config, naming the key. Nothing is silently ignored.

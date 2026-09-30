@@ -24,7 +24,8 @@ A source is one of:
 {{^code}}
 Below, *the source type* is the type whose pages each describe one document (`source` in
 the presets). Use its folder and template; where the template's section names differ from
-the ones below, follow the template.
+the ones below, follow the template. In a wiki without one, the source page is a page like
+its others, in the folder its pages live in, with the parts named below.
 {{/code}}
 {{#code}}
 This wiki has no type for documents as such. Below, *the source page* is the page that

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Sequence
@@ -230,6 +231,9 @@ def build_parser() -> argparse.ArgumentParser:
     init_parser = commands.add_parser("init", parents=[common],
                                       help=f"survey the wiki and draft a starter {CONFIG_FILENAME}")
     init_parser.add_argument("--write", action="store_true", help=f"create {CONFIG_FILENAME} (never overwrites)")
+    init_parser.add_argument("--preset", help=f"also adopt a preset's page types, relation rules and weekly notes "
+                                              f"({' or '.join(scaffold.presets())}, or a preset folder); with a "
+                                              f"{CONFIG_FILENAME} already there, print only those to merge in")
     init_parser.set_defaults(handler=cmd_init)
     return parser
 
@@ -373,15 +377,30 @@ def cmd_new(args: argparse.Namespace) -> int:
     if args.format == "json":
         _print_json(result)
         return EXIT_OK
-    print(f"{result['preset']} wiki in {result['root']}")
+    established = result["established"]
+    if result["adopted"]:
+        print(f"existing wiki in {result['root']} ({result['adopted']} pages): added the {result['preset']} "
+              "workflows, and left your pages as they are")
+    elif established:
+        print(f"added the {result['preset']} workflows to the wiki in {result['root']}")
+    else:
+        print(f"{result['preset']} wiki in {result['root']}")
     if result["created"]:
         print(f"created: {', '.join(result['created'])}")
     if result["kept"]:
         print(f"kept (already there): {', '.join(result['kept'])}")
     if result["skipped"]:
-        print(f"not added (the wiki has its own config): {', '.join(result['skipped'])}")
+        print(f"not added: the preset's own pages and templates ({len(result['skipped'])} files); "
+              "your wiki keeps its own")
     if result["git_init"]:
         print("initialized a git repository")
+    if result["adopted"]:
+        print(f"note: drafted {CONFIG_FILENAME} from a survey of your pages, as 'wiki init --write' does: "
+              "review it (which files are pages, summaries, relation rules)")
+    if result.get("preset_types"):
+        print(f"note: the {result['preset']} preset's page types ({', '.join(result['preset_types'])}) are not "
+              f"in your {CONFIG_FILENAME}; 'wiki init --preset {result['preset']}' prints them, with its relation "
+              "rules, to merge in")
     for note in result["notes"]:
         print(f"note: {note}")
     for item in result["add"]:
@@ -391,14 +410,23 @@ def cmd_new(args: argparse.Namespace) -> int:
         for item in result["code_setup"]:
             print(f"\nadd to {item['file']} ({item['why']}):\n{item['text'].rstrip()}")
     steps = []
+    if result["adopted"]:
+        steps.append(f"review {CONFIG_FILENAME}")
+    if result["add"]:
+        steps.append("add the lines above to the files named")
     if result["models_missing"]:
         steps.append("wiki models download    (once per machine, about 0.2 GB; search works by keyword until then)")
+    if established:
+        steps.append("wiki index refresh      (index and embed the pages: about 2 minutes per 500 on CPU)")
+        steps.append("wiki check --all        (what the checks find in the pages as they are)")
     if result.get("code_repo"):
         steps.append("add the lines above to the code repo, so the agent working on the code keeps the wiki")
         steps.append("from the code repo, ask your agent to document a module ('wiki guide ingest'), and to sync "
                      "the wiki after code changes ('wiki guide sync')")
     else:
-        steps.append("put a source in raw/, then ask your agent to ingest it (AGENTS.md tells it how)")
+        steps.append("put a source in raw/, then ask your agent to ingest it (its instructions tell it how)"
+                     if established else
+                     "put a source in raw/, then ask your agent to ingest it (AGENTS.md tells it how)")
         steps.append("ask your agent questions about the wiki; 'wiki guide' lists the workflows it follows")
     print("\nnext:")
     for number, step in enumerate(steps, start=1):
@@ -823,9 +851,25 @@ def cmd_vocab(args: argparse.Namespace, settings: Settings) -> int:
 
 
 def cmd_init(args: argparse.Namespace, settings: Settings) -> int:
-    result = init.survey(settings)
-    draft = init.render(result)
+    preset = scaffold.preset_files(args.preset) if args.preset else None
     target = settings.root / CONFIG_FILENAME
+    if preset is not None and target.exists():
+        # The wiki has a config: only the preset's tables it does not declare yet, to merge in.
+        if args.write:
+            raise UsageError(f"{target} already exists; run without --write and merge what it prints")
+        lines = init.preset_lines(preset, _page_folder(settings), declared_types={t.name for t in settings.types},
+                                  declared_relations={rule.type for rule in settings.relations},
+                                  weekly=settings.weekly is not None)
+        text = "\n".join(lines).rstrip() + "\n"
+        if args.format == "json":
+            _print_json({"preset": preset[0], "config": text})
+        else:
+            print(f"# Add what fits to {target}:\n")
+            print(text, end="")
+        return EXIT_OK
+    result = init.survey(settings)
+    result["adopt_tables"] = preset is not None
+    draft = init.render(result, preset=preset)
     if args.format == "json":
         _print_json({**result, "config": draft})
         return EXIT_OK
@@ -837,6 +881,15 @@ def cmd_init(args: argparse.Namespace, settings: Settings) -> int:
     else:
         print(draft, end="")
     return EXIT_OK
+
+
+def _page_folder(settings: Settings) -> str | None:
+    """The folder a wiki's pages live in, when its `pages` names exactly one."""
+    if len(settings.pages) == 1:
+        match = re.fullmatch(r"([^*?\[\]]+)/\*\*/\*\.md", settings.pages[0])
+        if match:
+            return match.group(1)
+    return None
 
 
 def _print_json(payload: dict) -> None:

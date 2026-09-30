@@ -17,7 +17,7 @@ import tomllib
 from collections.abc import Sequence
 from pathlib import Path
 
-from wiki_cli import codebase, guide
+from wiki_cli import codebase, guide, init
 from wiki_cli.config import CONFIG_FILENAME, ConfigError, load_settings
 from wiki_cli.models import is_downloaded
 from wiki_cli.sources import raw_dirs
@@ -67,27 +67,29 @@ def scaffold(target: Path, preset: str = DEFAULT_PRESET, agent: str | Sequence[s
     code_repo = _code_repo(code, target) if name == CODE_PRESET else None
     target.mkdir(parents=True, exist_ok=True)
     result = {"root": str(target), "preset": name, "created": [], "kept": [], "skipped": [], "add": [],
-              "notes": []}
+              "notes": [], "established": False, "adopted": 0}
     variables = {"name": target.name, "today": datetime.date.today().isoformat()}
     if code_repo is not None:
         variables["code_repo"] = _relative(code_repo, target)
         variables["code_origin"] = codebase.origin(code_repo) or ""
-    # A wiki with its own config from elsewhere keeps its own pages and templates: only the
-    # files that connect agents to it are added.
-    established = _config_preset(target) not in (None, name)
+    if not (target / CONFIG_FILENAME).exists():
+        _adopt(target, (name, folder), variables if code_repo is not None else None, result)
+    # A wiki with a config keeps its own pages and templates: only the files that connect
+    # agents to it are added, and the templates its config names but lacks.
+    established = result["established"] = (target / CONFIG_FILENAME).exists()
+    if established:
+        _instructions(target, folder, result, variables)
+        wanted = _named_templates(target)
 
     for source in sorted(path for path in files.rglob("*") if path.is_file()):
         rel = "/".join(_dotted(part) for part in source.relative_to(files).parts)
-        if established and (rel == "AGENTS.md" or rel.split("/", 1)[0] in CONTENT_FOLDERS):
-            section = folder / "agents-section.md"
-            if rel == "AGENTS.md" and not (target / rel).exists():
-                if not (target / "CLAUDE.md").exists() and section.is_file():
-                    # No instructions at all: an AGENTS.md with just the workflow section.
-                    (target / rel).write_bytes(_fill(section.read_bytes(), variables))
-                    result["created"].append(rel)
-                    continue
-                _add_section(folder, "your agent instructions (AGENTS.md, CLAUDE.md, ...)", result, variables)
-            result["skipped"].append(rel)
+        if established and (rel in ("AGENTS.md", CONFIG_FILENAME) or
+                            (rel.split("/", 1)[0] in CONTENT_FOLDERS and rel not in wanted)):
+            if (target / rel).exists():
+                if rel not in result["created"]:
+                    result["kept"].append(rel)
+            elif rel != "AGENTS.md":
+                result["skipped"].append(rel)
             continue
         destination = target / rel
         content = _fill(source.read_bytes(), variables)
@@ -108,6 +110,10 @@ def scaffold(target: Path, preset: str = DEFAULT_PRESET, agent: str | Sequence[s
     except ConfigError as exc:
         result["notes"].append(f"{CONFIG_FILENAME} could not be read: {exc}")
         settings = None
+    if established and settings is not None:
+        missing = preset_types(folder) - {page_type.name for page_type in settings.types}
+        if missing:
+            result["preset_types"] = sorted(missing)
     if "claude" in agents:
         _claude(target, settings, result, extra_dir=code_repo)
     if "copilot" in agents:
@@ -182,17 +188,65 @@ def _redirect_target(code_repo: Path) -> Path | None:
     return (code_repo / value).resolve() if isinstance(value, str) else None
 
 
-def _config_preset(target: Path) -> str | None:
-    """The preset an existing config names; "" for a config that names none; None for no config."""
-    path = target / CONFIG_FILENAME
-    if not path.is_file():
-        return None
+def _adopt(target: Path, preset: tuple[str, Path], code: dict | None, result: dict) -> None:
+    """A folder that already holds pages but no config is an existing wiki: draft its
+    config from a survey of its pages, as `wiki init --write` does, rather than lay the
+    preset's layout over it (whose config would index only the preset's own folder)."""
     try:
-        with path.open("rb") as handle:
-            value = tomllib.load(handle).get("preset")
+        settings = load_settings(target)
+    except ConfigError:
+        return
+    count = init.existing_pages(settings)
+    if not count:
+        return
+    code_config = {"repo": code["code_repo"], "origin": code["code_origin"]} if code else None
+    survey = init.survey(settings)
+    if "AGENTS.md" not in survey["agent_files"]:  # written next, when the wiki has no instructions yet
+        survey["agent_files"] = ["AGENTS.md", *survey["agent_files"]]
+    draft = init.render(survey, preset=preset, code=code_config)
+    (target / CONFIG_FILENAME).write_text(draft, encoding="utf-8", newline="\n")
+    result["created"].append(CONFIG_FILENAME)
+    result["adopted"] = count
+
+
+INSTRUCTION_FILES = ("AGENTS.md", "CLAUDE.md", "GEMINI.md", ".github/copilot-instructions.md")
+
+
+def _instructions(target: Path, preset: Path, result: dict, variables: dict[str, str]) -> None:
+    """An established wiki gets the workflow section in its agent instructions: a new
+    AGENTS.md holding just the section when it has none, else the section to add to the
+    first instructions file it has, unless one already sends agents to the guides."""
+    existing = [rel for rel in INSTRUCTION_FILES if (target / rel).is_file()]
+    if any("wiki guide" in (target / rel).read_text(encoding="utf-8", errors="replace") for rel in existing):
+        return
+    section = preset / "agents-section.md"
+    if not existing:
+        if section.is_file():
+            (target / "AGENTS.md").write_bytes(_fill(section.read_bytes(), variables))
+            result["created"].append("AGENTS.md")
+        return
+    _add_section(preset, existing[0], result, variables)
+
+
+def _named_templates(target: Path) -> set[str]:
+    """Templates the wiki's config names (its types', and weekly notes') that it lacks."""
+    try:
+        settings = load_settings(target)
+    except ConfigError:
+        return set()
+    named = [page_type.template for page_type in settings.types if page_type.template]
+    if settings.weekly is not None:
+        named.append(settings.weekly.template)
+    return {rel for rel in named if not (target / rel).exists()}
+
+
+def preset_types(folder: Path) -> set[str]:
+    """The page types a preset's config declares."""
+    try:
+        return set(tomllib.loads((folder / "files" / "dot-wiki-cli.toml").read_text(encoding="utf-8"))
+                   .get("types", {}))
     except (OSError, tomllib.TOMLDecodeError):
-        return ""
-    return value if isinstance(value, str) else ""
+        return set()
 
 
 def _dotted(part: str) -> str:
@@ -216,9 +270,6 @@ def _missing_parts(rel: str, path: Path, preset: Path, result: dict, variables: 
         _add_section(preset, rel, result, variables)
     elif rel == ".gitignore" and ".cache" not in text:
         result["add"].append({"file": rel, "text": ".cache/\n"})
-    elif rel == CONFIG_FILENAME:
-        result["notes"].append(f"kept your {CONFIG_FILENAME}: the preset's page types and relation rules "
-                               "were not added to it, nor its templates and pages")
 
 
 def _add_section(preset: Path, where: str, result: dict, variables: dict[str, str]) -> None:

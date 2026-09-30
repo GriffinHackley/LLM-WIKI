@@ -547,6 +547,43 @@ Result:
   highlight; `--week current` writes nothing; and with the hook installed, a commit in a
   new week carried the missing note for the week before. 291 tests pass.
 
+## Phase 11 (done): Adopting an existing wiki
+
+Adding the tool to a wiki that already exists should take one command and leave its
+pages alone. A dry run on a scratch vault (pages in `notes/people/` and `notes/projects/`,
+a `CLAUDE.md`, `templates/`, `## Related` sections) found that `wiki new .` run before
+`wiki init` laid the research preset over the vault with `pages = ["wiki/**/*.md"]`,
+dropping every existing page from the index; that getting-started gave the steps in that
+order; and that `wiki init` indexed `CLAUDE.md` as a page, proposed `title` and `tags` as
+relation fields, and suggested `notes` as a type folder instead of `notes/people`.
+
+- **`wiki new .` adopts a folder that has pages** (any `*.md` other than a README, an
+  index, agent instructions or templates) and no config: it drafts the config from a
+  survey, as `wiki init --write` does, naming the preset (and, with `--code`, the code
+  repo), and treats the wiki as established.
+- **Established means having a config.** An established wiki gets the agent files, the
+  workflow section (a new `AGENTS.md` when it has no instructions; else the section to
+  paste into its first instructions file, unless one already runs `wiki guide`), and the
+  templates its config names but lacks. Never the preset's starter pages.
+- **`wiki init`** leaves templates and agent instructions out of the survey and excludes
+  them in the draft; never proposes `title`, `aliases`, `tags`, the type field, or a
+  field naming the page itself as a relation; suggests type folders up to two deep, named
+  in the singular; and mentions `[weekly]`.
+- **`wiki init --preset <name>`** adds the preset's `[types]`, `[[relations]]` and
+  `[weekly]` to the draft, with each type's folder moved under the wiki's page folder. In
+  a wiki with a config it prints only what the config does not declare, to merge in.
+- **The ingest guide** says what a source page is in a wiki with no types: a page like
+  its others, in their folder.
+- **Docs:** one ordered walkthrough in getting-started section 5; README, presets.md and
+  config.md follow it.
+
+Result: on the same scratch vault, `wiki new . --agent claude` drafted a config indexing
+`notes/**` (excluding `CLAUDE.md` and `templates/`), with `Overview` summaries, the
+`Related` and `project` rules and the `notes/people` and `notes/projects` type folders
+proposed; printed the section for `CLAUDE.md`; and `wiki list` showed the six notes and
+nothing else. A code wiki adopted with `--preset code --code` gets `preset = "code"`,
+`[code] repo`, and the sync guide. 296 tests pass.
+
 ## Open decisions
 
 - None yet.

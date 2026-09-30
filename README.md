@@ -62,15 +62,18 @@ wiki new my-app-wiki --preset code --code ../my-app
 # add the lines it prints to the code repo, then work from there as usual
 ```
 
-An existing folder of notes:
+An existing folder of notes (an Obsidian vault, a `docs/` folder, a wiki an agent already
+keeps):
 
 ```bash
 cd my-notes
-wiki init --write                   # draft a .wiki-cli.toml from a survey of the folder
-wiki new . --agent claude           # add the agent files; your pages are left alone
+wiki new . --agent claude           # drafts a .wiki-cli.toml from your pages, adds the agent files
 wiki index refresh                  # index and embed (about 2 minutes per 500 pages on CPU)
 wiki search "how do I configure the exporter?"
 ```
+
+Your pages stay as they are; [getting started](docs/getting-started.md#5-add-to-an-existing-wiki)
+covers reviewing the drafted config and adopting a preset's page types.
 
 It also works with no configuration at all: every `*.md` file under the folder is a
 page, `raw/**/*.txt` is searchable source text, and every link is a `links-to` relation
@@ -177,7 +180,7 @@ re-embedding.
 
 | Command | Purpose |
 |---|---|
-| `wiki new [folder] [--preset research\|code\|<folder>] [--code <repo>] [--agent claude\|copilot\|opencode ...] [--git-hook]` | Create a wiki from a preset, or add what is missing (never overwrites) |
+| `wiki new [folder] [--preset research\|code\|<folder>] [--code <repo>] [--agent claude\|copilot\|opencode ...] [--git-hook]` | Create a wiki from a preset; in a folder that already has pages, adopt it (draft its config, add the agent files, leave the pages alone); never overwrites |
 | `wiki guide [<name>]` | Print a workflow's steps for an agent; without a name, list them |
 | `wiki search "<question>" [--limit 3] [--include-raw] [--keyword-only]` | Best pages for a question: keyword + vector search, fused and reranked |
 | `wiki nav start \| read \| candidates \| search \| end \| log` | Guided traversal sessions (see [docs/navigation.md](docs/navigation.md)) |
@@ -192,7 +195,7 @@ re-embedding.
 | `wiki check <slug> \| --all [--verify-cache] [--strict] [--no-warnings] [--summary-ok]` | Frontmatter, summaries, types and their required sections and fields, uncited sources, ambiguous and unwritten links, stale summaries, code links |
 | `wiki check <source-slug> --ingested` | Whether an ingest is complete: original linked, discussed pages named and citing it, all clean and committed |
 | `wiki index refresh \| rebuild [--no-embed] \| status` | Manage the cache and embeddings |
-| `wiki init [--write]` | Survey an existing folder and draft a `.wiki-cli.toml` (never overwrites) |
+| `wiki init [--write] [--preset <name>]` | Survey an existing folder and draft a `.wiki-cli.toml` (never overwrites); `--preset` adds the preset's page types, relation rules and weekly notes, or prints just those for a wiki that has a config |
 | `wiki models list \| download` | Supported models; `download` is the only command that downloads |
 | `wiki eval sample \| run` | Search-quality evaluation (see [docs/evaluation.md](docs/evaluation.md)) |
 | `wiki vocab` | Relation types, their inverses, and where each comes from |
