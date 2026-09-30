@@ -1,6 +1,6 @@
 ---
 title: How to <do the thing>
-type: guide
+type: instruction
 covers: []
 verified: "<code commit this page was checked against>"
 sources: []
@@ -10,7 +10,7 @@ last_updated: YYYY-MM-DD
 # How to <do the thing>
 
 ## Summary
-What this guide is for and when to use it, in one or two sentences.
+What this instruction is for and when to use it, in one or two sentences.
 
 ## Steps
 1. The commands and edits, in order, with links to the scripts and config they use

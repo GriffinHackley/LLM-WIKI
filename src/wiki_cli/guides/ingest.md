@@ -10,9 +10,10 @@ book, notes). It never changes, so pages cite it by a locator: p. 4, section 2, 
 {{#code}}
 A source is one of:
 
-- **A document:** a file in `raw/` (a design doc, RFC, postmortem, meeting notes). It
-  never changes, so pages cite it by a locator: p. 4, section 2.
-- **Part of the code:** a module, a pull request, a range of commits or a decision, in the
+- **A document:** a file in `raw/` (a design doc, RFC, exported ticket, pull request
+  description, postmortem, meeting notes). It never changes, so pages cite it by a
+  locator: p. 4, section 2.
+- **Part of the code:** a file, a module, a pull request, a range of commits or a decision, in the
   code repo at `{{code_repo}}`. The code changes, so pages cite it with `code:` links and
   record the commit they were checked against. Read the code; never edit it as part of
   this workflow.
@@ -20,9 +21,19 @@ A source is one of:
 
 {{types}}
 
+{{^code}}
 Below, *the source type* is the type whose pages each describe one document (`source` in
 the presets). Use its folder and template; where the template's section names differ from
 the ones below, follow the template.
+{{/code}}
+{{#code}}
+This wiki has no type for documents as such. Below, *the source page* is the page that
+records a document, of the type the document is: a design doc or RFC is a `decision`, an
+exported ticket a `ticket`, a pull request description a `pr`, a postmortem a `gotcha`,
+a runbook an `instruction`; if none fits, the nearest type. Use that type's folder and
+template; where the template's section names differ from the ones below, follow the
+template.
+{{/code}}
 
 {{rules}}
 
@@ -78,6 +89,19 @@ the ones below, follow the template.
      made it and any discussion in commit messages, comments or docs.
 {{/code}}
 3. **Record the source.**
+{{#code}}
+   - **A document gets a page of the type it is** (above). Pick a slug for what it
+     records, not for the file: `2024-03-search-rewrite`, `proj-412-bulk-export`.
+     Copy the type's template into its folder and fill it from the document, each point
+     with a locator, and link its file in `raw/` in the summary, for example "Proposed in
+     [[raw/rfc-12.pdf]]". This link is how `wiki pending` knows the source is ingested.
+     Link what the document discusses where the template says (`## Affects`,
+     `## Implements`, `## Changes`), or in its prose.
+   - **A document that records several things** (meeting notes with three decisions)
+     gets a page for each thing it says enough about, each linking its file in `raw/`.
+     The one it says most about is the source page for the steps below.
+{{/code}}
+{{^code}}
    - **A document gets a source page.** Pick a stable, descriptive slug: the author or
      outlet, the subject, and the date (`senate-report-budget-2024-03`). Copy the source
      type's template into its folder and fill it:
@@ -90,6 +114,7 @@ the ones below, follow the template.
        what it materially discusses (step 5), not every name it contains;
      - a link to its file in `raw/`, for example `[[raw/report.pdf]]`. This link is how
        `wiki pending` knows the source is ingested.
+{{/code}}
 {{#code}}
    - **Code has no source page.** The pages you write in step 7 record what they describe
      in `covers:` and `verified:`.
@@ -152,8 +177,12 @@ the ones below, follow the template.
      `covers:` to globs of the files the page describes, and `verified:` to the code
      commit you read, quoted (`git -C <code repo> rev-parse HEAD`). If the files you read
      have uncommitted changes, tell the user: the page describes code that is not
-     committed yet. Put a module's dependencies under `## Depends on` and a decision's
-     modules under `## Affects`.
+     committed yet. A file page covers one file and names its module under `## Part of`;
+     a pull request page covers the files it changed, with `verified:` and `merge_commit:`
+     set to the commit it merged as. Put a module's dependencies (other modules, and
+     `dependency` pages) under `## Depends on`, the pages a decision or a gotcha affects
+     under `## Affects`, a pull request's tickets under `## Implements`, and a ticket's
+     epic in `parent:`.
 {{/code}}
 8. **Record questions** where the wiki keeps open questions (`wiki/open-questions.md` in
    the presets), and mention each on the source page:
@@ -171,8 +200,8 @@ the ones below, follow the template.
      could not explain also goes in the open questions.
 {{/code}}
 9. **Check each page.** Run `wiki index refresh`, then `wiki check <slug>` on every page you
-   created or changed, and fix every error and every `missing-section`, `missing-field` and
-   `uncited-sources` warning.{{#code}} In code pages, also fix every `missing-code-file` and
+   created or changed, and fix every error and every `missing-section`, `missing-field`,
+   `bad-value` and `uncited-sources` warning.{{#code}} In code pages, also fix every `missing-code-file` and
    `covers-nothing` warning.{{/code}} Warnings about links to pages not written yet are
    expected. A `summary-stale` warning means you changed a page's body but not its
    summary: re-read the summary and revise it to cover what the page now says, or, if it

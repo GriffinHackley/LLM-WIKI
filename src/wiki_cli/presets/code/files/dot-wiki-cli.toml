@@ -15,13 +15,24 @@ origin = "{{code_origin}}"
 headings = ["Summary"]
 
 [check]
-summary_types = ["module", "concept", "decision", "guide", "analysis", "source"]
+summary_types = ["file", "module", "concept", "decision", "instruction", "ticket", "pr", "dependency", "gotcha",
+                 "analysis"]
 
 [suggest]
-named_types = ["module", "concept"]
+named_types = ["module", "concept", "dependency"]
 
 # Page types. A page's type comes from its `type:` frontmatter, else from its folder.
-# `wiki check` warns when a page lacks one of its type's `sections` or frontmatter `fields`.
+# `wiki check` warns when a page lacks one of its type's `sections` or frontmatter `fields`,
+# or when a field listed under `values` holds something else.
+# A document from `raw/` (a design doc, an exported ticket, a postmortem) is recorded on
+# a page of the type it is: an RFC as a decision, a Jira export as a ticket.
+[types.file]
+description = "One source file: what it is for and what it contains, mirroring the code's own layout."
+folder = "wiki/files"
+template = "templates/file.md"
+sections = ["Summary"]
+fields = ["title", "type", "last_updated"]
+
 [types.module]
 description = "One area of the code: what it does, where it lives, and how it fits with the rest."
 folder = "wiki/modules"
@@ -30,7 +41,7 @@ sections = ["Summary"]
 fields = ["title", "type", "last_updated"]
 
 [types.concept]
-description = "A domain idea, pattern or term the code relies on."
+description = "An idea from the code: a domain term, pattern, interface or piece of configuration it relies on."
 folder = "wiki/concepts"
 template = "templates/concept.md"
 sections = ["Summary"]
@@ -42,20 +53,43 @@ folder = "wiki/decisions"
 template = "templates/decision.md"
 sections = ["Summary", "Decision"]
 fields = ["title", "type", "status", "last_updated"]
+values = { status = ["proposed", "accepted", "rejected", "superseded", "deprecated"] }
 
-[types.guide]
-description = "How to do something with the code: run, test, deploy, debug or extend it."
-folder = "wiki/guides"
-template = "templates/guide.md"
+[types.instruction]
+description = "How to do a specific task: set up a dev environment, run, test, deploy, debug or backport."
+folder = "wiki/instructions"
+template = "templates/instruction.md"
 sections = ["Summary"]
 fields = ["title", "type", "last_updated"]
 
-[types.source]
-description = "One page per ingested document (a design doc, RFC, postmortem or meeting notes): what it is, what it says, and what it discusses."
-folder = "wiki/sources"
-template = "templates/source.md"
-sections = ["Summary", "Key points", "Discusses", "Original"]
-fields = ["title", "type", "date", "ingested", "last_updated"]
+[types.ticket]
+description = "A tracker ticket (a Jira epic, story, bug or task): what it asked for, and what was done."
+folder = "wiki/tickets"
+template = "templates/ticket.md"
+sections = ["Summary"]
+fields = ["title", "type", "kind", "last_updated"]
+values = { kind = ["epic", "story", "bug", "task"] }
+
+[types.pr]
+description = "A pull request: its description, an overview of the changes, and the commit it merged as."
+folder = "wiki/prs"
+template = "templates/pr.md"
+sections = ["Summary", "Changes"]
+fields = ["title", "type", "merge_commit", "last_updated"]
+
+[types.dependency]
+description = "An external library or service the code uses: why, how, and what to watch for."
+folder = "wiki/dependencies"
+template = "templates/dependency.md"
+sections = ["Summary"]
+fields = ["title", "type", "last_updated"]
+
+[types.gotcha]
+description = "A trap in the code: what goes wrong, why, and how to avoid it."
+folder = "wiki/gotchas"
+template = "templates/gotcha.md"
+sections = ["Summary", "Cause", "Avoid"]
+fields = ["title", "type", "last_updated"]
 
 [types.analysis]
 description = "The wiki's own synthesis: a page answering a question by drawing on many other pages."
@@ -86,10 +120,28 @@ type = "synthesizes"
 inverse = "synthesized-in"
 
 [[relations]]
-heading = "Discusses"
-page_type = "source"
-type = "discusses"
-inverse = "discussed-in"
+heading = "Part of"
+page_type = "file"
+type = "part-of"
+inverse = "has-part"
+
+[[relations]]
+heading = "Implements"
+page_type = "pr"
+type = "implements"
+inverse = "implemented-by"
+
+[[relations]]
+heading = "Affects"
+page_type = "gotcha"
+type = "gotcha-for"
+inverse = "has-gotcha"
+
+[[relations]]
+field = "parent"
+page_type = "ticket"
+type = "child-of"
+inverse = "parent-of"
 
 [[relations]]
 field = "sources"

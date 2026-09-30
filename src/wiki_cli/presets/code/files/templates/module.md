@@ -20,4 +20,5 @@ to the code: [the entry point](code:src/<path>/main.py).
 - [[other-module]] — what this module uses it for
 
 ## Gotchas
-Invariants, non-obvious behavior, and past bugs worth knowing before changing it.
+Invariants, non-obvious behavior, and past bugs worth knowing before changing it. A trap
+worth its own page gets a gotcha page that links here.

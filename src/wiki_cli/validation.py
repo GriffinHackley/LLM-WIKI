@@ -91,6 +91,14 @@ def _required_parts(page: Page, page_type: PageType) -> list[Issue]:
         issues.append(Issue(WARNING, "missing-section", f"no {_quoted(missing_sections, '## ')} section"
                                                         f"{'s' if len(missing_sections) > 1 else ''}; every "
                                                         f"{page_type.name} page has {_it(missing_sections)}{template}"))
+    for key, allowed in page_type.values:
+        value = data.get(key)
+        given = value if isinstance(value, list) else [] if value is None else [value]
+        folded = {item.casefold() for item in allowed}
+        wrong = [str(item) for item in given if str(item).strip().casefold() not in folded]
+        if wrong:
+            issues.append(Issue(WARNING, "bad-value", f"'{key}' is {_quoted(wrong)}; in a {page_type.name} page "
+                                                      f"it is one of {', '.join(allowed)}"))
     return issues
 
 

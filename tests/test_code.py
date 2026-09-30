@@ -65,7 +65,14 @@ class TestNew:
         settings = load_settings(code_wiki)
         assert settings.preset == "code" and settings.code_repo == code_repo.resolve()
         assert (code_wiki / "templates/module.md").is_file() and (code_wiki / "raw/.gitkeep").is_file()
-        assert "source" in [page_type.name for page_type in settings.types]  # documents about the code
+        assert [page_type.name for page_type in settings.types] == [
+            "file", "module", "concept", "decision", "instruction", "ticket", "pr", "dependency", "gotcha", "analysis"]
+        for page_type in settings.types:  # each type's template ships with the preset
+            assert (code_wiki / page_type.template).is_file()
+        ticket = next(page_type for page_type in settings.types if page_type.name == "ticket")
+        assert ticket.values == (("kind", ("epic", "story", "bug", "task")),)
+        decision = next(page_type for page_type in settings.types if page_type.name == "decision")
+        assert decision.values == (("status", ("proposed", "accepted", "rejected", "superseded", "deprecated")),)
         assert "../app" in (code_wiki / "AGENTS.md").read_text(encoding="utf-8")
 
     def test_code_setup_is_printed_not_written(self, tmp_path, code_repo):
@@ -194,6 +201,7 @@ class TestGuides:
         text = guide["text"]
         assert "**Part of the code:**" in text and "`covers:`" in text and "the code wins" in text
         assert "**A document:**" in text and "wiki pending" in text
+        assert "a page of the type it is" in text and "*the source type*" not in text
         assert "{{" not in text and "}}" not in text and "\n\n\n" not in text
 
     def test_code_query_guide_differs_from_the_generic_one_only_in_step_seven(self):

@@ -97,12 +97,14 @@ A page type is three things that should agree:
    template = "templates/person.md"
    sections = ["Summary"]                              # headings every person page has
    fields = ["title", "type", "sources", "last_updated"]  # frontmatter every person page has
+   values = { role = ["author", "subject"] }           # the only values these fields may hold
    ```
 
    The guides show the agent each type's description, folder and template, so the
    description is how the agent decides what a thing is. Make the boundaries between
    types sharp. `wiki check` flags pages whose `type:` is not declared, and pages missing
-   one of their type's `sections` or `fields` (`missing-section`, `missing-field`): list
+   one of their type's `sections` or `fields` (`missing-section`, `missing-field`), or
+   holding a value `values` does not list for a field (`bad-value`; case is ignored): list
    only what every page of the type must have, since agents delete template sections they
    have nothing for.
 

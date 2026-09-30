@@ -41,12 +41,20 @@ agent that changes the code keeps it current, working from the code repo.
 
 | Type | What it is | Link sections |
 |---|---|---|
+| `file` | One source file: what it is for and what it contains, mirroring the code's layout | `## Part of` -> `part-of` |
 | `module` | One area of the code: what it does, where it lives, how it fits | `## Depends on` -> `depends-on` |
-| `concept` | A domain idea, pattern or term the code relies on | |
-| `decision` | Why something is the way it is (like an ADR) | `## Affects` -> `decided-for` |
-| `guide` | How to run, test, deploy, debug or extend the code | |
+| `concept` | An idea from the code: a domain term, pattern, interface or piece of configuration | |
+| `decision` | Why something is the way it is (like an ADR); `status:` is proposed, accepted, rejected, superseded or deprecated | `## Affects` -> `decided-for` |
+| `instruction` | How to do a specific task: set up a dev environment, run, test, deploy, backport | |
+| `ticket` | A tracker ticket; `kind:` is epic, story, bug or task (`wiki check` warns on others) | `parent:` -> `child-of` |
+| `pr` | A pull request: its description, the changes, and `merge_commit:` | `## Implements` -> `implements` |
+| `dependency` | An external library or service: why and how the code uses it | |
+| `gotcha` | A trap in the code: symptom, cause, and how to avoid it | `## Affects` -> `gotcha-for` |
 | `analysis` | The wiki's own synthesis, answering a question across pages | `## Key pages` -> `synthesizes` |
-| `source` | A document about the code (design doc, RFC, postmortem, meeting notes), ingested from `raw/` | `## Discusses` -> `discusses` |
+
+There is no type for documents as such. A document from `raw/` is recorded on a page of
+the type it is: a design doc or RFC as a `decision`, an exported ticket as a `ticket`, a
+postmortem as a `gotcha`. That page links the file in `raw/`.
 
 Every type's `sources:` field lists the documents a page draws on (`draws-on`). Where a
 document and the code disagree about what the code does now, the code wins and the page

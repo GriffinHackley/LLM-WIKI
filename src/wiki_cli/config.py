@@ -31,6 +31,7 @@ _CODE_KEYS = {"repo", "origin"}
 REDIRECT_KEY = "wiki"  # a config holding only this key says "the wiki for this folder is over there"
 _TYPE_KEYS = {"description", "folder", "template"}
 _TYPE_LISTS = {"sections", "fields"}
+_TYPE_VALUES = "values"
 
 
 class ConfigError(Exception):
@@ -41,13 +42,15 @@ class ConfigError(Exception):
 class PageType:
     """A page type the wiki declares in `[types.<name>]`: what it is, where its pages live,
     and the template new pages start from. `sections` and `fields` are what `wiki check`
-    expects every page of the type to have: headings, and frontmatter keys."""
+    expects every page of the type to have: headings, and frontmatter keys. `values` limits
+    frontmatter fields to the values listed for them."""
     name: str
     description: str = ""
     folder: str | None = None
     template: str | None = None
     sections: tuple[str, ...] = ()
     fields: tuple[str, ...] = ()
+    values: tuple[tuple[str, tuple[str, ...]], ...] = ()  # (field, allowed values)
 
 
 @dataclass(frozen=True)
@@ -230,24 +233,27 @@ def _types(table: dict) -> tuple[PageType, ...]:
         where = f"{CONFIG_FILENAME}: [types.{name}]"
         if not isinstance(entry, dict):
             raise ConfigError(f"{where} must be a table")
-        unknown = set(entry) - _TYPE_KEYS - _TYPE_LISTS
+        unknown = set(entry) - _TYPE_KEYS - _TYPE_LISTS - {_TYPE_VALUES}
         if unknown:
             raise ConfigError(f"{where}: unknown key(s) {', '.join(sorted(unknown))}")
         if not all(isinstance(entry[key], str) for key in _TYPE_KEYS & set(entry)):
             raise ConfigError(f"{where}: {', '.join(sorted(_TYPE_KEYS))} must be strings")
         lists = {key: _patterns(entry, key, (), f"[types.{name}] {key}") for key in _TYPE_LISTS}
+        values = _table(entry, _TYPE_VALUES, f"types.{name}.{_TYPE_VALUES}")
+        allowed = tuple((key.strip(), tuple(item.strip() for item in _patterns(
+            values, key, (), f"[types.{name}.{_TYPE_VALUES}] {key}") if item.strip())) for key in values)
         folder = entry.get("folder", "").strip().strip("/")
         found.append(PageType(name.strip().lower(), entry.get("description", "").strip(), folder or None,
                               entry.get("template", "").strip() or None,
                               tuple(item.strip() for item in lists["sections"] if item.strip()),
-                              tuple(item.strip() for item in lists["fields"] if item.strip())))
+                              tuple(item.strip() for item in lists["fields"] if item.strip()), allowed))
     return tuple(found)
 
 
-def _table(config: dict, key: str) -> dict:
+def _table(config: dict, key: str, label: str | None = None) -> dict:
     value = config.get(key, {})
     if not isinstance(value, dict):
-        raise ConfigError(f"{CONFIG_FILENAME}: [{key}] must be a table")
+        raise ConfigError(f"{CONFIG_FILENAME}: [{label or key}] must be a table")
     return value
 
 
