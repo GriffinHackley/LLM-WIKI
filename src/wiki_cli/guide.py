@@ -85,8 +85,9 @@ def preamble(name: str) -> str:
 
 def types_text(settings: Settings | None) -> str:
     if settings is None or not settings.types:
-        return ("This wiki declares no page types. Follow the types its existing pages use "
-                "(`wiki list` shows them).")
+        return ("This wiki declares no page types. Follow its existing pages: `wiki list` shows their "
+                "types and summaries. Before writing a new page, open two or three pages like it and match "
+                "their folder, frontmatter and headings.")
     lines = [f"Page types in this wiki (declared in `{CONFIG_FILENAME}` under `[types]`):", ""]
     for page_type in settings.types:
         where = []

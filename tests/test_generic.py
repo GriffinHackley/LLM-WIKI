@@ -203,6 +203,37 @@ class TestInit:
         assert config["pages"] == ["notes/**/*.md"] and config["exclude"] == ["templates/**"]
         assert "leaves out: README.md, guides/ (2 pages)" in draft
 
+    def test_skips_identity_fields_templates_and_agent_files(self, repo, capsys):
+        repo.write("CLAUDE.md", "# Rules\n")
+        repo.write("templates/person.md", "# Template\n")
+        for name in ("ada", "grace", "alan"):  # titles and tags that happen to match page names
+            repo.write(f"notes/people/{name}.md",
+                       f"---\ntitle: {name}\ntags: [person]\nproject: \"[[engine]]\"\n---\n# {name}\n")
+        repo.write("notes/projects/engine.md", "# Engine\n")
+        assert main(["init", "--root", str(repo)]) == 0
+        draft = capsys.readouterr().out
+        config = tomllib.loads(draft)
+        assert "CLAUDE.md" in config["exclude"] and "templates/**" in config["exclude"]
+        assert "# field = \"project\"" in draft
+        assert "field = \"title\"" not in draft and "field = \"tags\"" not in draft
+        assert '# "notes/people" = "person"' in draft  # type folders two deep, named in the singular
+        assert "# [weekly]" in draft
+
+    def test_preset_tables(self, repo, capsys):
+        for index in range(12):
+            repo.write(f"notes/n{index}.md", f"# N{index}\n")
+        assert main(["init", "--root", str(repo), "--preset", "code"]) == 0
+        config = tomllib.loads(capsys.readouterr().out)
+        assert config["preset"] == "code" and config["weekly"]["group_by"] == "module"
+        assert config["types"]["module"]["folder"] == "notes/modules"  # under the wiki's own page folder
+        assert any(rule["type"] == "part-of" for rule in config["relations"])
+        repo.write(".wiki-cli.toml", 'pages = ["notes/**/*.md"]\n[types.module]\n[weekly]\n')
+        assert main(["init", "--root", str(repo), "--preset", "code"]) == 0
+        merge = capsys.readouterr().out
+        assert merge.startswith("# Add what fits") and "[types.gotcha]" in merge
+        assert "[types.module]" not in merge and "[weekly]" not in merge
+        assert main(["init", "--root", str(repo), "--preset", "code", "--write"]) == 2
+
     def test_write_never_overwrites(self, repo, capsys):
         assert main(["init", "--root", str(repo), "--write"]) == 0
         assert (repo / ".wiki-cli.toml").is_file()

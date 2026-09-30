@@ -113,8 +113,16 @@ wiki new my-wiki --preset path/to/my-preset
 
 ## An existing wiki
 
-`wiki new .` in a folder that already has its own `.wiki-cli.toml` (from `wiki init`, or
-written by hand) adds only what connects agents to it: an `AGENTS.md` with the workflow
-section if there are no agent instructions yet (otherwise the section to add is
-printed), and with `--agent claude` the Claude Code files. It adds no templates or
-pages. Existing files are never overwritten.
+`wiki new .` in a folder that already has pages adopts it instead of laying the preset
+over it: it drafts a `.wiki-cli.toml` from a survey of the pages (as `wiki init --write`
+does), and adds only what connects agents to the wiki: an `AGENTS.md` with the workflow
+section if there are no agent instructions yet (otherwise the section to add is printed),
+and the `--agent` files. The same happens in a folder with a `.wiki-cli.toml` of its own.
+It adds none of the preset's starter pages, and no templates except those the config
+names and lacks. Existing files are never overwritten.
+
+To adopt a preset's page types, relation rules and weekly notes as well, `wiki init
+--preset <name>` prints them, leaving out what the config already declares and placing
+each type's folder under the wiki's page folder. Merge what fits, then run `wiki new .
+--preset <name>` again to add the templates the types name.
+[Getting started](getting-started.md#5-add-to-an-existing-wiki) walks through it.
