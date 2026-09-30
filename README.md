@@ -17,7 +17,8 @@ that can run shell commands: Claude Code, Codex, Cursor, Copilot, OpenCode and o
 
 **New here? Start with [docs/getting-started.md](docs/getting-started.md).**
 [docs/workflows.md](docs/workflows.md) covers the workflows and how to customise them,
-[docs/presets.md](docs/presets.md) the presets. [PLAN.md](PLAN.md) is the current plan,
+[docs/presets.md](docs/presets.md) the presets, [docs/config.md](docs/config.md) every config
+setting. [PLAN.md](PLAN.md) is the current plan,
 [FUTURE_IDEAS.md](FUTURE_IDEAS.md) the deferred ideas.
 
 The `wiki` command never edits pages: agents do. What it builds for search lives in a
@@ -81,15 +82,16 @@ Commands find the root by walking up to the nearest `.wiki-cli.toml`, else use t
 enclosing git repository, else the current folder, and say which folder they chose when
 no config did. They refuse to treat your home folder or a drive root as a wiki. `--root`
 or `WIKI_ROOT` overrides all of this, and `WIKI_CONFIG` points at a different config
-file. Every setting is optional:
+file. Every setting is optional; [docs/config.md](docs/config.md) is the full reference,
+with each key's type and default:
 
 ```toml
 preset = "research"               # the preset `wiki new` used; picks guide variants
 pages = ["wiki/**/*.md"]          # default ["**/*.md"]
-exclude = ["wiki/index.md"]
+exclude = ["wiki/index.md"]      # default none
 raw = ["raw/**/*.txt"]            # default; searched only with --include-raw
-embed_model = "BAAI/bge-small-en-v1.5"
-reranker = "jinaai/jina-reranker-v1-turbo-en"   # or "none"
+embed_model = "BAAI/bge-small-en-v1.5"          # default; $WIKI_EMBED_MODEL overrides
+reranker = "jinaai/jina-reranker-v1-turbo-en"   # default, or "none"; $WIKI_RERANKER overrides
 
 [types.person]                    # page types: guides list them, `wiki check` flags others
 description = "A person."
@@ -97,6 +99,7 @@ folder = "wiki/people"            # pages here get this type when frontmatter ha
 template = "templates/person.md"
 sections = ["Summary"]            # headings and frontmatter every page of the type has,
 fields = ["title", "type", "sources", "last_updated"]   # checked by `wiki check`
+values = { role = ["author", "subject"] }               # allowed values of a field
 
 [summary]                         # where a page's summary comes from, in order
 fields = ["summary", "description"]            # frontmatter keys (default)
@@ -113,7 +116,10 @@ summary_types = ["person"]        # page types that must have a summary ("*" = a
 named_types = ["person", "organization"]  # pages `suggest` matches by name (default: all)
 
 [search]
-results = 3                       # pages from search, nav start and nav search (1-20)
+results = 3                       # default; pages from search, nav start and nav search (1-20)
+
+[pending]
+ignore = ["raw/SOURCES.md"]       # files in raw/ that are not sources (default none)
 
 [guides]
 dir = "guides"                    # the wiki's own guides, overriding built-in ones by name

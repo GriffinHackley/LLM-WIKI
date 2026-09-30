@@ -130,7 +130,21 @@ class TestTemplateChecks:
         code, report = check(capsys, "a", "--root", str(root))
         assert report["issues"] == []
 
+    def test_values_limit_a_field(self, tmp_path, capsys):
+        root = tmp_path / "vault"
+        write(root, ".wiki-cli.toml", '[types.note]\nfolder = "notes"\nvalues = { kind = ["epic", "story"] }\n')
+        write(root, "notes/a.md", "---\ntitle: A\ntype: note\nkind: Story\n---\n# A\n")
+        write(root, "notes/b.md", "---\ntitle: B\ntype: note\nkind: [epic, banana]\n---\n# B\n")
+        write(root, "notes/c.md", "---\ntitle: C\ntype: note\n---\n# C\n")  # absent: `fields` covers that
+        assert check(capsys, "a", "--root", str(root))[1]["issues"] == []
+        assert check(capsys, "c", "--root", str(root))[1]["issues"] == []
+        code, report = check(capsys, "b", "--root", str(root))
+        assert [issue["message"] for issue in report["issues"]] == [
+            "'kind' is 'banana'; in a note page it is one of epic, story"]
+
     @pytest.mark.parametrize("entry, message", [
+        ('values = ["epic"]', "[types.note.values] must be a table"),
+        ('values = { kind = "epic" }', "'[types.note.values] kind' must be a list of strings"),
         ('sections = "Summary"', "'[types.note] sections' must be a list of strings"),
         ("fields = [1]", "'[types.note] fields' must be a list of strings"),
         ('template = ["x"]', "must be strings"),

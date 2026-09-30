@@ -15,7 +15,8 @@ what needs judgment, and commit the fixes.
      not declared in the config (`unknown-type`), ambiguous links (`[[name]]` matching
      several files: link by path instead), summaries not revised since their page
      changed (`summary-stale`), pages missing a section or frontmatter field their type
-     requires (`missing-section`, `missing-field`), and sources listed in `sources:` that
+     requires (`missing-section`, `missing-field`), fields holding a value their type
+     does not allow (`bad-value`), and sources listed in `sources:` that
      the text never cites (`uncited-sources`: cite each where its facts are used, or
      remove it from the list).
    - `wiki unwritten`: link targets with no page, most-linked first. For each, decide:

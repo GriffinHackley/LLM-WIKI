@@ -94,6 +94,8 @@ def types_text(settings: Settings | None) -> str:
             where.append(f"pages in `{page_type.folder}/`")
         if page_type.template:
             where.append(f"template `{page_type.template}`")
+        for key, allowed in page_type.values:
+            where.append(f"`{key}:` one of {', '.join(allowed)}")
         detail = f" ({'; '.join(where)})" if where else ""
         lines.append(f"- `{page_type.name}`: {page_type.description or 'no description'}{detail}")
     return "\n".join(lines)

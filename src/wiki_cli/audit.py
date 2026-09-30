@@ -18,7 +18,7 @@ from wiki_cli.validation import check_page
 from wiki_cli.vocabulary import REFERS_TO_CODE
 
 OPEN_QUESTIONS = "open-questions"  # where the presets keep questions; linking it is not discussing anything
-TOUCHED_CODES = {"missing-section", "missing-field", "uncited-sources"}  # beside errors, what a touched page must fix
+TOUCHED_CODES = {"missing-section", "missing-field", "bad-value", "uncited-sources"}  # beside errors, what a touched page must fix
 MAX_LISTED = 5
 
 

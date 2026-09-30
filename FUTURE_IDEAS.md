@@ -84,6 +84,27 @@ extension) for `/lint` could report, over the relations graph:
 upstream finds the most valuable link suggestions. Community detection is noise on
 small graphs; upstream skips it below 30 pages.
 
+## Relation-aware ranking in traversal
+
+`wiki nav candidates` ranks a page's linked neighbors by similarity to the question
+alone: an `implements` link, a `has-gotcha` link and a passing `links-to` mention all
+compete on text. The relation types the config declares say more than that, and could
+feed the ranking:
+
+- **Weights per relation type** in the config, for example `weight = 1.5` on a
+  `[[relations]]` rule, multiplying the question similarity. Typed links would beat
+  plain `links-to` mentions, and a wiki could favor `has-gotcha` or `decided-in`.
+- **Weights per question kind:** "why" questions favor `decided-in`, "how do I" favors
+  `instruction` pages, "what broke" favors `has-gotcha` and `implemented-by`. This could
+  come from the question's wording or from the agent passing a hint to `nav start`.
+- **Path shape:** favor paths that follow typed chains (file -> module -> decision) over
+  hops through hubs such as `open-questions`, and damp pages many links point to.
+- **The link's reason text:** the reason on a typed link ("stores its index in
+  SQLite") is a better match target than the whole target page.
+
+Test any of these with `wiki eval` against plain similarity first: on small wikis the
+relation signal may be too sparse to help, and hand-set weights are easy to overfit.
+
 ## Other items deferred during planning
 
 - **Persistent model server:** a local process that keeps embedding and reranker
