@@ -35,6 +35,7 @@ REDIRECT_KEY = "wiki"  # a config holding only this key says "the wiki for this 
 _TYPE_KEYS = {"description", "folder", "template"}
 _TYPE_LISTS = {"sections", "fields"}
 _TYPE_VALUES = "values"
+_TYPE_HUB = "hub"
 
 
 class ConfigError(Exception):
@@ -46,7 +47,9 @@ class PageType:
     """A page type the wiki declares in `[types.<name>]`: what it is, where its pages live,
     and the template new pages start from. `sections` and `fields` are what `wiki check`
     expects every page of the type to have: headings, and frontmatter keys. `values` limits
-    frontmatter fields to the values listed for them."""
+    frontmatter fields to the values listed for them. A `hub` type's pages each stand for
+    an idea other pages gather around (a module, a concept): `wiki clusters` counts a
+    cluster that links to one as covered."""
     name: str
     description: str = ""
     folder: str | None = None
@@ -54,6 +57,7 @@ class PageType:
     sections: tuple[str, ...] = ()
     fields: tuple[str, ...] = ()
     values: tuple[tuple[str, tuple[str, ...]], ...] = ()  # (field, allowed values)
+    hub: bool = False
 
 
 @dataclass(frozen=True)
@@ -272,11 +276,13 @@ def _types(table: dict) -> tuple[PageType, ...]:
         where = f"{CONFIG_FILENAME}: [types.{name}]"
         if not isinstance(entry, dict):
             raise ConfigError(f"{where} must be a table")
-        unknown = set(entry) - _TYPE_KEYS - _TYPE_LISTS - {_TYPE_VALUES}
+        unknown = set(entry) - _TYPE_KEYS - _TYPE_LISTS - {_TYPE_VALUES, _TYPE_HUB}
         if unknown:
             raise ConfigError(f"{where}: unknown key(s) {', '.join(sorted(unknown))}")
         if not all(isinstance(entry[key], str) for key in _TYPE_KEYS & set(entry)):
             raise ConfigError(f"{where}: {', '.join(sorted(_TYPE_KEYS))} must be strings")
+        if not isinstance(entry.get(_TYPE_HUB, False), bool):
+            raise ConfigError(f"{where}: {_TYPE_HUB} must be true or false")
         lists = {key: _patterns(entry, key, (), f"[types.{name}] {key}") for key in _TYPE_LISTS}
         values = _table(entry, _TYPE_VALUES, f"types.{name}.{_TYPE_VALUES}")
         allowed = tuple((key.strip(), tuple(item.strip() for item in _patterns(
@@ -285,7 +291,8 @@ def _types(table: dict) -> tuple[PageType, ...]:
         found.append(PageType(name.strip().lower(), entry.get("description", "").strip(), folder or None,
                               entry.get("template", "").strip() or None,
                               tuple(item.strip() for item in lists["sections"] if item.strip()),
-                              tuple(item.strip() for item in lists["fields"] if item.strip()), allowed))
+                              tuple(item.strip() for item in lists["fields"] if item.strip()), allowed,
+                              entry.get(_TYPE_HUB, False)))
     return tuple(found)
 
 

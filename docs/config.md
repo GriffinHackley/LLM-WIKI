@@ -78,6 +78,7 @@ values = { kind = ["epic", "story", "bug", "task"] }
 | `template` | string | none | The file new pages of this type start from, relative to the root. The guides name it, and the `wiki check` warnings below point to it. |
 | `sections` | list of strings | `[]` | `##` headings every page of the type has. A page missing one gets a `missing-section` warning. Case is ignored. |
 | `fields` | list of strings | `[]` | Frontmatter keys every page of the type has. A page missing one gets a `missing-field` warning. |
+| `hub` | boolean | `false` | Each page of the type stands for an idea other pages gather around (a module, a concept, an event). `wiki clusters` counts a cluster most of whose pages link to one as covered, and lists only the others. With no hub types, it lists every cluster. |
 | `values` | table of lists of strings | `{}` | The only values a frontmatter field may hold, per field. A value not listed gets a `bad-value` warning (case ignored; for a list, each item is checked). An absent field is not flagged here; list it in `fields` for that. |
 
 A page's type is its `type:` frontmatter (the key is `[page_type] field`), lowercased;

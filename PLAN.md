@@ -584,6 +584,35 @@ proposed; printed the section for `CLAUDE.md`; and `wiki list` showed the six no
 nothing else. A code wiki adopted with `--preset code --code` gets `preset = "code"`,
 `[code] repo`, and the sync guide. 296 tests pass.
 
+## Phase 12 (done): Clusters with no page about them
+
+`wiki unwritten` finds pages that are linked but not written. Nothing found pages nobody
+had thought to link: a group of pages that link each other densely because they share an
+idea (the files a feature touched, the people around a negotiation) with no page about
+that idea. Borrowed from nashsu/llm_wiki's Louvain communities, kept to the one use an
+agent can act on.
+
+- **`wiki clusters`** finds communities by Louvain (networkx, fixed seed) over the
+  relations graph, undirected, with typed relations weighing twice a plain link. It
+  lists each cluster of four pages or more with its pages (most connected first), the
+  page most of it links to, the terms its titles and summaries share that are rare in
+  the rest of the wiki, and the relation types inside it. Below 30 pages it lists
+  nothing: communities are noise there.
+- **Hub types.** `hub = true` on a `[types]` table marks pages that stand for an idea
+  others gather around. A cluster where half or more of the pages link to (or from) a
+  hub page is covered, and only counted; `--all` lists it too. The presets mark
+  `module` and `concept` (code), `event` and `concept` (research). Without hub types,
+  every cluster is listed with its most-linked page and that page's type, for the agent
+  to judge, since the most-linked page is often not about the shared idea (a source
+  every page cites, a PR that touched every file).
+- **Lint** runs it: a cluster around an idea no page is about goes in the report as a
+  page worth writing.
+
+Result: on a test wiki, a group of files around a module page counts as covered, and a
+group of files a PR touched is listed with the PR as its most-linked page and "invoice,
+rounding" as shared terms. On synthetic wikis with random links (Louvain's worst case),
+3,000 pages take 0.4 s and 30,000 pages about 20 s. 303 tests pass.
+
 ## Open decisions
 
 - None yet.

@@ -29,6 +29,14 @@ what needs judgment, and commit the fixes.
    - `wiki pending`: sources in `raw/` no page links to yet. Don't ingest them during
      lint; list them in the report (and any flagged as the same content as a source
      already ingested).
+   - `wiki clusters`: groups of pages that link each other densely, with no hub page
+     (a type marked `hub` in the config, such as a concept or event) most of them link
+     to; or, in a wiki without hub types, every group with the page most of it links to.
+     For each, read the pages' summaries and the terms they share. If they gather around
+     an idea no page is about (a negotiation, a scandal, a technique), list it in the
+     report as a page worth writing, with the cluster's pages; if the most-linked page is
+     already about that idea, or the pages have nothing in common, leave it. It lists
+     nothing in a wiki under 30 pages.
 3. **Judgment checks, by reading.** Use `wiki search`, `wiki list --type <type>` and
    `wiki neighbors` to find the pages to compare; read only what you need.
    - **Contradictions:** pages that disagree about the same fact (a date, a role, a

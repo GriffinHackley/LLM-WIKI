@@ -97,6 +97,8 @@ def types_text(settings: Settings | None) -> str:
             where.append(f"template `{page_type.template}`")
         for key, allowed in page_type.values:
             where.append(f"`{key}:` one of {', '.join(allowed)}")
+        if page_type.hub:
+            where.append("a hub: other pages gather around it")
         detail = f" ({'; '.join(where)})" if where else ""
         lines.append(f"- `{page_type.name}`: {page_type.description or 'no description'}{detail}")
     return "\n".join(lines)

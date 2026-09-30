@@ -45,6 +45,7 @@ fields = ["title", "type", "last_updated"]
 description = "One area of the code: what it does, where it lives, and how it fits with the rest."
 folder = "wiki/modules"
 template = "templates/module.md"
+hub = true                      # other pages gather around it (wiki clusters)
 sections = ["Summary"]
 fields = ["title", "type", "last_updated"]
 
@@ -52,6 +53,7 @@ fields = ["title", "type", "last_updated"]
 description = "An idea from the code: a domain term, pattern, interface or piece of configuration it relies on."
 folder = "wiki/concepts"
 template = "templates/concept.md"
+hub = true                      # other pages gather around it (wiki clusters)
 sections = ["Summary"]
 fields = ["title", "type", "last_updated"]
 

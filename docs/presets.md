@@ -31,6 +31,8 @@ page and works what it says into the pages it discusses.
 Every page lists its sources in `sources:` (`draws-on`), and cites each fact inline:
 `…signed in March ([[acme-report-2024]], p. 4)`. The relation takes the citing
 sentence as its reason. `wiki/open-questions.md` collects contradictions and gaps.
+`event` and `concept` are hub types: `wiki clusters` counts a group of pages most of
+which link to one as covered.
 
 Guides: `ingest`, `query`, `lint`.
 
@@ -51,6 +53,9 @@ agent that changes the code keeps it current, working from the code repo.
 | `dependency` | An external library or service: why and how the code uses it | |
 | `gotcha` | A trap in the code: symptom, cause, and how to avoid it | `## Affects` -> `gotcha-for` |
 | `analysis` | The wiki's own synthesis, answering a question across pages | `## Key pages` -> `synthesizes` |
+
+`module` and `concept` are hub types: `wiki clusters` counts a group of pages most of which
+link to one as covered, and reports the rest as module or concept pages worth writing.
 
 There is no type for documents as such. A document from `raw/` is recorded on a page of
 the type it is: a design doc or RFC as a `decision`, an exported ticket as a `ticket`, a
