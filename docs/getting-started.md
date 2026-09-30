@@ -34,7 +34,7 @@ cd my-wiki
   page.
 - No GPU. Search runs locally on the CPU; nothing is sent to a server.
 
-The default models are English-only. The tool is developed on Windows 11; its tests run
+The default models are English-only. The tool is developed on Windows; its tests run
 on Windows, macOS and Linux.
 
 ## 2. Install the tool (once per machine)

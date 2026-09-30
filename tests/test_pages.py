@@ -6,14 +6,14 @@ from wiki_cli.pages import PageNotFound, Resolver, assign_slugs, discover, load,
 def test_slugs_are_bare_names_unless_duplicated():
     slugs = assign_slugs([
         ("wiki/people/charles-babbage.md", "page"),
-        ("projects/a/claims.md", "page"),
-        ("projects/b/claims.md", "page"),
+        ("notebooks/a/claims.md", "page"),
+        ("notebooks/b/claims.md", "page"),
         ("raw/charles-babbage.txt", "raw"),
     ])
     assert slugs == {
         "wiki/people/charles-babbage.md": "charles-babbage",
-        "projects/a/claims.md": "projects/a/claims",
-        "projects/b/claims.md": "projects/b/claims",
+        "notebooks/a/claims.md": "notebooks/a/claims",
+        "notebooks/b/claims.md": "notebooks/b/claims",
         "raw/charles-babbage.txt": "raw/charles-babbage",
     }
 
@@ -24,8 +24,8 @@ def resolver():
         ("charles-babbage", "wiki/people/charles-babbage.md"),
         ("doc-a", "wiki/documents/doc-a.md"),
         ("raw/doc-a", "raw/doc-a.txt"),
-        ("projects/x/claims", "projects/x/claims.md"),
-        ("projects/y/claims", "projects/y/claims.md"),
+        ("notebooks/x/claims", "notebooks/x/claims.md"),
+        ("notebooks/y/claims", "notebooks/y/claims.md"),
     ])
 
 
@@ -39,7 +39,7 @@ def resolver():
     ("doc-a.txt", "raw/doc-a"),
     ("doc-a.pdf", "raw/doc-a"),  # an original resolves to its extracted text
     ("raw/doc-a", "raw/doc-a"),
-    ("projects/x/claims", "projects/x/claims"),
+    ("notebooks/x/claims", "notebooks/x/claims"),
     ("claims", None),  # ambiguous
     ("nobody", None),
 ])
@@ -49,15 +49,15 @@ def test_resolver(resolver, target, expected):
 
 def test_ambiguous(resolver):
     assert resolver.ambiguous("claims")
-    assert not resolver.ambiguous("projects/x/claims")
+    assert not resolver.ambiguous("notebooks/x/claims")
     assert not resolver.ambiguous("doc-a")
 
 
 def test_scan_applies_config(wiki):
     wiki.page("person", "a")
     wiki.write("wiki/index.md", {"title": "Index"})
-    wiki.write("projects/d/claims.md", {"title": "Claims"})
-    wiki.write("projects/d/PLAN.md", {"title": "Plan"})
+    wiki.write("notebooks/d/claims.md", {"title": "Claims"})
+    wiki.write("notebooks/d/PLAN.md", {"title": "Plan"})
     wiki.raw_text("src.txt", "text")
     wiki.write("raw/src.pdf", raw="%PDF")
     (wiki.root / ".claude").mkdir()
@@ -65,7 +65,7 @@ def test_scan_applies_config(wiki):
     found = {(page_file.rel, page_file.slug, page_file.kind) for page_file in discover(wiki.settings())}
     assert found == {
         ("wiki/people/a.md", "a", "page"),
-        ("projects/d/claims.md", "claims", "page"),
+        ("notebooks/d/claims.md", "claims", "page"),
         ("raw/src.txt", "raw/src", "raw"),
     }
 
@@ -90,9 +90,9 @@ def test_summary_extraction(wiki, sections, expected, fallback):
 def test_summary_sections_by_type(wiki):
     wiki.page("event", "e", summary="It happened.")
     wiki.page("document", "d", summary="A memo.")
-    wiki.page("claim", "F-001", summary="Babbage was a mathematician.")
+    wiki.page("claim", "N-001", summary="Babbage was a mathematician.")
     settings = wiki.settings()
-    assert [load(resolve(slug, settings)).summary()[0] for slug in ("e", "d", "F-001")] == [
+    assert [load(resolve(slug, settings)).summary()[0] for slug in ("e", "d", "N-001")] == [
         "It happened.", "A memo.", "Babbage was a mathematician."]
 
 
@@ -126,8 +126,8 @@ def test_invalid_frontmatter_reported(wiki):
 
 def test_other_vault_files_are_not_unwritten():
     resolver = Resolver([("doc-a", "wiki/documents/doc-a.md")],
-                        ["raw/scan-2025.pdf", "raw/photo.jpg", "projects/x/PLAN.md", "templates/person.md"])
-    for target in ("scan-2025.pdf", "raw/scan-2025.pdf", "Photo.JPG", "projects/x/PLAN", "x/PLAN", "person"):
+                        ["raw/scan-2025.pdf", "raw/photo.jpg", "notebooks/x/PLAN.md", "templates/person.md"])
+    for target in ("scan-2025.pdf", "raw/scan-2025.pdf", "Photo.JPG", "notebooks/x/PLAN", "x/PLAN", "person"):
         assert resolver.resolve(target) is None
         assert resolver.is_other_file(target), target
     for target in ("scan-2025", "ghost-page", "missing.pdf", "raw/other.pdf"):

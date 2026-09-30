@@ -13,23 +13,23 @@ WHY = "Most likely to name who attended the meeting."
 
 @pytest.fixture
 def wiki_graph(wiki):
-    wiki.page("event", "mill-meeting", {
-        "Participants": "- [[edith-thorne]] — the foreman questioned about the fire\n- [[silas-reed]] — reportedly present",
-        "Sources": "- [[courier-report]] — anonymous sources",
-    }, summary="Officials met Thorne at the North Mill the day after the fire to hear her account.")
-    wiki.page("person", "edith-thorne", {
-        "Documented role": "Ran the night shift when the fire started.",
-        "Appearances in sources": "- [[courier-report]] — named as the target of the meeting",
-    }, summary="Foreman of the North Mill's night shift.", aliases=["Mrs. Thorne"])
-    wiki.page("person", "silas-reed", {"Documented role": "Council chair; led the inquiry into the fire."},
-              summary="Chair of the town council.")
-    wiki.page("document", "courier-report", {
-        "Summary": "The Courier says Reed, Hale and Marsh attended the North Mill meeting with Edith Thorne.",
-        "Entities mentioned": "- [[edith-thorne]] — the member\n- [[silas-reed]] — present",
-    }, summary="Ashford Courier report on the Thorne meeting.")
-    wiki.page("person", "ruth-marsh", {"Documented role": "Mill owner; attended the meeting."},
-              summary="Owner of the North Mill.", title="Ruth Marsh")
-    wiki.page("topic", "renovation", summary="The rebuilding of the North Mill in 1888.")
+    wiki.page("event", "gallery-meeting", {
+        "Participants": "- [[mara-quill]] — the curator being lobbied\n- [[oren-vale]] — reportedly present",
+        "Sources": "- [[gazette-report]] — anonymous sources",
+    }, summary="Officials met Quill in the East Gallery hours before the loan request reached the board.")
+    wiki.page("person", "mara-quill", {
+        "Documented role": "Signed the loan request and never withdrew.",
+        "Appearances in sources": "- [[gazette-report]] — named as the target of the meeting",
+    }, summary="Curator who signed the loan request.", aliases=["Dr. Quill"])
+    wiki.page("person", "oren-vale", {"Documented role": "Board chair; co-signed the loan memo."},
+              summary="Chair of the museum board.")
+    wiki.page("document", "gazette-report", {
+        "Summary": "The Gazette says Vale, Stone and Brand attended the East Gallery meeting with Mara Quill.",
+        "Entities mentioned": "- [[mara-quill]] — the curator\n- [[oren-vale]] — present",
+    }, summary="Harbor Gazette report on the Quill meeting.")
+    wiki.page("person", "tessa-brand", {"Documented role": "Museum director; reportedly attended the meeting."},
+              summary="Director of the museum.", title="Tessa Brand")
+    wiki.page("topic", "renovation", summary="The 43-day gallery renovation in autumn 2025.")
     return wiki
 
 
@@ -42,21 +42,21 @@ def nav(wiki_graph):
     cache.close()
 
 
-def start(nav, question="Who attended the North Mill meeting with Thorne?", **kwargs):
+def start(nav, question="Who attended the East Gallery meeting with Quill?", **kwargs):
     return nav.start(question, **kwargs)
 
 
 def test_start_returns_results_and_session(nav):
     result = start(nav)
     assert len(result["session"]) == 6 and result["max_pages"] == 6
-    assert result["results"][0]["slug"] in {"mill-meeting", "courier-report"}
+    assert result["results"][0]["slug"] in {"gallery-meeting", "gazette-report"}
 
 
 def test_read_returns_best_section_and_section_list(nav):
-    session = start(nav, "Which officials were reportedly present, and which foreman was questioned about the fire?")["session"]
-    result = nav.read(session, "mill-meeting", WHY)
+    session = start(nav, "Which officials were reportedly present, and which curator was being lobbied?")["session"]
+    result = nav.read(session, "gallery-meeting", WHY)
     assert result["section"] == "Participants"
-    assert "[[silas-reed]]" in result["content"] and "Officials met" not in result["content"]
+    assert "[[oren-vale]]" in result["content"] and "Officials met" not in result["content"]
     assert result["sections"][:2] == ["What happened", "Participants"]
     assert (result["pages_read"], result["pages_left"]) == (1, 5)
 
@@ -66,24 +66,24 @@ def test_read_picks_section_from_stored_vectors_without_the_reranker(nav):
         def score(self, query, documents):
             raise AssertionError("nav read should not run the reranker when vectors exist")
 
-    session = start(nav, "Which officials were reportedly present, and which foreman was questioned about the fire?")["session"]
+    session = start(nav, "Which officials were reportedly present, and which curator was being lobbied?")["session"]
     nav.reranker = Refuses()
-    assert nav.read(session, "mill-meeting", WHY)["section"] == "Participants"
+    assert nav.read(session, "gallery-meeting", WHY)["section"] == "Participants"
 
 
 def test_read_specific_section_and_full(nav):
     session = start(nav)["session"]
-    assert "Officials met" in nav.read(session, "mill-meeting", WHY, section="What happened")["content"]
-    full = nav.read(session, "mill-meeting", WHY, full=True)
-    assert full["section"] == "full page" and "[[courier-report]]" in full["content"]
+    assert "Officials met" in nav.read(session, "gallery-meeting", WHY, section="What happened")["content"]
+    full = nav.read(session, "gallery-meeting", WHY, full=True)
+    assert full["section"] == "full page" and "[[gazette-report]]" in full["content"]
     assert full["pages_read"] == 1  # other parts of a visited page do not count again
 
 
 def test_revisit_refused(nav):
     session = start(nav)["session"]
-    nav.read(session, "silas-reed", WHY)
+    nav.read(session, "oren-vale", WHY)
     with pytest.raises(NavError) as info:
-        nav.read(session, "silas-reed", WHY)
+        nav.read(session, "oren-vale", WHY)
     assert info.value.code == "already-read"
 
 
@@ -91,14 +91,14 @@ def test_revisit_refused(nav):
 def test_why_enforced(nav, why, code):
     session = start(nav)["session"]
     with pytest.raises(NavError) as info:
-        nav.read(session, "silas-reed", why)
+        nav.read(session, "oren-vale", why)
     assert info.value.code == code
 
 
 def test_page_limit(nav):
     session = start(nav, max_pages=2)["session"]
-    nav.read(session, "silas-reed", WHY)
-    nav.read(session, "ruth-marsh", WHY)
+    nav.read(session, "oren-vale", WHY)
+    nav.read(session, "tessa-brand", WHY)
     with pytest.raises(NavError) as info:
         nav.read(session, "renovation", WHY)
     assert info.value.code == "page-limit"
@@ -110,24 +110,24 @@ def test_unknown_page_and_section(nav):
         nav.read(session, "nobody", WHY)
     assert info.value.code == "no-such-page"
     with pytest.raises(NavError) as info:
-        nav.read(session, "silas-reed", WHY, section="Nope")
+        nav.read(session, "oren-vale", WHY, section="Nope")
     assert info.value.code == "no-such-section"
 
 
 def test_candidates_links_first_then_similar_excluding_visited(nav):
     session = start(nav)["session"]
-    nav.read(session, "mill-meeting", WHY)
+    nav.read(session, "gallery-meeting", WHY)
     result = nav.candidates(session)
     linked = {item["slug"]: item for item in result["linked"]}
-    assert set(linked) == {"edith-thorne", "silas-reed", "courier-report"}
-    assert linked["silas-reed"] == {"slug": "silas-reed", "type": "person", "summary": "Chair of the town council.",
+    assert set(linked) == {"mara-quill", "oren-vale", "gazette-report"}
+    assert linked["oren-vale"] == {"slug": "oren-vale", "type": "person", "summary": "Chair of the museum board.",
                                    "relation": "involves", "reason": "reportedly present"}
     similar = {item["slug"] for item in result["similar"]}
-    assert "mill-meeting" not in similar and not similar & set(linked)
+    assert "gallery-meeting" not in similar and not similar & set(linked)
 
-    nav.read(session, "courier-report", WHY)
+    nav.read(session, "gazette-report", WHY)
     after = nav.candidates(session)
-    assert "mill-meeting" not in {item["slug"] for item in after["linked"]}
+    assert "gallery-meeting" not in {item["slug"] for item in after["linked"]}
 
 
 def test_candidates_require_a_read(nav):
@@ -141,31 +141,31 @@ def test_earlier_candidates_offered_for_backtracking(nav, monkeypatch):
     import wiki_cli.nav as nav_module
     monkeypatch.setattr(nav_module, "SIMILAR_LIMIT", 0)  # tiny corpus: keep "similar" from absorbing everything
     session = start(nav)["session"]
-    nav.read(session, "mill-meeting", WHY)
-    nav.candidates(session)  # shows edith-thorne, silas-reed, courier-report
+    nav.read(session, "gallery-meeting", WHY)
+    nav.candidates(session)  # shows mara-quill, oren-vale, gazette-report
     nav.read(session, "renovation", WHY)  # a dead end
     earlier = {item["slug"] for item in nav.candidates(session)["earlier"]}
-    assert earlier & {"edith-thorne", "silas-reed", "courier-report"}
+    assert earlier & {"mara-quill", "oren-vale", "gazette-report"}
 
 
 def test_requery_excludes_visited_and_limits_repeats(nav):
     session = start(nav)["session"]
-    nav.read(session, "courier-report", WHY)
-    result = nav.requery(session, "Which mill owner attended?")
-    assert "courier-report" not in {hit["slug"] for hit in result["results"]}
+    nav.read(session, "gazette-report", WHY)
+    result = nav.requery(session, "Which museum director attended?")
+    assert "gazette-report" not in {hit["slug"] for hit in result["results"]}
     with pytest.raises(NavError) as info:
-        nav.requery(session, "which mill  owner attended?")
+        nav.requery(session, "which museum  director attended?")
     assert info.value.code == "repeated-search"
 
 
 def test_end_and_log(nav):
     session = start(nav)["session"]
-    nav.read(session, "courier-report", WHY)
-    result = nav.end(session, ["courier-report", "silas-reed"])
-    assert result == {"session": session, "pages_read": ["courier-report"], "cited": ["courier-report", "silas-reed"],
-                      "cited_without_reading": ["silas-reed"]}
+    nav.read(session, "gazette-report", WHY)
+    result = nav.end(session, ["gazette-report", "oren-vale"])
+    assert result == {"session": session, "pages_read": ["gazette-report"], "cited": ["gazette-report", "oren-vale"],
+                      "cited_without_reading": ["oren-vale"]}
     with pytest.raises(NavError) as info:
-        nav.read(session, "silas-reed", WHY)
+        nav.read(session, "oren-vale", WHY)
     assert info.value.code == "session-ended"
     kinds = [event["kind"] for event in nav.log(session)["events"]]
     assert kinds == ["start", "read", "end"]
@@ -176,8 +176,8 @@ def test_works_without_vectors(wiki_graph):
     with Cache(wiki_graph.settings()) as cache:
         cache.refresh()
         navigator = Navigator(cache)
-        session = navigator.start("North Mill meeting Thorne")["session"]
-        read = navigator.read(session, "mill-meeting", WHY)
+        session = navigator.start("East Gallery meeting Quill")["session"]
+        read = navigator.read(session, "gallery-meeting", WHY)
         assert read["section"] in read["sections"]
         assert navigator.candidates(session)["linked"]
 
@@ -188,22 +188,22 @@ def test_sessions_expire(nav, monkeypatch):
     monkeypatch.setattr(nav_module.time, "time", lambda: 10 ** 12)
     Navigator(nav.cache)
     with pytest.raises(NavError) as info:
-        nav.read(session, "silas-reed", WHY)
+        nav.read(session, "oren-vale", WHY)
     assert info.value.code == "no-such-session"
 
 
 def test_suggest(wiki_graph):
-    wiki_graph.page("document", "chronicle-report", {
-        "Summary": "The Chronicle says Ruth Marsh and Mrs. Thorne were at the mill.",
-        "Entities mentioned": "- [[silas-reed]] — present",
-    }, summary="Chronicle report on the meeting.")
+    wiki_graph.page("document", "herald-report", {
+        "Summary": "The Herald says Tessa Brand and Dr. Quill were at the museum.",
+        "Entities mentioned": "- [[oren-vale]] — present",
+    }, summary="Herald report on the meeting.")
     with Cache(wiki_graph.settings()) as cache:
         cache.refresh()
         cache.embed_pending(HashEmbedder())
-        results = {item["slug"]: item for item in suggest(cache, "chronicle-report")}
-    assert results["ruth-marsh"]["reasons"][0] == "Named in the text as 'Ruth Marsh' but not linked."
-    assert results["edith-thorne"]["reasons"][0] == "Named in the text as 'Mrs. Thorne' but not linked."
-    assert "silas-reed" not in results  # already linked
+        results = {item["slug"]: item for item in suggest(cache, "herald-report")}
+    assert results["tessa-brand"]["reasons"][0] == "Named in the text as 'Tessa Brand' but not linked."
+    assert results["mara-quill"]["reasons"][0] == "Named in the text as 'Dr. Quill' but not linked."
+    assert "oren-vale" not in results  # already linked
 
 
 @pytest.fixture
@@ -217,27 +217,27 @@ def run(wiki_graph, capsys):
 
 def test_cli_session_flow(run):
     run("index", "refresh")
-    code, started, _ = run("nav", "start", "Who attended the North Mill meeting?", "--max-pages", "3")
+    code, started, _ = run("nav", "start", "Who attended the East Gallery meeting?", "--max-pages", "3")
     session = started["session"]
     assert code == 0
-    code, read, _ = run("nav", "read", session, "mill-meeting", "--why", WHY)
+    code, read, _ = run("nav", "read", session, "gallery-meeting", "--why", WHY)
     assert code == 0 and read["pages_left"] == 2
     code, candidates, _ = run("nav", "candidates", session)
     assert code == 0 and candidates["linked"]
-    code, refused, _ = run("nav", "read", session, "mill-meeting", "--why", WHY)
+    code, refused, _ = run("nav", "read", session, "gallery-meeting", "--why", WHY)
     assert code == 1 and refused["error"] == "already-read"
-    code, ended, _ = run("nav", "end", session, "--cited", "mill-meeting")
-    assert code == 0 and ended["pages_read"] == ["mill-meeting"]
+    code, ended, _ = run("nav", "end", session, "--cited", "gallery-meeting")
+    assert code == 0 and ended["pages_read"] == ["gallery-meeting"]
     code, log, _ = run("nav", "log", session)
     assert [event["kind"] for event in log["events"]] == ["start", "read", "candidates", "end"]
-    code, suggested, _ = run("suggest", "courier-report")
+    code, suggested, _ = run("suggest", "gazette-report")
     assert code == 0 and isinstance(suggested["suggestions"], list)
 
 
 def test_cli_read_requires_why(run):
     code, started, _ = run("nav", "start", "meeting")
     with pytest.raises(SystemExit):  # argparse: --why is required
-        main(["nav", "read", started["session"], "silas-reed"])
+        main(["nav", "read", started["session"], "oren-vale"])
 
 
 def test_unwritten_and_orphans(wiki_graph, run):
@@ -249,14 +249,14 @@ def test_unwritten_and_orphans(wiki_graph, run):
     code, orphans, _ = run("orphans")
     slugs = {item["slug"] for item in orphans["orphans"]}
     assert {"loner", "linker-a", "linker-b", "renovation"} <= slugs
-    assert "silas-reed" not in slugs
+    assert "oren-vale" not in slugs
 
 
 def test_rereading_a_section_by_full_path_is_refused(nav):
     session = start(nav)["session"]
-    nav.read(session, "mill-meeting", WHY, section="Participants")
+    nav.read(session, "gallery-meeting", WHY, section="Participants")
     with pytest.raises(NavError) as info:
-        nav.read(session, "mill-meeting", WHY, section="mill-meeting > Participants")
+        nav.read(session, "gallery-meeting", WHY, section="gallery-meeting > Participants")
     assert info.value.code == "already-read"
 
 
@@ -271,11 +271,11 @@ def test_candidate_summaries_are_short(nav, wiki_graph):
 
 
 def test_read_shows_linked_page_titles(wiki):
-    wiki.page("person", "ruth-marsh", summary="Owner of the North Mill.", title="Ruth Marsh")
-    wiki.page("person", "silas-reed", summary="Council chair.")  # title is the slug: left alone
+    wiki.page("person", "tessa-brand", summary="Director of the museum.", title="Tessa Brand")
+    wiki.page("person", "oren-vale", summary="Board chair.")  # title is the slug: left alone
     wiki.page("topic", "meeting", {
-        "Who was there": "Present: [[ruth-marsh]], [[ruth-marsh|the Director]], [[silas-reed]], [[ghost]].\n"
-                         "![[ruth-marsh#^q-1]]\n\n| Person | Role |\n|---|---|\n| [[ruth-marsh]] | Owner |"},
+        "Who was there": "Present: [[tessa-brand]], [[tessa-brand|the Director]], [[oren-vale]], [[ghost]].\n"
+                         "![[tessa-brand#^q-1]]\n\n| Person | Role |\n|---|---|\n| [[tessa-brand]] | Museum |"},
         summary="A meeting.")
     cache = Cache(wiki.settings())
     cache.refresh()
@@ -283,7 +283,7 @@ def test_read_shows_linked_page_titles(wiki):
     session = nav.start("who was at the meeting")["session"]
     content = nav.read(session, "meeting", WHY, section="Who was there")["content"]
     cache.close()
-    assert "Present: [[ruth-marsh|Ruth Marsh]], [[ruth-marsh|the Director]], [[silas-reed]], [[ghost]]." in content
-    assert "![[ruth-marsh#^q-1]]" in content
-    assert r"| [[ruth-marsh\|Ruth Marsh]] | Owner |" in content
-    assert "Present: [[ruth-marsh]], " in (wiki.root / "wiki/topics/meeting.md").read_text(encoding="utf-8")  # file untouched
+    assert "Present: [[tessa-brand|Tessa Brand]], [[tessa-brand|the Director]], [[oren-vale]], [[ghost]]." in content
+    assert "![[tessa-brand#^q-1]]" in content
+    assert r"| [[tessa-brand\|Tessa Brand]] | Museum |" in content
+    assert "Present: [[tessa-brand]], " in (wiki.root / "wiki/topics/meeting.md").read_text(encoding="utf-8")  # file untouched

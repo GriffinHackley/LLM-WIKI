@@ -14,27 +14,27 @@ def edges_of(wiki, slug):
 def test_document_sections(wiki):
     wiki.page("person", "charles-babbage")
     wiki.page("person", "ada-lovelace")
-    wiki.page("claim", "F-049")
+    wiki.page("claim", "N-049")
     wiki.page("document", "abc-doc", {
         "Entities mentioned": "- [[charles-babbage]] — Inventor who delayed the demonstration (p. 2)\n- [[ada-lovelace]]",
-        "Claims supported": "- [[F-049]] — Babbage's stated rationale → sourced",
+        "Claims supported": "- [[N-049]] — Babbage's stated rationale → sourced",
         "Summary": "Prose linking [[charles-babbage]] again. Raw file: [[abc-doc.txt]].",
     })
     wiki.raw_text("abc-doc.txt", "text")
     edges = edges_of(wiki, "abc-doc")
     assert (edges["charles-babbage"].type, edges["charles-babbage"].reason) == ("mentions", "Inventor who delayed the demonstration (p. 2)")
     assert (edges["ada-lovelace"].type, edges["ada-lovelace"].reason) == ("mentions", "Listed under Entities mentioned.")
-    assert (edges["F-049"].type, edges["F-049"].reason) == ("supports", "Babbage's stated rationale → sourced")
+    assert (edges["N-049"].type, edges["N-049"].reason) == ("supports", "Babbage's stated rationale → sourced")
     assert (edges["raw/abc-doc"].type, edges["raw/abc-doc"].resolved) == ("links-to", True)
 
 
 def test_multi_link_line_drops_subject_list(wiki):
     wiki.page("person", "charles-babbage", {
-        "Relationships": "- [[grace-hopper]], [[alan-turing]] — tutored them (doc, p. 2)"})
+        "Relationships": "- [[mary-somerville]], [[john-herschel]] — tutored them (doc, p. 2)"})
     edges = edges_of(wiki, "charles-babbage")
-    assert edges["grace-hopper"].reason == edges["alan-turing"].reason == "tutored them (doc, p. 2)"
-    assert edges["grace-hopper"].type == "associated-with"
-    assert not edges["grace-hopper"].resolved  # page not written yet
+    assert edges["mary-somerville"].reason == edges["john-herschel"].reason == "tutored them (doc, p. 2)"
+    assert edges["mary-somerville"].type == "associated-with"
+    assert not edges["mary-somerville"].resolved  # page not written yet
 
 
 def test_frontmatter_edges_and_specificity(wiki):
@@ -45,27 +45,27 @@ def test_frontmatter_edges_and_specificity(wiki):
 
 
 def test_claim_page(wiki):
-    wiki.page("claim", "F-125")
+    wiki.page("claim", "N-125")
     wiki.page("document", "minutes")
-    wiki.write("projects/f/claims.md", {"title": "Claims"})
-    wiki.write("wiki/claims/F-053.md", {"title": "F-053", "type": "claim", "rests_on": ["F-125"]},
-               "# F-053\n\n## Claim\nThe delay departed from practice.\n\n## Sources\n[[minutes|Minutes]] pp. 1–2\n\n"
-               "## Rests on\n- [[F-125]] — fact\n\n---\nBack to the ledger: [[projects/f/claims|ledger]].\n")
-    edges = edges_of(wiki, "F-053")
-    assert edges["F-125"].type == "rests-on"
+    wiki.write("notebooks/f/claims.md", {"title": "Claims"})
+    wiki.write("wiki/claims/N-053.md", {"title": "N-053", "type": "claim", "rests_on": ["N-125"]},
+               "# N-053\n\n## Claim\nThe delay departed from practice.\n\n## Sources\n[[minutes|Minutes]] pp. 1–2\n\n"
+               "## Rests on\n- [[N-125]] — fact\n\n---\nBack to the ledger: [[notebooks/f/claims|ledger]].\n")
+    edges = edges_of(wiki, "N-053")
+    assert edges["N-125"].type == "rests-on"
     assert edges["minutes"].type == "sourced-by"
     assert edges["claims"].type == "links-to"  # footer after the rule is not "rests on"
 
 
 def test_quote_embed_and_generic_links(wiki):
     wiki.page("document", "memo")
-    wiki.page("person", "ruth-marsh")
-    wiki.page("person", "silas-reed", {
-        "Documented role": "She met [[ruth-marsh]] on the 22nd. Later she resigned.\n\n![[memo#^q-no-list]]"})
-    edges = edges_of(wiki, "silas-reed")
+    wiki.page("person", "tessa-brand")
+    wiki.page("person", "oren-vale", {
+        "Documented role": "She met [[tessa-brand]] on the 22nd. Later she resigned.\n\n![[memo#^q-no-list]]"})
+    edges = edges_of(wiki, "oren-vale")
     assert (edges["memo"].type, edges["memo"].reason) == ("embeds", "Embeds block q-no-list.")
-    assert (edges["ruth-marsh"].type, edges["ruth-marsh"].reason) == (
-        "links-to", "Documented role: She met ruth-marsh on the 22nd.")
+    assert (edges["tessa-brand"].type, edges["tessa-brand"].reason) == (
+        "links-to", "Documented role: She met tessa-brand on the 22nd.")
 
 
 def test_self_links_and_heading_links_ignored(wiki):
@@ -74,12 +74,12 @@ def test_self_links_and_heading_links_ignored(wiki):
 
 
 def test_event_and_place_sections(wiki):
-    wiki.page("event", "engine-demo", {"Participants": "- [[charles-babbage]] — presided",
-                                        "Location": "[[guild-hall]]"})
-    wiki.page("place", "guild-hall", {"Events here": "- [[engine-demo]]"})
+    wiki.page("event", "engine-demo", {"Participants": "- [[charles-babbage]] — presented the engine",
+                                        "Location": "[[royal-society]]"})
+    wiki.page("place", "royal-society", {"Events here": "- [[engine-demo]]"})
     event = edges_of(wiki, "engine-demo")
-    assert (event["charles-babbage"].type, event["guild-hall"].type) == ("involves", "located-at")
-    assert edges_of(wiki, "guild-hall")["engine-demo"].type == "hosted"
+    assert (event["charles-babbage"].type, event["royal-society"].type) == ("involves", "located-at")
+    assert edges_of(wiki, "royal-society")["engine-demo"].type == "hosted"
 
 
 def test_long_reason_clipped(wiki):
@@ -90,8 +90,8 @@ def test_long_reason_clipped(wiki):
 
 def test_links_to_existing_attachments_are_not_edges(wiki):
     wiki.write("raw/scan-0001.pdf", raw="%PDF")
-    wiki.page("document", "council-memo", {"What this is": "Scan: [[scan-0001.pdf]]. See [[ghost-page]]."})
-    edges = edges_of(wiki, "council-memo")
+    wiki.page("document", "board-memo", {"What this is": "Scan: [[scan-0001.pdf]]. See [[ghost-page]]."})
+    edges = edges_of(wiki, "board-memo")
     assert "scan-0001.pdf" not in edges
     assert not edges["ghost-page"].resolved
 
@@ -129,17 +129,17 @@ def test_reason_finds_the_link_not_an_earlier_mention_of_its_name(wiki):
 
 def test_long_sentence_reason_ends_at_the_link(wiki):
     lead = "In a long and winding sentence that keeps going " * 4
-    wiki.page("topic", "t", {"Background": f"{lead}the minister [[bob]] said it plainly."})
+    wiki.page("topic", "t", {"Background": f"{lead}the engineer [[bob]] said it plainly."})
     reason = edges_of(wiki, "t")["bob"].reason
-    assert reason.startswith("Background: …") and "the minister bob" in reason and len(reason) <= 160
+    assert reason.startswith("Background: …") and "the engineer bob" in reason and len(reason) <= 160
 
 
 def test_citation_in_parentheses_is_not_the_subject(wiki):
     wiki.page("person", "charles-babbage", {
-        "Relationships": "- [[alan-turing]] — tutored him ([[minutes-doc]], p. 2)"})
+        "Relationships": "- [[john-herschel]] — tutored him ([[journal-doc]], p. 2)"})
     edges = edges_of(wiki, "charles-babbage")
-    assert edges["alan-turing"].type == "associated-with"
-    assert edges["minutes-doc"].type == "links-to"  # a citation supports the line; it is not its subject
+    assert edges["john-herschel"].type == "associated-with"
+    assert edges["journal-doc"].type == "links-to"  # a citation supports the line; it is not its subject
 
 
 def test_field_relation_borrows_the_citing_sentence(repo):

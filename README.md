@@ -158,9 +158,9 @@ With that rule, this list item
 - [[charles-babbage]] — Inventor who delayed the demonstration (p. 2)
 ```
 
-becomes `mentions -> charles-babbage` with reason "Inventor who delayed the demonstration (p. 2)". A
-link in parentheses under a typed heading, such as a citation `([[report]], p. 2)`, is a
-plain link: it supports the line rather than being its subject. Without rules, links are
+becomes `mentions -> charles-babbage` with reason "Inventor who delayed the
+demonstration (p. 2)". A link in parentheses under a typed heading, such as a citation
+`([[report]], p. 2)`, is a plain link: it supports the line rather than being its subject. Without rules, links are
 still relations (`links-to`), and frontmatter values written as `[[links]]` count as
 links, as in Obsidian. Built in: `embeds` (a `![[page#^block]]` embed), `refers-to-code`
 (a `[name](code:path)` link to a file in a code wiki's code repo) and `links-to`. When a

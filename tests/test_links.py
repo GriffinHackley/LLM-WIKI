@@ -8,7 +8,7 @@ from wiki_cli import links
     ("doc-slug|Short cite", ("doc-slug", None, "Short cite")),
     ("doc-slug\\|Cite in table", ("doc-slug", None, "Cite in table")),
     ("doc-slug#^q-no-list", ("doc-slug", "^q-no-list", None)),
-    ("projects/difference-engine/claims|F findings", ("projects/difference-engine/claims", None, "F findings")),
+    ("notebooks/difference-engine/claims|N claims", ("notebooks/difference-engine/claims", None, "N claims")),
     ("page.md#Heading|Label", ("page", "Heading", "Label")),
     ("folder\\sub\\page", ("folder/sub/page", None, None)),
 ])
@@ -20,7 +20,7 @@ def test_extract_links_tracks_sections_and_embeds():
     body = (
         "Intro [[a]].\n\n"
         "## Entities mentioned\n"
-        "- [[charles-babbage]] — Speaker\n"
+        "- [[charles-babbage]] — Inventor\n"
         "- [[doc|Cite]]; ![[doc2#^q-x]]\n"
         "\n---\n"
         "Footer [[ledger]]\n"

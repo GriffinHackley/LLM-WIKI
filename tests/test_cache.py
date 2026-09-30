@@ -16,7 +16,7 @@ def graph(wiki):
     wiki.page("person", "charles-babbage", {"Relationships": "- [[ada-lovelace]] — tutored her",
                                          "Appearances in sources": "- [[abc-doc]] — quoted (p. 2)"})
     wiki.page("person", "ada-lovelace")
-    wiki.page("document", "abc-doc", {"Entities mentioned": "- [[charles-babbage]] — Speaker\n- [[unwritten-person]]"})
+    wiki.page("document", "abc-doc", {"Entities mentioned": "- [[charles-babbage]] — Inventor\n- [[unwritten-person]]"})
     wiki.page("event", "engine-demo", {"Participants": "- [[charles-babbage]] — presided"})
     return wiki
 
@@ -32,7 +32,7 @@ def test_neighbors_both_directions(graph):
     assert pairs(results, "outgoing") == [("ada-lovelace", "associated-with"), ("abc-doc", "appears-in")]
     assert pairs(results, "incoming") == [("engine-demo", "participant-in"), ("abc-doc", "mentioned-in")]
     incoming_doc = next(r for r in results if r["direction"] == "incoming" and r["slug"] == "abc-doc")
-    assert incoming_doc["reason"] == "Speaker"
+    assert incoming_doc["reason"] == "Inventor"
 
 
 def test_unresolved_targets_marked_and_last(graph):
@@ -53,12 +53,12 @@ def test_filters_and_limit(graph):
 
 
 def test_titles_included_when_different(wiki):
-    wiki.page("document", "abc-doc", title="Ashford Courier, 2025-10-20")
+    wiki.page("document", "abc-doc", title="Harbor Gazette, 2025-10-20")
     wiki.page("person", "p", {"Appearances in sources": "- [[abc-doc]] — quoted"})
     with Cache(wiki.settings()) as cache:
         cache.refresh()
         [entry] = cache.neighbors("p")
-    assert entry["title"] == "Ashford Courier, 2025-10-20"
+    assert entry["title"] == "Harbor Gazette, 2025-10-20"
 
 
 def test_writing_a_page_resolves_links_to_it(graph):
@@ -81,14 +81,14 @@ def test_deleting_a_page_unresolves_links(graph):
 
 
 def test_duplicate_name_changes_slugs(wiki):
-    wiki.write("projects/a/claims.md", {"title": "A claims"})
+    wiki.write("notebooks/a/claims.md", {"title": "A claims"})
     wiki.page("person", "p", {"Timeline": "See [[claims]]."})
     with Cache(wiki.settings()) as cache:
         cache.refresh()
         assert "unresolved" not in cache.neighbors("p")[0]
-        wiki.write("projects/b/claims.md", {"title": "B claims"})
+        wiki.write("notebooks/b/claims.md", {"title": "B claims"})
         cache.refresh()
-        assert cache.page_exists("projects/a/claims") and not cache.page_exists("claims")
+        assert cache.page_exists("notebooks/a/claims") and not cache.page_exists("claims")
         assert cache.neighbors("p")[0]["unresolved"] is True  # [[claims]] is now ambiguous
 
 
@@ -97,7 +97,7 @@ def test_incremental_refresh(graph):
         assert cache.refresh().added == 4
         assert cache.refresh().unchanged == 4
         graph.page("person", "new")
-        demo = graph.page("event", "engine-demo", {"Participants": "- [[ada-lovelace]] — demonstrated"})
+        demo = graph.page("event", "engine-demo", {"Participants": "- [[ada-lovelace]] — demonstrated it"})
         bump(demo)
         (graph.root / "wiki" / "documents" / "abc-doc.md").rename(graph.root / "wiki" / "documents" / "abc-doc-2.md")
         stats = cache.refresh()

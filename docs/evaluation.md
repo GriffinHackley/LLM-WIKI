@@ -36,13 +36,13 @@ Format:
 
 ```yaml
 - id: s01
-  question: "What happens to a mitigation edit before it is written?"
-  answers: [tms/save-pipeline]
+  question: "What happens to a invoice edit before it is written?"
+  answers: [app/save-pipeline]
   kind: single        # single | multi | unanswerable
   split: test         # tune | test
 - id: m01
   question: "How does saving in the admin editor reach the database?"
-  answers: [tms/editor, tms/save-pipeline]
+  answers: [app/editor, app/save-pipeline]
   kind: multi
   split: tune
 - id: u01
