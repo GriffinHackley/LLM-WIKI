@@ -74,6 +74,10 @@ repo = "../my-app"                              # relative to the wiki
 origin = "https://github.com/me/my-app.git"     # catches a pointer to the wrong checkout
 ```
 
+Weekly notes are on (`[weekly]`, grouped by module): `wiki weekly` writes one per finished
+week in `weekly/`, from `templates/weekly.md`, plus a timeline; see
+[config.md](config.md#weekly-weekly-notes).
+
 `WIKI_CODE_REPO` overrides the path on a machine where the code is checked out
 elsewhere. `wiki new` prints, and never writes, what the code repo needs: a
 `.wiki-cli.toml` redirect (`wiki = "../my-app-wiki"`), an `AGENTS.md` section, and with

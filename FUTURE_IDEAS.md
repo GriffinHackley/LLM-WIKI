@@ -116,6 +116,23 @@ feed the ranking:
 Test any of these with `wiki eval` against plain similarity first: on small wikis the
 relation signal may be too sparse to help, and hand-set weights are easy to overfit.
 
+## Weekly notes in search and the graph
+
+Weekly notes (PLAN.md, Phase 10) start outside the wiki: not searched, not in the
+relations graph. Searchable notes would answer "what changed in search recently?", and
+a typed relation (`recorded-in`) would show, on each page, the weeks it was worked on.
+But a note links to every page it mentions, which would flood `wiki suggest`, similar
+pages and traversal with notes. If they come in, give the type a setting that keeps its
+pages searchable but out of `suggest`, `nav candidates` and `orphans`.
+
+## Charts in the weekly timeline
+
+The weekly timeline (PLAN.md, Phase 10) draws with block characters, which render the
+same everywhere. Mermaid charts would look better where they render (GitHub, Obsidian):
+a Gantt chart of modules by week, or a bar chart of commits and pages per week. They
+show as raw text in a terminal or plain editor, so they would sit beside the block
+characters, not replace them, perhaps behind `[weekly] mermaid = true`.
+
 ## Other items deferred during planning
 
 - **Persistent model server:** a local process that keeps embedding and reranker

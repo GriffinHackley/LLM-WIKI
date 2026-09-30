@@ -89,7 +89,8 @@ It creates:
 
 Options: `--agent claude|copilot|opencode` adds slash commands for that agent ([section 7](#7-connect-your-agent));
 `--git-hook` adds a pre-commit hook that refuses edits to `raw/` and pages that fail
-`wiki check`. Running `wiki new` again never overwrites anything; it adds what is
+`wiki check`, and, in a wiki with weekly notes, commits last week's note with the first
+commit of a new week. Running `wiki new` again never overwrites anything; it adds what is
 missing.
 
 **Ingest a source.** Put a file in `raw/` and ask your agent to ingest it, or to "ingest

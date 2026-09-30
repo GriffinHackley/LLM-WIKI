@@ -165,6 +165,19 @@ With neither, the summary is the page's first paragraph.
 |---|---|---|---|
 | `ignore` | list of globs | `[]` | Files matched by `raw` that are not sources, which `wiki pending` skips (a manifest, say). `README.md` and `README.txt` are always skipped. |
 
+## `[weekly]`: weekly notes
+
+With this table, `wiki weekly` writes a note for each finished week of work on the wiki,
+and a timeline across the weeks, from the git history (see the README). Without it, the
+command refuses and the pre-commit hook skips it. The `code` preset turns it on.
+
+| Key | Type | Default | What it does |
+|---|---|---|---|
+| `folder` | string | `"weekly"` | Where notes and `timeline.md` go, relative to the root. This folder is never scanned: notes are not pages, not searched and not in the relations graph. |
+| `template` | string | `"templates/weekly.md"` | The file a new note starts from. `{{week}}`, `{{start}}`, `{{end}}` and `{{dates}}` are filled in. The generated part goes between `<!-- wiki:weekly start -->` and `<!-- wiki:weekly end -->` (under the title if the template has no markers). Without the file, a built-in template is used. |
+| `sections` | list of strings | all | Generated sections, in order: `summary`, `activity`, `pages`, `work`, `sources`, `questions`, `health`, `code` (`code` only with `[code] repo`). |
+| `group_by` | `"type"` or `"module"` | `"type"` | What "where the work went" groups changed pages by. `module`: a module page itself, or the modules a page reaches through typed relations (up to two steps, such as a gotcha affecting a file that is part of a module). |
+
 ## `[guides]`
 
 | Key | Type | Default | What it does |

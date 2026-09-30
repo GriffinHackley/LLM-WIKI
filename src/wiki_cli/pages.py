@@ -110,9 +110,11 @@ def vault_files(settings: Settings) -> list[str]:
 
 
 def scan_vault(settings: Settings) -> tuple[list[tuple[PageFile, os.DirEntry]], list[str]]:
-    """Walk the vault once: indexed files, and every other (non-hidden) file."""
+    """Walk the vault once: indexed files, and every other (non-hidden) file. Weekly notes
+    are kept apart from the wiki: their folder is not scanned at all."""
     found: list[tuple[str, str, os.DirEntry]] = []
     others: list[str] = []
+    weekly = f"{settings.weekly.folder}/" if settings.weekly else None
     stack = [(settings.root, "")]
     while stack:
         directory, prefix = stack.pop()
@@ -124,7 +126,7 @@ def scan_vault(settings: Settings) -> tuple[list[tuple[PageFile, os.DirEntry]], 
             if entry.name.startswith("."):
                 continue
             if entry.is_dir(follow_symlinks=False):
-                if entry.name not in SKIPPED_DIRS:
+                if entry.name not in SKIPPED_DIRS and f"{prefix}{entry.name}/" != weekly:
                     stack.append((Path(entry.path), f"{prefix}{entry.name}/"))
                 continue
             rel = prefix + entry.name

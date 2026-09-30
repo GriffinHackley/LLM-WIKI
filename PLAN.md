@@ -473,6 +473,80 @@ Result (done, except the OpenCode run):
   checks name every gap; the h11 trial and a source page from the original wiki pass.
 - **Pending:** a third OpenCode run, and a check of the skills in Copilot.
 
+## Phase 10 (done): Weekly notes
+
+A visual record of what work was done on the wiki, and when: one note per week, built
+from git without an agent, plus a timeline across all weeks. Everything a note shows is
+already in the wiki's git history, so a note can be made at any time after its week ends
+and always comes out the same; nothing has to run during the week.
+
+- **`wiki weekly`** writes the note for every finished week that has none, from the
+  wiki's first commit on, so the chain has no gaps (a week with no commits gets a short
+  "no changes" note). `--week 2026-W40` makes one week's note; `--week current` prints
+  the week so far without writing it. This is an exception to "the tool never writes
+  pages": it writes only notes, and only their generated block.
+- **Separate from the wiki.** Notes live in `weekly/` at the wiki's root, outside
+  `pages`, so they are not searched, not in the relations graph, and not checked. Making
+  them searchable is in FUTURE_IDEAS.md.
+- **Weeks** are ISO weeks, Monday to Sunday. A commit belongs to the week of its author
+  date, in the author's own time zone. Commits that change only `weekly/` are not
+  counted.
+- **Template** `templates/weekly.md`, in the `code` preset first:
+  - frontmatter: `week: 2026-W40`, `start: 2026-09-28`, `end: 2026-10-04`;
+  - the dates covered as the title: `# 28 Sep - 4 Oct 2026` (`# 29 Dec 2025 - 4 Jan 2026`
+    across a new year);
+  - links to the previous and next week's notes, `[[2026-W39]]` and `[[2026-W41]]`
+    (the next one resolves once that week is written);
+  - the generated block between `<!-- wiki:weekly start -->` and
+    `<!-- wiki:weekly end -->`, the only part `wiki weekly` ever rewrites;
+  - a `## Highlights` section below it, for a person or agent to fill in.
+- **The generated block:**
+  - **Summary:** commits, pages added, updated, deleted and renamed.
+  - **Activity:** commits per day, Monday to Sunday, as a bar of block characters.
+  - **Added:** each new page with its type and summary; then updated, deleted and
+    renamed pages, grouped by type.
+  - **Where the work went:** changed pages rolled up to their module (through `part-of`
+    links and `covers:`), with a bar per module.
+  - **Sources:** files added to `raw/`, and how many `wiki pending` still lists.
+  - **Open questions** added and resolved (from the changes to `open-questions.md`).
+  - **Health** at the end of the week: check errors and warnings, unwritten links and
+    orphans, each with the change from the week before.
+  - **Code** (code wikis): code commits and the areas they touched, pages whose
+    `verified:` moved this week, and the areas that changed with no page updated
+    (`wiki stale` as of the week's end).
+  - `[weekly] sections` in `.wiki-cli.toml` turns sections off, so a research wiki can
+    use notes without the code parts.
+- **Timeline** `weekly/timeline.md`, rewritten on every run: one row per week, newest
+  first, linking its note, with commits, pages added and updated, and a bar; then a
+  heatmap of weeks against the busiest modules (shaded cells). Block characters render
+  the same in GitHub, Obsidian, a terminal and plain text.
+- **Triggers.** `wiki weekly` by hand; the pre-commit hook (`wiki new --git-hook`)
+  runs it on the first commit of a new week and adds the new notes to that commit; an
+  optional scheduled GitHub Action for a wiki on GitHub that wants notes on time even
+  in a week with no commits.
+
+Done when: on a wiki with several weeks of history, `wiki weekly` writes a note per week
+with the right dates and working previous and next links, running it again changes
+nothing, text under `## Highlights` survives a rerun, the timeline shows every week, and
+the hook creates last week's note on the first commit of a new week.
+
+Result:
+- `wiki weekly` (`weekly.py`) reads the history in one `git log`, then, for each week to
+  write, extracts the wiki at the week's last commit (`git archive`) and indexes it in a
+  temporary folder without embeddings: types, summaries, modules, health and pending
+  sources come from that, as they stood then. Four weeks of a small code wiki take 0.5 s.
+- Notes are opt-in: `[weekly]` turns them on (`folder`, `template`, `sections`,
+  `group_by`), and its folder is then never scanned. The `code` preset turns them on,
+  grouped by module; a page rolls up to the modules it reaches through typed relations,
+  up to two steps (a gotcha that affects a file that is part of a module).
+- Health changes are measured against the last note that recorded health, so a week with
+  no commits does not reset them.
+- Tried on a scratch code wiki with backdated commits over four weeks (one empty): every
+  note has its dates, title and links; the renamed module, the new source and the
+  added and resolved open questions show; `--week` rewrites only the block, keeping a
+  highlight; `--week current` writes nothing; and with the hook installed, a commit in a
+  new week carried the missing note for the week before. 291 tests pass.
+
 ## Open decisions
 
 - None yet.
