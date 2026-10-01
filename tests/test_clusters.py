@@ -90,8 +90,9 @@ def test_small_wikis_are_skipped(tmp_path):
 def test_cli(root, capsys):
     assert main(["clusters", "--root", str(root)]) == 0
     out = capsys.readouterr().out
-    assert out.startswith("1 clusters of 4+ pages with no hub page (module) most of them link to; 1 covered")
-    assert "most linked: pr-7 (pr), linked with 8 of its pages" in out and "shared terms: invoice" in out
+    assert out.startswith("Clusters of 4+ pages no hub page covers (1)\n"
+                          "Hub types: module. 1 more cluster is covered (--all lists them).\n")
+    assert "most linked  pr-7 (pr), linked with 8 of them" in out and "terms        invoice" in out
     assert main(["clusters", "--root", str(root), "--all", "--format", "json"]) == 0
     assert len(json.loads(capsys.readouterr().out)["clusters"]) == 2
 

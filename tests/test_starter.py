@@ -108,6 +108,27 @@ class TestNew:
         assert main(["new", str(root)]) == 0
         assert "existing wiki" not in capsys.readouterr().out  # adopted once; now an established wiki
 
+    def test_copilot_follows_the_wikis_own_instructions(self, tmp_path):
+        root = tmp_path / "vault"
+        write(root, ".wiki-cli.toml", "")
+        write(root, "CLAUDE.md", "# Our rules\n")
+        scaffold(root, agent="copilot")
+        assert "`CLAUDE.md`" in (root / ".github/copilot-instructions.md").read_text(encoding="utf-8")
+
+    def test_adoption_output_reads_as_sections(self, tmp_path, capsys):
+        root = tmp_path / "vault"
+        write(root, "CLAUDE.md", "# Our rules\n")
+        for name in ("ada", "grace", "alan"):
+            write(root, f"notes/{name}.md", f"# {name}\n")
+        capsys.readouterr()
+        assert main(["new", str(root), "--agent", "copilot"]) == 0
+        out = capsys.readouterr().out
+        assert out.splitlines()[1] == "Added the research workflows. Your pages are unchanged."
+        assert "\nCreated\n  .wiki-cli.toml" in out and "drafted from your pages: review it" in out
+        assert "workflow skills: wiki-ingest, wiki-lint, wiki-query" in out
+        assert "\nAdd to CLAUDE.md:\n    ## LLM wiki\n" in out
+        assert "\nNext\n  1. Review .wiki-cli.toml" in out and "wiki index refresh" in out
+
     def test_a_folder_with_only_a_readme_gets_the_preset(self, tmp_path):
         root = tmp_path / "w"
         write(root, "README.md", "# New wiki\n")
@@ -291,7 +312,7 @@ class TestList:
         capsys.readouterr()
         assert main(["list", "--root", str(root)]) == 0
         text = capsys.readouterr().out
-        assert "## person\n- ada: Ada Lovelace — A mathematician." in text
+        assert "person (1)\n  ada  Ada Lovelace — A mathematician.\n" in text
 
 
 def test_ingest_guide_names_the_wikis_types(new_wiki, capsys):

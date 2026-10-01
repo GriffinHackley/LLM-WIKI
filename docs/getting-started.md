@@ -16,9 +16,9 @@ inside the wiki, so trying it is safe.
 **The short version:**
 
 ```bash
-uv tool install git+https://github.com/GriffinHackley/LLM-WIKI   # once per machine
-wiki models download                                               # once per machine, about 0.2 GB
-wiki new my-wiki --agent claude                                    # --agent is optional
+uv tool install llm-wiki-cli        # once per machine; the command is `wiki`
+wiki models download                # once per machine, about 0.2 GB
+wiki new my-wiki --agent claude     # --agent is optional
 cd my-wiki
 # put a source in raw/, then ask your agent: "ingest raw/<file>"
 ```
@@ -27,7 +27,7 @@ cd my-wiki
 
 - [uv](https://docs.astral.sh/uv/getting-started/installation/). It installs Python 3.13
   for the tool if you don't have it.
-- Git, and access to the LLM-WIKI repository (until the package is on PyPI).
+- Git, for the wiki's history (the workflows commit after each unit of work).
 - An agent that can run shell commands: Claude Code, Codex, Cursor, Copilot, OpenCode or
   similar. It reads the wiki's `AGENTS.md`; nothing depends on one platform.
 - About 0.2 GB of disk for the two models, plus a cache in each wiki of roughly 40 KB per
@@ -40,15 +40,16 @@ on Windows, macOS and Linux.
 ## 2. Install the tool (once per machine)
 
 ```bash
-uv tool install git+https://github.com/GriffinHackley/LLM-WIKI
+uv tool install llm-wiki-cli
 wiki --version
 ```
 
-Once the package is on PyPI, `uv tool install llm-wiki-cli` does the same. `uv tool
-install` puts `wiki` on your PATH; if the shell can't find it, run `uv tool update-shell`
-and open a new terminal. To update later, run `uv tool upgrade llm-wiki-cli`. If you
-installed an earlier version named `wiki-cli`, remove it first:
-`uv tool uninstall wiki-cli`.
+The package is `llm-wiki-cli`; the command it installs is `wiki`. `uv tool install` puts
+`wiki` on your PATH; if the shell can't find it, run `uv tool update-shell` and open a new
+terminal. To update later, run `uv tool upgrade llm-wiki-cli`. For the latest code before
+a release, install from git instead:
+`uv tool install git+https://github.com/GriffinHackley/LLM-WIKI`. If you installed an
+earlier version named `wiki-cli`, remove it first: `uv tool uninstall wiki-cli`.
 
 To work on the tool itself, clone the repository and run `uv tool install --editable .`
 in it: the command then follows your checkout.
@@ -71,9 +72,21 @@ wiki new my-wiki
 ```
 
 ```
-research wiki in ...\my-wiki
-created: AGENTS.md, .gitignore, .wiki-cli.toml, raw/.gitkeep, templates/analysis.md, ...
-initialized a git repository
+New research wiki: ...\my-wiki
+Started a git repository.
+
+Created
+  AGENTS.md               how agents work on the wiki
+  .gitignore              keeps the cache out of git
+  .wiki-cli.toml          settings: page types, relations, search
+  raw/.gitkeep            sources go here
+  templates/              page templates: analysis, concept, event, organization, person, place,
+                          source
+  wiki/open-questions.md  contradictions and gaps to chase
+
+Next
+  1. Ask your agent  to ingest a source you put in raw/, or to answer a question from the wiki;
+                     'wiki guide' lists the workflows
 ```
 
 It creates:
@@ -160,14 +173,28 @@ wiki check --all              # what the checks find in your pages as they are
 new wiki over it:
 
 ```
-existing wiki in ...\my-notes (6 pages): added the research workflows, and left your pages as they are
-created: .wiki-cli.toml, .gitignore, .claude/settings.json, .claude/skills/wiki-ingest/SKILL.md, ...
-not added: the preset's own pages and templates (8 files); your wiki keeps its own
-note: drafted .wiki-cli.toml from a survey of your pages, as 'wiki init --write' does: review it ...
+Existing wiki: ...\my-notes (6 pages)
+Added the research workflows. Your pages are unchanged.
 
-add to CLAUDE.md:
-## LLM wiki
-...
+Created
+  .wiki-cli.toml          drafted from your pages: review it
+  .gitignore              keeps the cache out of git
+  .claude/settings.json   lets Claude Code run wiki; blocks edits in raw/
+  .claude/skills/         workflow skills: wiki-ingest, wiki-lint, wiki-query
+
+Not added: the preset's 8 starter pages and templates (your wiki keeps its own).
+
+Add to CLAUDE.md:
+    ## LLM wiki
+    ...
+
+Next
+  1. Review .wiki-cli.toml  which files are pages, summaries, relation rules
+  2. Add the lines above    to the files named
+  3. wiki index refresh     index and embed the pages, about 2 minutes per 500 on CPU
+  4. wiki check --all       see what the checks find in the pages as they are
+  5. Ask your agent         to ingest a source you put in raw/, or to answer a question from the
+                            wiki; 'wiki guide' lists the workflows
 ```
 
 - **The config** is drafted from a survey of your pages, as [`wiki init`](#draft-a-config-with-wiki-init)
@@ -329,8 +356,8 @@ wiki index refresh
 ```
 
 ```
-embedding 7/7 files
-added: 7, changed: 0, touched: 0, removed: 0, moved: 0, unchanged: 0, embedded: 7
+Embedding 7/7 files
+Index updated: 7 added, 7 embedded  (0 unchanged)
 ```
 
 The first run embeds every page: about 2 minutes per 500 pages on a laptop CPU (long raw
@@ -361,10 +388,12 @@ wiki neighbors ada-lovelace
 ```
 
 ```
--> works-with       charles-babbage  co-lead; they split hardware and software
--> works-with       grace-hopper  compiler work for the new instruction set
--> links-to         scheduler  Role: Wrote the scheduler design doc and reviews every change to the instruction set.
-<- linked-from      scheduler  Design: Written by ada-lovelace.
+Relations of ada-lovelace (4)  -> ada-lovelace links to it, <- it links to ada-lovelace
+  -> works-with   charles-babbage  co-lead; they split hardware and software
+  -> works-with   grace-hopper     compiler work for the new instruction set
+  -> links-to     scheduler        Role: Wrote the scheduler design doc and reviews every change
+                                   to the instruction set.
+  <- linked-from  scheduler        Design: Written by ada-lovelace.
 ```
 
 A navigation session, the way an agent uses it: start from a question, read the section
@@ -388,7 +417,9 @@ wiki suggest <slug>  # pages this one names but doesn't link, or resembles
 ```
 
 `wiki check` exits with 1 when it finds errors, so it works in a pre-commit hook or CI.
-Every command accepts `--format json` for scripts and agents.
+Every command accepts `--format json` for scripts and agents. Text output wraps to the
+terminal and uses a little color there; piped to another program or a file, it is plain
+and unwrapped (`NO_COLOR` turns color off everywhere).
 
 ## 7. Connect your agent
 

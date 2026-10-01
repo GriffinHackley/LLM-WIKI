@@ -44,14 +44,6 @@ platform and never become the only way to do something.
   becomes a chore.
 - **An MCP server** exposing the commands as tools, for agents without a shell.
 
-## License
-
-TODO before publishing to PyPI or anyone else installs it. Dependencies are all
-permissive (fastembed and tokenizers Apache-2.0, sqlite-vec MIT/Apache, onnxruntime MIT,
-PyYAML MIT, numpy BSD); the models are downloaded, not shipped. Leaning MIT for the tool,
-with 0BSD or CC0 for `src/wiki_cli/starter/` so files `wiki new` copies into a wiki carry
-no notice requirement. Needs the copyright holder's name.
-
 ## Editable files in raw/
 
 The pre-commit hook (`wiki new --git-hook`) refuses any edit, rename or deletion under

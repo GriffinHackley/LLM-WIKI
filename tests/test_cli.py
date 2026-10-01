@@ -28,7 +28,9 @@ def test_neighbors(wiki, run):
     assert code == 0 and result == {"page": "ada-lovelace", "neighbors": [
         {"slug": "charles-babbage", "direction": "incoming", "type": "associated-with", "reason": "tutored her"}]}
     code, out, _ = run("neighbors", "charles-babbage")
-    assert out.strip() == "-> associated-with  ada-lovelace  tutored her"
+    heading, row = out.strip().splitlines()
+    assert heading.startswith("Relations of charles-babbage (1)")
+    assert row == "  -> associated-with  ada-lovelace  tutored her"
 
 
 def test_neighbors_unknown_page(wiki, run):

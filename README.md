@@ -15,11 +15,11 @@ that can run shell commands: Claude Code, Codex, Cursor, Copilot, OpenCode and o
   where each page leads through typed relations with reasons, and read only the sections
   needed, within a page limit.
 
-**New here? Start with [docs/getting-started.md](docs/getting-started.md).**
-[docs/workflows.md](docs/workflows.md) covers the workflows and how to customise them,
-[docs/presets.md](docs/presets.md) the presets, [docs/config.md](docs/config.md) every config
-setting. [PLAN.md](PLAN.md) is the current plan,
-[FUTURE_IDEAS.md](FUTURE_IDEAS.md) the deferred ideas.
+**New here? Start with [docs/getting-started.md](https://github.com/GriffinHackley/LLM-WIKI/blob/main/docs/getting-started.md).**
+[docs/workflows.md](https://github.com/GriffinHackley/LLM-WIKI/blob/main/docs/workflows.md) covers the workflows and how to customise them,
+[docs/presets.md](https://github.com/GriffinHackley/LLM-WIKI/blob/main/docs/presets.md) the presets, [docs/config.md](https://github.com/GriffinHackley/LLM-WIKI/blob/main/docs/config.md) every config
+setting. [PLAN.md](https://github.com/GriffinHackley/LLM-WIKI/blob/main/PLAN.md) is the current plan,
+[FUTURE_IDEAS.md](https://github.com/GriffinHackley/LLM-WIKI/blob/main/FUTURE_IDEAS.md) the deferred ideas.
 
 The `wiki` command never edits pages: agents do. What it builds for search lives in a
 disposable SQLite cache in `<root>/.cache/`.
@@ -30,12 +30,12 @@ Requires [uv](https://docs.astral.sh/uv/getting-started/installation/), which in
 Python 3.13 for the tool if needed.
 
 ```bash
-uv tool install git+https://github.com/GriffinHackley/LLM-WIKI   # once per machine
-wiki models download                                               # once: about 0.2 GB
+uv tool install llm-wiki-cli    # once per machine; the command is `wiki`
+wiki models download            # once: about 0.2 GB
 ```
 
-Once the package is on PyPI this becomes `uv tool install llm-wiki-cli`. For
-development, from a clone:
+`uv tool upgrade llm-wiki-cli` updates it. The latest code, before a release:
+`uv tool install git+https://github.com/GriffinHackley/LLM-WIKI`. For development, from a clone:
 
 ```bash
 uv tool install --editable .        # 'wiki' follows the checkout
@@ -72,7 +72,7 @@ wiki index refresh                  # index and embed (about 2 minutes per 500 p
 wiki search "how do I configure the exporter?"
 ```
 
-Your pages stay as they are; [getting started](docs/getting-started.md#5-add-to-an-existing-wiki)
+Your pages stay as they are; [getting started](https://github.com/GriffinHackley/LLM-WIKI/blob/main/docs/getting-started.md#5-add-to-an-existing-wiki)
 covers reviewing the drafted config and adopting a preset's page types.
 
 It also works with no configuration at all: every `*.md` file under the folder is a
@@ -85,7 +85,7 @@ Commands find the root by walking up to the nearest `.wiki-cli.toml`, else use t
 enclosing git repository, else the current folder, and say which folder they chose when
 no config did. They refuse to treat your home folder or a drive root as a wiki. `--root`
 or `WIKI_ROOT` overrides all of this, and `WIKI_CONFIG` points at a different config
-file. Every setting is optional; [docs/config.md](docs/config.md) is the full reference,
+file. Every setting is optional; [docs/config.md](https://github.com/GriffinHackley/LLM-WIKI/blob/main/docs/config.md) is the full reference,
 with each key's type and default:
 
 ```toml
@@ -184,7 +184,7 @@ re-embedding.
 | `wiki new [folder] [--preset research\|code\|<folder>] [--code <repo>] [--agent claude\|copilot\|opencode ...] [--git-hook]` | Create a wiki from a preset; in a folder that already has pages, adopt it (draft its config, add the agent files, leave the pages alone); never overwrites |
 | `wiki guide [<name>]` | Print a workflow's steps for an agent; without a name, list them |
 | `wiki search "<question>" [--limit 3] [--include-raw] [--keyword-only]` | Best pages for a question: keyword + vector search, fused and reranked |
-| `wiki nav start \| read \| candidates \| search \| end \| log` | Guided traversal sessions (see [docs/navigation.md](docs/navigation.md)) |
+| `wiki nav start \| read \| candidates \| search \| end \| log` | Guided traversal sessions (see [docs/navigation.md](https://github.com/GriffinHackley/LLM-WIKI/blob/main/docs/navigation.md)) |
 | `wiki list [--type T]` | Every page with its type and summary |
 | `wiki pending` | Sources in `raw/` no page links to yet, flagging copies of sources already ingested |
 | `wiki neighbors <slug> [--incoming] [--outgoing] [--relation T] [--limit N]` | A page's typed relations with reasons, no page bodies |
@@ -199,7 +199,7 @@ re-embedding.
 | `wiki index refresh \| rebuild [--no-embed] \| status` | Manage the cache and embeddings |
 | `wiki init [--write] [--preset <name>]` | Survey an existing folder and draft a `.wiki-cli.toml` (never overwrites); `--preset` adds the preset's page types, relation rules and weekly notes, or prints just those for a wiki that has a config |
 | `wiki models list \| download` | Supported models; `download` is the only command that downloads |
-| `wiki eval sample \| run` | Search-quality evaluation (see [docs/evaluation.md](docs/evaluation.md)) |
+| `wiki eval sample \| run` | Search-quality evaluation (see [docs/evaluation.md](https://github.com/GriffinHackley/LLM-WIKI/blob/main/docs/evaluation.md)) |
 | `wiki vocab` | Relation types, their inverses, and where each comes from |
 
 All commands accept `--format json` (compact, deterministic); commands on a wiki accept
@@ -211,7 +211,7 @@ errors.
 `--embed-model` / `WIKI_EMBED_MODEL` and `--reranker` / `WIKI_RERANKER` override
 `.wiki-cli.toml`. Models load from `~/.cache/wiki-cli/models/` only; run
 `wiki models download` once. Without a downloaded model, search falls back to
-keyword-only and says so. [docs/model-selection.md](docs/model-selection.md) explains the
+keyword-only and says so. [docs/model-selection.md](https://github.com/GriffinHackley/LLM-WIKI/blob/main/docs/model-selection.md) explains the
 defaults.
 
 ## Tests and benchmark
@@ -223,3 +223,7 @@ defaults.
 
 The tests use fake models and download nothing. GitHub Actions runs them on Windows,
 macOS and Linux.
+
+## License
+
+MIT; see [LICENSE](https://github.com/GriffinHackley/LLM-WIKI/blob/main/LICENSE).

@@ -284,7 +284,7 @@ Today install needs a clone plus `uv tool install --editable`.
    to be public, or the user to have access.
 2. **Publish to PyPI.** `wiki-cli` and `wikicli` are taken; `llm-wiki-cli` is free. The
    package name changes, the command stays `wiki`. Build and publish from a GitHub
-   Actions workflow on tag. Needs a license first (FUTURE_IDEAS.md).
+   Actions workflow on tag. Needs a license first (now MIT, in LICENSE).
 3. **Starter files and guides as package data**, checked by installing the built wheel
    in a clean environment and running `wiki new` and `wiki guide`.
 4. **Model download.** It stays explicit, but `wiki new` and the first `wiki search`
@@ -299,10 +299,24 @@ Windows carries every guide, preset and the hook, all with LF line endings
 git+<repo URL>` installs a working `wiki` without a clone (tried from a local git URL into
 an isolated tool folder). A missing model now names the command and the size. Added
 GitHub Actions: tests on Windows, macOS and Linux on every push, and publishing to PyPI
-on a `v*` tag. **Pending, for the owner:** push the repo (and make it public, or share
-access, for git installs); add a license (FUTURE_IDEAS.md); set up trusted publishing
-for `llm-wiki-cli` on PyPI; tag `v0.2.0`. Existing installs of `wiki-cli` need
-`uv tool uninstall wiki-cli` before installing `llm-wiki-cli`, as both provide `wiki`.
+on a `v*` tag. Existing installs of `wiki-cli` need `uv tool uninstall wiki-cli` before
+installing `llm-wiki-cli`, as both provide `wiki`.
+
+Release preparation (2026-09-30): MIT license (`LICENSE`, `license = "MIT"`); package
+metadata (author, keywords, classifiers, project URLs); one version, read from
+`wiki_cli.__version__`; README links absolute, since PyPI shows the README away from the
+repo; install docs lead with `uv tool install llm-wiki-cli`, git as the alternative;
+`CHANGELOG.md`. The publish workflow now runs the tests on all three OSes, checks the tag
+matches the version, runs `twine check --strict`, and installs the built wheel and runs
+`wiki new`, `wiki guide` and `wiki check` before publishing. Rehearsed locally: the wheel
+and sdist pass `twine check --strict`, and the wheel, installed into an empty tool
+folder, runs `wiki new --agent claude`, `wiki guide`, `wiki check` and `wiki clusters`.
+
+**Pending, for the owner:** make the repo public (the README links and the git install
+need it); on PyPI, add a pending trusted publisher for `llm-wiki-cli` (owner
+`GriffinHackley`, repo `LLM-WIKI`, workflow `publish.yml`, environment `pypi`); create
+the `pypi` environment in the GitHub repo's settings; then `git tag v0.2.0` and push the
+tag.
 
 ## Phase 6 (done): Docs
 
