@@ -391,12 +391,16 @@ def _copilot(target: Path, settings, result: dict, *, with_claude: bool) -> None
     written twice."""
     rel = ".github/copilot-instructions.md"
     path = target / rel
+    # The instructions Copilot is sent to: AGENTS.md, else the wiki's own (a CLAUDE.md).
+    instructions = next((name for name in ("AGENTS.md", "CLAUDE.md", "GEMINI.md") if (target / name).is_file()),
+                        None)
+    text = copilot_instructions(instructions or "AGENTS.md")
     if path.exists():
         result["kept"].append(rel)
-        if "AGENTS.md" not in path.read_text(encoding="utf-8", errors="replace"):
-            result["add"].append({"file": rel, "text": COPILOT_INSTRUCTIONS})
-    elif (target / "AGENTS.md").exists():
-        _write(target, rel, COPILOT_INSTRUCTIONS, result)
+        if (instructions or "AGENTS.md") not in path.read_text(encoding="utf-8", errors="replace"):
+            result["add"].append({"file": rel, "text": text})
+    elif instructions is not None:
+        _write(target, rel, text, result)
     if with_claude:
         result["notes"].append("Copilot uses the workflow skills in .claude/skills/, so none were written "
                                "to .github/skills/")
@@ -426,9 +430,12 @@ def _write(target: Path, rel: str, text: str, result: dict) -> None:
     result["created"].append(rel)
 
 
-COPILOT_INSTRUCTIONS = ("This repository is an LLM-maintained wiki. Read and follow `AGENTS.md` at the "
-                        "repository root:\nit says how the wiki is laid out and which workflow to run for "
-                        "each task.\n")
+def copilot_instructions(instructions: str = "AGENTS.md") -> str:
+    return (f"This repository is an LLM-maintained wiki. Read and follow `{instructions}` at the "
+            "repository root:\nit says how the wiki is laid out and which workflow to run for each task.\n")
+
+
+COPILOT_INSTRUCTIONS = copilot_instructions()
 
 # What each workflow acts on, for the text after the slash command.
 _SUBJECTS = {"ingest": "The source to ingest", "query": "The question to answer",

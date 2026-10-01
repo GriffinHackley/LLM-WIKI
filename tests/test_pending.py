@@ -127,4 +127,4 @@ def test_text_output(wiki, capsys):
     write(wiki, "raw/report.txt", "text")
     assert main(["pending", "--root", str(wiki)]) == 0
     out = capsys.readouterr().out
-    assert "raw/report: raw/report.pdf, raw/report.txt" in out and "1 pending, 0 ingested (in raw/)" in out
+    assert out == "Sources not ingested yet (1)\n  raw/report.pdf, raw/report.txt\n1 pending, 0 ingested, in raw/\n"

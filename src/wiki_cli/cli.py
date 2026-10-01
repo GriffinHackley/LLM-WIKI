@@ -8,16 +8,19 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shutil
 import sys
+import textwrap
 from pathlib import Path
 from typing import Sequence
 
-from wiki_cli import __version__, audit, clusters, codebase, evaluate, guide, init, scaffold, sources, weekly
+from wiki_cli import __version__, audit, clusters, codebase, evaluate, guide, init, output, scaffold, sources, weekly
 from wiki_cli.cache import Cache, CacheUnavailable
 from wiki_cli.config import CONFIG_FILENAME, ConfigError, Settings, load_settings
 from wiki_cli.model import ERROR, WARNING, Issue
 from wiki_cli.models import (
     EMBEDDING_MODELS,
+    is_downloaded,
     NO_RERANKER,
     RERANKERS,
     ModelUnavailable,
@@ -45,8 +48,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             stream.reconfigure(encoding="utf-8")
     argv = list(sys.argv[1:] if argv is None else argv)
     if argv and argv[0] in WORKFLOWS:
-        print(f"wiki: there is no '{argv[0]}' command. `wiki guide {argv[0]}` prints the steps of that "
-              "workflow for you, the agent, to carry out yourself with your own tools.", file=sys.stderr)
+        _print_error(f"there is no '{argv[0]}' command. `wiki guide {argv[0]}` prints the steps of that "
+                     "workflow for you, the agent, to carry out yourself with your own tools.")
         return EXIT_ERROR
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -61,12 +64,21 @@ def main(argv: Sequence[str] | None = None) -> int:
         settings = load_settings(args.root, args.cache,
                                  getattr(args, "embed_model", None), getattr(args, "reranker", None))
         if settings.root_note:
-            print(f"note: {settings.root_note}", file=sys.stderr)
+            output.note(settings.root_note)
         return args.handler(args, settings)
     except (ConfigError, PageNotFound, CacheUnavailable, UsageError, ModelUnavailable, evaluate.EvalError,
             guide.GuideError, scaffold.ScaffoldError, weekly.WeeklyError) as exc:
-        print(f"wiki: {exc}", file=sys.stderr)
+        _print_error(str(exc))
         return EXIT_ERROR
+
+
+def _print_error(message: str) -> None:
+    prefix = output.style("wiki:", "red", "bold", stream=sys.stderr)
+    print(output.wrap(message, prefix + " ", "  ", stream=sys.stderr), file=sys.stderr)
+
+
+COMMAND_ORDER = ("new", "init", "guide", "search", "nav", "list", "neighbors", "suggest", "check", "unwritten",
+                 "orphans", "clusters", "pending", "stale", "weekly", "index", "models", "vocab", "eval")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -80,7 +92,12 @@ def build_parser() -> argparse.ArgumentParser:
     models.add_argument("--embed-model", help="embedding model (default: $WIKI_EMBED_MODEL or .wiki-cli.toml)")
     models.add_argument("--reranker", help="reranker model or 'none' (default: $WIKI_RERANKER or .wiki-cli.toml)")
 
-    parser = argparse.ArgumentParser(prog="wiki", description="Search and navigation tools for an Obsidian LLM wiki.")
+    parser = argparse.ArgumentParser(
+        prog="wiki",
+        description="Start and run an LLM-maintained wiki with any agent: presets, workflow guides, search, typed "
+                    "relations and guided navigation.",
+        epilog="Run 'wiki <command> --help' for a command's options. New here? 'wiki new my-wiki', or "
+               "'wiki new .' in a folder of notes you already keep.")
     parser.add_argument("--version", action="version", version=f"wiki {__version__}")
     commands = parser.add_subparsers(title="commands", metavar="<command>")
 
@@ -242,6 +259,8 @@ def build_parser() -> argparse.ArgumentParser:
                                               f"({' or '.join(scaffold.presets())}, or a preset folder); with a "
                                               f"{CONFIG_FILENAME} already there, print only those to merge in")
     init_parser.set_defaults(handler=cmd_init)
+    # Listed by task in --help: setting up, finding, checking, then the cache and models.
+    commands._choices_actions.sort(key=lambda action: COMMAND_ORDER.index(action.dest))
     return parser
 
 
@@ -274,15 +293,21 @@ def cmd_search(args: argparse.Namespace, settings: Settings) -> int:
         _print_json(payload)
         return EXIT_OK
     if not result.hits:
-        print("no results")
+        print("No results.")
     for number, hit in enumerate(result.hits, start=1):
-        section = f"  § {hit.section}" if hit.section else ""
-        print(f"{number}. {hit.slug}{section}  ({hit.score:.3f})")
-        if hit.summary:
-            print(f"   {hit.summary}")
+        _print_hit(number, hit.slug, hit.section, hit.summary, score=hit.score)
     for note in notes:
-        print(f"note: {note}", file=sys.stderr)
+        output.note(note)
     return EXIT_OK
+
+
+def _print_hit(number: int, slug: str, section: str | None, summary: str | None, *,
+               score: float | None = None) -> None:
+    where = f"  {output.dim('§ ' + section)}" if section else ""
+    points = f"  {output.dim(f'({score:.3f})')}" if score is not None else ""
+    print(f"{number}. {output.bold(slug)}{where}{points}")
+    if summary:
+        print(output.wrap(summary, "   "))
 
 
 # -- nav ---------------------------------------------------------------------
@@ -298,7 +323,7 @@ def _navigate(args: argparse.Namespace, settings: Settings, step) -> int:
             if args.format == "json":
                 _print_json({"error": exc.code, "message": str(exc)})
             else:
-                print(f"wiki: {exc}", file=sys.stderr)
+                _print_error(str(exc))
             return EXIT_INVALID
     if args.format == "json":
         _print_json(result)
@@ -336,42 +361,66 @@ def cmd_nav_log(args, settings):
 
 
 def _print_nav_text(result: dict) -> None:
-    if "content" in result:
-        print(f"== {result['slug']} § {result['section']}  ({result['pages_left']} pages left)")
-        print(result["content"])
-        print(f"-- sections: {'; '.join(result['sections'])}")
+    session = result.get("session", "")
+    if "content" in result:  # nav read
+        left = output.plural(result["pages_left"], "page")
+        print(f"{output.bold(result['slug'])}  {output.dim('§ ' + result['section'])}  {output.dim(f'({left} left)')}")
+        print()
+        print(result["content"].rstrip())
+        print()
+        print(output.wrap(" · ".join(result["sections"]), output.dim("Sections: ")))
         return
-    if "results" in result:
-        print(f"session {result['session']}")
+    if "results" in result:  # nav start, nav search
+        limit = f": up to {output.plural(result['max_pages'], 'page')}" if result.get("max_pages") else ""
+        print(f"{output.heading('Session ' + session)}{limit}")
         for number, hit in enumerate(result["results"], start=1):
-            section = f"  § {hit['section']}" if hit.get("section") else ""
-            print(f"{number}. {hit['slug']}{section}")
-            if hit.get("summary"):
-                print(f"   {hit['summary']}")
+            _print_hit(number, hit["slug"], hit.get("section"), hit.get("summary"))
+        if result["results"]:
+            print(output.dim(f"Next: wiki nav read {session} <slug> --why \"<the open question>\""))
         return
-    if "linked" in result:
-        for group in ("linked", "similar", "earlier"):
-            for item in result[group]:
-                detail = item.get("relation") or group
-                reason = f" — {item['reason']}" if item.get("reason") else ""
-                print(f"[{detail}] {item['slug']}{reason}")
+    if "linked" in result:  # nav candidates
+        groups = (("linked", "Linked from " + result.get("from", "this page")), ("similar", "Similar"),
+                  ("earlier", "Seen earlier"))
+        shown = False
+        for key, title in groups:
+            items = result[key]
+            if not items:
+                continue
+            print(("\n" if shown else "") + output.heading(title, len(items)))
+            shown = True
+            for item in items:
+                tags = output.dim(" · ".join(tag for tag in (item.get("relation"), item.get("type")) if tag))
+                print(f"  {output.bold(item['slug'])}" + (f"  {tags}" if tags else ""))
+                if item.get("reason"):
+                    print(output.wrap(item["reason"], "    "))
                 if item.get("summary"):
-                    print(f"   {item['summary']}")
+                    print(output.dim(output.wrap(item["summary"], "    ")))
         if result.get("more_linked"):
-            print(f"(+{result['more_linked']} more linked pages)")
+            print(output.dim(f"  and {result['more_linked']} more linked pages (raise --limit to see them)"))
+        if not shown:
+            print("No pages to go to from here.")
+        if "pages_left" in result:
+            print(output.dim(f"\n{output.plural(result['pages_left'], 'page')} left to read"))
         return
     if "pages_read" in result:  # nav end
-        print(f"session {result['session']} ended: read {', '.join(result['pages_read']) or 'nothing'}; "
-              f"cited {', '.join(result['cited']) or 'nothing'}")
+        print(output.heading(f"Session {session} ended"))
+        for label, slugs in (("Read", result["pages_read"]), ("Cited", result["cited"])):
+            print(output.wrap(", ".join(slugs) or "nothing", f"  {label + ':':<7}"))
         for key, label in (("cited_without_reading", "cited without reading"), ("unknown", "unknown pages")):
             if result.get(key):
-                print(f"warning: {label}: {', '.join(result[key])}")
+                print(f"{output.style('warning:', 'yellow')} {label}: {', '.join(result[key])}")
         return
     if "events" in result:  # nav log
-        print(f"session {result['session']}{' (ended)' if result['ended'] else ''}: {result['question']}")
+        state = " (ended)" if result["ended"] else ""
+        print(output.heading(f"Session {session}{state}"))
+        print(output.wrap(result["question"], "  "))
+        items = []
         for event in result["events"]:
-            detail = {key: value for key, value in event.items() if key not in ("kind", "slug")}
-            print(f"  {event['kind']:<10} {event.get('slug', '')}  {json.dumps(detail, ensure_ascii=False)}".rstrip())
+            detail = "; ".join(f"{key}: {', '.join(map(str, value)) if isinstance(value, list) else value}"
+                               for key, value in event.items() if key not in ("kind", "slug"))
+            items.append((event["kind"], event.get("slug", ""), detail))
+        for line in output.rows(items, styles=((), ("bold",), ("dim",))):
+            print(line)
         return
     print(json.dumps(result, ensure_ascii=False, indent=1))
 
@@ -384,61 +433,118 @@ def cmd_new(args: argparse.Namespace) -> int:
     if args.format == "json":
         _print_json(result)
         return EXIT_OK
-    established = result["established"]
-    if result["adopted"]:
-        print(f"existing wiki in {result['root']} ({result['adopted']} pages): added the {result['preset']} "
-              "workflows, and left your pages as they are")
-    elif established:
-        print(f"added the {result['preset']} workflows to the wiki in {result['root']}")
-    else:
-        print(f"{result['preset']} wiki in {result['root']}")
-    if result["created"]:
-        print(f"created: {', '.join(result['created'])}")
-    if result["kept"]:
-        print(f"kept (already there): {', '.join(result['kept'])}")
-    if result["skipped"]:
-        print(f"not added: the preset's own pages and templates ({len(result['skipped'])} files); "
-              "your wiki keeps its own")
-    if result["git_init"]:
-        print("initialized a git repository")
-    if result["adopted"]:
-        print(f"note: drafted {CONFIG_FILENAME} from a survey of your pages, as 'wiki init --write' does: "
-              "review it (which files are pages, summaries, relation rules)")
-    if result.get("preset_types"):
-        print(f"note: the {result['preset']} preset's page types ({', '.join(result['preset_types'])}) are not "
-              f"in your {CONFIG_FILENAME}; 'wiki init --preset {result['preset']}' prints them, with its relation "
-              "rules, to merge in")
-    for note in result["notes"]:
-        print(f"note: {note}")
-    for item in result["add"]:
-        print(f"\nadd to {item['file']}:\n{item['text'].rstrip()}")
-    if result.get("code_setup"):
-        print(f"\nin the code repo ({result['code_repo']}), so the agent working on the code keeps the wiki:")
-        for item in result["code_setup"]:
-            print(f"\nadd to {item['file']} ({item['why']}):\n{item['text'].rstrip()}")
-    steps = []
-    if result["adopted"]:
-        steps.append(f"review {CONFIG_FILENAME}")
-    if result["add"]:
-        steps.append("add the lines above to the files named")
-    if result["models_missing"]:
-        steps.append("wiki models download    (once per machine, about 0.2 GB; search works by keyword until then)")
-    if established:
-        steps.append("wiki index refresh      (index and embed the pages: about 2 minutes per 500 on CPU)")
-        steps.append("wiki check --all        (what the checks find in the pages as they are)")
-    if result.get("code_repo"):
-        steps.append("add the lines above to the code repo, so the agent working on the code keeps the wiki")
-        steps.append("from the code repo, ask your agent to document a module ('wiki guide ingest'), and to sync "
-                     "the wiki after code changes ('wiki guide sync')")
-    else:
-        steps.append("put a source in raw/, then ask your agent to ingest it (its instructions tell it how)"
-                     if established else
-                     "put a source in raw/, then ask your agent to ingest it (AGENTS.md tells it how)")
-        steps.append("ask your agent questions about the wiki; 'wiki guide' lists the workflows it follows")
-    print("\nnext:")
-    for number, step in enumerate(steps, start=1):
-        print(f"  {number}. {step}")
+    _print_new(result)
     return EXIT_OK
+
+
+# What each file `wiki new` writes is for, shown beside it.
+_NEW_FILES = {
+    "AGENTS.md": "how agents work on the wiki",
+    "CLAUDE.md": "points Claude Code at AGENTS.md",
+    ".claude/settings.json": "lets Claude Code run wiki; blocks edits in raw/",
+    ".github/copilot-instructions.md": "points GitHub Copilot at the agent instructions",
+    ".gitignore": "keeps the cache out of git",
+    ".gitattributes": "keeps the hook's line endings",
+    ".githooks/pre-commit": "checks the wiki before each commit",
+    "raw/.gitkeep": "sources go here",
+    "wiki/open-questions.md": "contradictions and gaps to chase",
+}
+
+
+def _print_new(result: dict) -> None:
+    """`wiki new` for a person: what it did, a list per kind of change with what each
+    file is for, the lines to add by hand, and the next steps."""
+    established, adopted, preset = result["established"], result["adopted"], result["preset"]
+    if adopted:
+        print(f"{output.bold('Existing wiki:')} {result['root']} ({output.plural(adopted, 'page')})")
+        print(f"Added the {preset} workflows. Your pages are unchanged.")
+    elif established:
+        print(f"{output.bold('Wiki:')} {result['root']}")
+        print(f"Added what was missing for the {preset} workflows.")
+    else:
+        print(f"{output.bold(f'New {preset} wiki:')} {result['root']}")
+    if result["git_init"]:
+        print("Started a git repository.")
+
+    descriptions = dict(_NEW_FILES)
+    descriptions[CONFIG_FILENAME] = ("drafted from your pages: review it" if adopted else "settings: page types, "
+                                     "relations, search")
+    _print_files("Created", result["created"], descriptions)
+    _print_files("Kept (already there)", result["kept"], {})
+    if result["skipped"]:
+        print("\n" + output.wrap(f"Not added: the preset's {len(result['skipped'])} starter pages and templates "
+                                 "(your wiki keeps its own)."))
+
+    notes = list(result["notes"])
+    if result.get("preset_types"):
+        notes.append(f"The {preset} preset's page types ({', '.join(result['preset_types'])}) are not in "
+                     f"{CONFIG_FILENAME}. 'wiki init --preset {preset}' prints them, with its relation rules, "
+                     "to merge in if you want them.")
+    if notes:
+        print("\n" + output.heading("Notes"))
+        for note in notes:
+            print(output.wrap(note[:1].upper() + note[1:], "  - ", "    "))
+
+    for item in result["add"]:
+        print("\n" + output.heading(f"Add to {item['file']}:"))
+        _print_block(item["text"])
+    if result.get("code_setup"):
+        print("\n" + output.heading(f"In the code repo ({result['code_repo']}):"))
+        for item in result["code_setup"]:
+            print("\n" + output.wrap(f"Add to {item['file']} ({item['why']}):", "  "))
+            _print_block(item["text"], indent="      ")
+
+    steps = []
+    if adopted:
+        steps.append((f"Review {CONFIG_FILENAME}", "which files are pages, summaries, relation rules"))
+    if result["add"]:
+        steps.append(("Add the lines above", "to the files named"))
+    if result["models_missing"]:
+        steps.append(("wiki models download", "once per machine, about 0.2 GB; search is keyword-only until then"))
+    if established:
+        steps.append(("wiki index refresh", "index and embed the pages, about 2 minutes per 500 on CPU"))
+        steps.append(("wiki check --all", "see what the checks find in the pages as they are"))
+    if result.get("code_repo"):
+        steps.append(("Add the code repo lines above", "so the agent working on the code keeps the wiki"))
+        steps.append(("Ask your agent", "from the code repo, to document a module ('wiki guide ingest') and to sync "
+                                        "the wiki after code changes ('wiki guide sync')"))
+    else:
+        steps.append(("Ask your agent", "to ingest a source you put in raw/, or to answer a question from the "
+                                        "wiki; 'wiki guide' lists the workflows"))
+    print("\n" + output.heading("Next"))
+    for line in output.rows([(f"{number}. {step}", detail) for number, (step, detail) in enumerate(steps, start=1)],
+                            max_key=40):
+        print(line)
+
+
+def _print_files(heading: str, paths: list[str], descriptions: dict[str, str]) -> None:
+    """Files under a heading, one per line with what each is for; a folder of several
+    files (the skills, the templates) is one line naming them."""
+    if not paths:
+        return
+    items, groups = [], {}
+    for rel in paths:
+        folder, name = rel.rsplit("/", 1) if "/" in rel else ("", rel)
+        if name == "SKILL.md" and "/" in folder:  # .claude/skills/wiki-ingest/SKILL.md
+            folder, name = folder.rsplit("/", 1)
+        groups.setdefault(folder, []).append((rel, name))
+    for folder, entries in groups.items():
+        if folder and len(entries) >= 3:
+            kind = next((label for end, label in (("skills", "workflow skills"), ("commands", "slash commands"),
+                                                  ("templates", "page templates")) if folder.endswith(end)), "")
+            names = ", ".join(name.removesuffix(".md") for _, name in entries)
+            items.append((f"{folder}/", f"{kind}: {names}" if kind else names))
+        else:
+            items += [(rel, descriptions.get(rel, "")) for rel, _ in entries]
+    print("\n" + output.heading(heading))
+    for line in output.rows(items, max_key=34, styles=((), ("dim",))):
+        print(line)
+
+
+def _print_block(text: str, indent: str = "    ") -> None:
+    """Text to paste, as it must be pasted: indented, never rewrapped."""
+    for line in text.rstrip().splitlines():
+        print(f"{indent}{line}".rstrip())
 
 
 def _optional_settings(args: argparse.Namespace) -> Settings | None:
@@ -459,8 +565,10 @@ def cmd_guide(args: argparse.Namespace, settings: Settings | None) -> int:
         if args.format == "json":
             _print_json({"guides": [{"name": name, "title": title} for name, title in guides]})
         else:
-            for name, title in guides:
-                print(f"wiki guide {name:<8} {title}")
+            print(output.heading("Workflows") + output.dim("  (print one: wiki guide <name>)"))
+            for line in output.rows([(name, title.split(": ", 1)[-1][:1].upper() + title.split(": ", 1)[-1][1:])
+                                     for name, title in guides], styles=(("bold",),)):
+                print(line)
         return EXIT_OK
     text = guide.render(args.name, settings)
     if args.format == "json":
@@ -496,19 +604,22 @@ def cmd_stale(args: argparse.Namespace, settings: Settings) -> int:
         _print_json({"code_repo": str(repo), "head": head, "stale": [item.to_dict() for item in stale],
                      "unverified": unverified})
         return EXIT_OK
-    print(f"code repo {repo} at {head[:12]}")
+    print(f"{output.bold('Code repo')} {output.dim('at ' + head[:12])}")
+    print(f"  {repo}")
     if not stale and not unverified:
-        print("every page with covers: is up to date")
+        print("Every page with covers: is up to date.")
+    if stale:
+        print("\n" + output.heading("Code changed since verified", len(stale)))
     for item in stale:
-        print(f"{item.slug}  (verified {item.verified[:12]})")
-        if item.problem:
-            print(f"   {item.problem}")
-        if item.changed:
-            print(f"   changed since: {', '.join(item.changed)}")
-        if item.uncommitted:
-            print(f"   uncommitted changes: {', '.join(item.uncommitted)}")
+        print(f"  {output.bold(item.slug)}  {output.dim('verified at ' + item.verified[:12])}")
+        details = [(output.style("problem", "yellow"), item.problem)] if item.problem else []
+        details += [("changed", ", ".join(item.changed))] if item.changed else []
+        details += [("uncommitted", ", ".join(item.uncommitted))] if item.uncommitted else []
+        for label, text in details:
+            print(output.wrap(text, f"    {label}: "))
     if unverified:
-        print(f"never verified: {', '.join(unverified)}")
+        print("\n" + output.heading("Never verified", len(unverified)))
+        print(output.wrap(", ".join(unverified), "  "))
     return EXIT_OK
 
 
@@ -519,12 +630,18 @@ def cmd_pending(args: argparse.Namespace, settings: Settings) -> int:
         _print_json({"raw_dirs": folders, "pending": [source.to_dict() for source in waiting], "ingested": ingested})
         return EXIT_OK
     if not folders:
-        print("no raw/ folder: sources go in raw/")
+        print("No raw/ folder yet: sources go in raw/.")
         return EXIT_OK
-    for source in waiting:
-        note = f"  (same content as {source.duplicate_of})" if source.duplicate_of else ""
-        print(f"{source.key}: {', '.join(source.files)}{note}")
-    print(f"{len(waiting)} pending, {ingested} ingested (in {', '.join(f + '/' for f in folders)})")
+    where = ", ".join(f + "/" for f in folders)
+    if waiting:
+        print(output.heading("Sources not ingested yet", len(waiting)))
+        items = [(", ".join(source.files), f"same content as {source.duplicate_of}" if source.duplicate_of else "")
+                 for source in waiting]
+        for line in output.rows(items, max_key=60, styles=(("bold",), ("yellow",))):
+            print(line)
+        print(output.dim(f"{len(waiting)} pending, {ingested} ingested, in {where}"))
+    else:
+        print(f"Nothing pending: all {output.plural(ingested, 'source')} in {where} are ingested.")
     return EXIT_OK
 
 
@@ -539,10 +656,12 @@ def cmd_weekly(args: argparse.Namespace, settings: Settings) -> int:
     elif result["preview"] is not None:
         print(result["preview"], end="")
     elif not args.hook:
-        for rel in result["written"]:
-            print(f"wrote {rel}")
-        if not result["written"]:
-            print("weekly notes are up to date")
+        if result["written"]:
+            print(output.heading("Wrote", len(result["written"])))
+            for rel in result["written"]:
+                print(f"  {rel}")
+        else:
+            print("Weekly notes are up to date.")
     return EXIT_OK
 
 
@@ -557,14 +676,20 @@ def cmd_list(args: argparse.Namespace, settings: Settings) -> int:
     if args.format == "json":
         _print_json({"pages": pages})
         return EXIT_OK
-    current = object()
+    groups: dict = {}
     for page in pages:
-        if page["type"] != current:
-            current = page["type"]
-            print(f"## {current or 'no type'}")
-        print(f"- {page['slug']}: {page['title']}" + (f" — {page['summary']}" if page["summary"] else ""))
+        groups.setdefault(page["type"], []).append(page)
+    for number, (page_type, members) in enumerate(groups.items()):
+        print(("\n" if number else "") + output.heading(page_type or "no type", len(members)))
+        items = []
+        for page in members:
+            title = page["title"] if page["title"] != page["slug"] else ""
+            text = " — ".join(part for part in (title, page["summary"] or "") if part)
+            items.append((page["slug"], text))
+        for line in output.rows(items, max_key=28, styles=(("bold",),)):
+            print(line)
     if not pages:
-        print("no pages" + (f" of type '{args.page_type}'" if args.page_type else ""))
+        print("No pages" + (f" of type '{args.page_type}'." if args.page_type else "."))
     return EXIT_OK
 
 
@@ -579,9 +704,13 @@ def cmd_suggest(args: argparse.Namespace, settings: Settings) -> int:
         _print_json({"page": args.slug, "suggestions": results})
     else:
         if not results:
-            print(f"{args.slug}: no suggestions")
+            print(f"No suggestions for {args.slug}.")
+        else:
+            print(output.heading(f"Suggestions for {args.slug}", len(results)))
         for item in results:
-            print(f"{item['slug']}: {' '.join(item['reasons'])}")
+            print(f"  {output.bold(item['slug'])}" + (f"  {output.dim(item['type'])}" if item.get("type") else ""))
+            for reason in item["reasons"]:
+                print(output.wrap(reason, "    "))
     return EXIT_OK
 
 
@@ -595,9 +724,14 @@ def cmd_unwritten(args: argparse.Namespace, settings: Settings) -> int:
     items = [{"target": target, "linked_from": sorted(sources.split(","))} for target, _, sources in rows]
     if args.format == "json":
         _print_json({"unwritten": items})
+    elif not items:
+        print("Every link has a page.")
     else:
-        for item in items:
-            print(f"{item['target']} ({len(item['linked_from'])}): {', '.join(item['linked_from'])}")
+        print(output.heading("Linked but not written", len(items)) + output.dim("  most linked first"))
+        rows = [(item["target"], f"{output.plural(len(item['linked_from']), 'page')}: {', '.join(item['linked_from'])}")
+                for item in items]
+        for line in output.rows(rows, max_key=32, styles=(("bold",),)):
+            print(line)
     return EXIT_OK
 
 
@@ -611,9 +745,12 @@ def cmd_orphans(args: argparse.Namespace, settings: Settings) -> int:
                ORDER BY p.path""").fetchall()
     if args.format == "json":
         _print_json({"orphans": [{"slug": slug, "path": path} for slug, path in rows]})
+    elif not rows:
+        print("No orphans: every page is linked from another.")
     else:
-        for slug, path in rows:
-            print(f"{slug}  ({path})")
+        print(output.heading("Pages nothing links to", len(rows)))
+        for line in output.rows([(slug, path) for slug, path in rows], styles=(("bold",), ("dim",))):
+            print(line)
     return EXIT_OK
 
 
@@ -625,29 +762,39 @@ def cmd_clusters(args: argparse.Namespace, settings: Settings) -> int:
         _print_json(result)
         return EXIT_OK
     if result.get("too_small"):
-        print(f"{result['pages']} pages: too few for clusters to mean anything (needs {result['too_small']})")
+        print(f"{output.plural(result['pages'], 'page')}: too few for clusters to mean anything "
+              f"(it takes {result['too_small']}).")
         return EXIT_OK
     hubs = result["hub_types"]
     shown = [cluster for cluster in result["clusters"] if cluster["covered_by"] is None]
     if hubs:
-        print(f"{len(shown)} clusters of {args.min_size}+ pages with no hub page ({', '.join(hubs)}) most of "
-              f"them link to; {result['covered']} covered")
+        print(output.heading(f"Clusters of {args.min_size}+ pages no hub page covers", len(shown)))
+        more = "1 more cluster is" if result["covered"] == 1 else f"{result['covered']} more clusters are"
+        print(output.dim(output.wrap(f"Hub types: {', '.join(hubs)}. {more} covered"
+                                     + (" (listed last)." if args.all else " (--all lists them)."))))
     else:
-        print(f"{len(shown)} clusters of {args.min_size}+ pages (no hub types declared: judge whether the most "
-              "linked page is about what each cluster shares)")
+        print(output.heading(f"Clusters of {args.min_size}+ pages", len(shown)))
+        print(output.dim(output.wrap("No hub types are declared: judge whether each cluster's most linked page is "
+                                     "about what its pages share.")))
+    if not result["clusters"]:
+        print("None.")
     for number, cluster in enumerate(result["clusters"], start=1):
         covered = cluster["covered_by"]
         top = covered or cluster["most_linked"]
-        label = "covered by" if covered else "most linked"
-        where = (f"{top['slug']} ({top['type'] or 'no type'}), linked with {top['linked_from']} of its pages"
-                 if top else "none")
-        print(f"\n{number}. {cluster['size']} pages; {label}: {where}")
+        size = output.plural(cluster["size"], "page")
+        print(f"\n{number}. {output.bold(size)}" + (output.dim("  covered") if covered else ""))
+        details = []
+        if top:
+            details.append(("covered by" if covered else "most linked",
+                            f"{top['slug']} ({top['type'] or 'no type'}), linked with {top['linked_from']} of them"))
         names = cluster["pages"]
-        print(f"   pages: {', '.join(names[:12])}{f' and {len(names) - 12} more' if len(names) > 12 else ''}")
+        details.append(("pages", ", ".join(names[:12]) + (f" and {len(names) - 12} more" if len(names) > 12 else "")))
         if cluster["terms"]:
-            print(f"   shared terms: {', '.join(cluster['terms'])}")
+            details.append(("terms", ", ".join(cluster["terms"])))
         if cluster["relations"]:
-            print(f"   relations: {', '.join(f'{kind} {count}' for kind, count in cluster['relations'].items())}")
+            details.append(("relations", ", ".join(f"{kind} {count}" for kind, count in cluster["relations"].items())))
+        for line in output.rows(details, indent="   ", styles=(("dim",),)):
+            print(line)
     return EXIT_OK
 
 
@@ -671,11 +818,17 @@ def cmd_neighbors(args: argparse.Namespace, settings: Settings) -> int:
         _print_json({"page": args.slug, "neighbors": results})
         return EXIT_OK
     if not results:
-        print(f"{args.slug}: no related pages")
+        print(f"No pages relate to {args.slug}.")
+        return EXIT_OK
+    print(output.heading(f"Relations of {args.slug}", len(results))
+          + output.dim(f"  -> {args.slug} links to it, <- it links to {args.slug}"))
+    items = []
     for entry in results:
         arrow = "->" if entry["direction"] == "outgoing" else "<-"
-        flag = " [not written]" if entry.get("unresolved") else ""
-        print(f"{arrow} {entry['type']:<16} {entry['slug']}{flag}  {entry['reason']}")
+        flag = " (not written)" if entry.get("unresolved") else ""
+        items.append((f"{arrow} {entry['type']}", entry["slug"] + flag, entry["reason"]))
+    for line in output.rows(items, styles=(("dim",), ("bold",))):
+        print(line)
     return EXIT_OK
 
 
@@ -722,10 +875,28 @@ def cmd_check(args: argparse.Namespace, settings: Settings) -> int:
         _print_json({"ok": not failed, "pages": checked, "errors": errors, "warnings": warnings,
                      "issues": [issue.to_dict() for issue in shown]})
     else:
-        for issue in shown:
-            print(f"{issue.path or '-'}: {issue.severity} [{issue.code}] {issue.message}")
-        print(f"{checked} pages checked: {errors} errors, {warnings} warnings")
+        _print_issues(shown)
+        counts = f"{output.plural(errors, 'error')}, {output.plural(warnings, 'warning')}"
+        if not errors and not warnings:
+            counts = output.style("no problems", "green")
+        elif errors:
+            counts = output.style(counts, "red")
+        print(("\n" if shown else "") + f"{output.plural(checked, 'page')} checked: {counts}")
     return EXIT_INVALID if failed else EXIT_OK
+
+
+def _print_issues(issues: list[Issue]) -> None:
+    """Issues grouped by file, each with its severity and code."""
+    groups: dict = {}
+    for issue in issues:
+        groups.setdefault(issue.path or "(the wiki)", []).append(issue)
+    code_width = max((len(issue.code) for issue in issues), default=0)
+    for number, (path, items) in enumerate(groups.items()):
+        print(("\n" if number else "") + output.bold(path))
+        for issue in items:
+            severity = output.style(f"{issue.severity:<7}", "red" if issue.severity == ERROR else "yellow")
+            lead = f"  {severity}  {output.dim(f'{issue.code:<{code_width}}')}  "
+            print(output.wrap(issue.message, lead))
 
 
 def _cache_issues(pages, settings: Settings, resolver: Resolver, *, verify: bool) -> list[Issue]:
@@ -766,7 +937,26 @@ def cmd_index_rebuild(args: argparse.Namespace, settings: Settings) -> int:
 
 def cmd_index_status(args: argparse.Namespace, settings: Settings) -> int:
     with Cache(settings) as cache:
-        return _print_stats(args, cache.status())
+        status = cache.status()
+    if args.format == "json":
+        _print_json(status)
+        return EXIT_OK
+    items = [
+        ("pages", str(status["pages"])),
+        ("raw text files", str(status["raw"])),
+        ("relations", f"{status['relations']} ({status['unresolved']} to pages not written yet)"),
+        ("sections", str(status["chunks"])),
+        ("out of date", output.plural(status["stale"], "file") + ("  run 'wiki index refresh'" if status["stale"] else "")),
+        ("not embedded", output.plural(status["pending_embedding"], "file")
+         + ("  run 'wiki index refresh'" if status["pending_embedding"] else "")),
+    ]
+    if status.get("embed_model"):
+        items.append(("embedding model", status["embed_model"]))
+    items.append(("cache", f"{settings.cache_path} (schema {status['version']})"))
+    print(output.heading("Index"))
+    for line in output.rows(items, styles=(("dim",),)):
+        print(line)
+    return EXIT_OK
 
 
 def _embed(cache: Cache, settings: Settings, *, verbose: bool) -> dict:
@@ -787,15 +977,25 @@ def _embed(cache: Cache, settings: Settings, *, verbose: bool) -> dict:
 def _progress(verbose: bool):
     def report(done: int, total: int) -> None:
         if verbose:
-            print(f"\rembedding {done}/{total} files", end="", file=sys.stderr, flush=True)
+            print(f"\rEmbedding {done}/{total} files", end="", file=sys.stderr, flush=True)
     return report
 
 
 def _print_stats(args: argparse.Namespace, values: dict) -> int:
+    """`index refresh` and `rebuild`: what changed, in one line."""
     if args.format == "json":
         _print_json(values)
+        return EXIT_OK
+    labels = (("added", "added"), ("changed", "changed"), ("touched", "touched (metadata only)"),
+              ("removed", "removed"), ("moved", "moved"), ("embedded", "embedded"))
+    done = [f"{values[key]} {label}" for key, label in labels if values.get(key)]
+    unchanged = values.get("unchanged", 0)
+    if done:
+        print(f"{output.bold('Index updated:')} {', '.join(done)}" + output.dim(f"  ({unchanged} unchanged)"))
     else:
-        print(", ".join(f"{key.replace('_', ' ')}: {value}" for key, value in values.items()))
+        print(f"Index is up to date ({output.plural(unchanged, 'file')}).")
+    if values.get("embedding_skipped"):
+        output.note(f"embedding skipped: {values['embedding_skipped']}")
     return EXIT_OK
 
 
@@ -811,20 +1011,37 @@ def cmd_models_list(args: argparse.Namespace, settings: Settings) -> int:
     if args.format == "json":
         _print_json(payload)
     else:
-        print("embedding models: " + ", ".join(payload["embedding"]))
-        print("rerankers: " + ", ".join(payload["reranker"]))
-        print(f"configured: {settings.embed_model} + {settings.reranker}")
-        print(f"models folder: {settings.models_dir}")
+        for title, names, configured, is_reranker in (
+                ("Embedding models", payload["embedding"], settings.embed_model, False),
+                ("Rerankers", payload["reranker"], settings.reranker, True)):
+            print(output.heading(title))
+            items = []
+            for name in names:
+                state = []
+                if name == configured:
+                    state.append("in use")
+                if name == NO_RERANKER:
+                    state.append("skip reranking")
+                elif is_downloaded(name, settings.models_dir, reranker=is_reranker):
+                    state.append("downloaded")
+                items.append(("*" if name == configured else " ", name, ", ".join(state)))
+            for line in output.rows(items, indent=" ", max_key=40, styles=((), ("bold",), ("dim",))):
+                print(line)
+            print()
+        print(f"{output.dim('Models folder:')} {settings.models_dir}")
     return EXIT_OK
 
 
 def cmd_models_download(args: argparse.Namespace, settings: Settings) -> int:
     for name, is_reranker in ((settings.embed_model, False), (settings.reranker, True)):
         if args.format == "text":
-            print(f"downloading {name} to {settings.models_dir}", file=sys.stderr)
+            print(f"Downloading {name}...", file=sys.stderr)
         download(name, settings.models_dir, reranker=is_reranker)
     if args.format == "json":
         _print_json({"downloaded": [settings.embed_model, settings.reranker], "models_dir": str(settings.models_dir)})
+    else:
+        print(output.wrap(f"{settings.embed_model} and {settings.reranker}, in {settings.models_dir}",
+                          output.bold("Downloaded: ")))
     return EXIT_OK
 
 
@@ -864,11 +1081,15 @@ def cmd_eval_run(args: argparse.Namespace, settings: Settings) -> int:
     if args.format == "json":
         _print_json(summary)
     else:
-        for key, value in summary.items():
-            if key != "misses":
-                print(f"{key}: {value}")
-        for miss in summary["misses"]:
-            print(f"miss {miss['id']}: top {', '.join(miss['top']) or '-'}")
+        print(output.heading("Search evaluation"))
+        items = [(key.replace("_", " "), str(value)) for key, value in summary.items() if key != "misses"]
+        for line in output.rows(items, styles=(("dim",),)):
+            print(line)
+        if summary["misses"]:
+            print("\n" + output.heading("Misses", len(summary["misses"])) + output.dim("  and the pages search found"))
+            for line in output.rows([(str(miss["id"]), ", ".join(miss["top"]) or "-") for miss in summary["misses"]],
+                                    styles=(("bold",),)):
+                print(line)
     return EXIT_OK
 
 
@@ -886,8 +1107,13 @@ def cmd_vocab(args: argparse.Namespace, settings: Settings) -> int:
     if args.format == "json":
         _print_json({"types": types})
     else:
-        for entry in types:
-            print(f"{entry['type']:<18} inverse: {entry['inverse']:<18} from: {'; '.join(entry['from'])}")
+        print(output.heading("Relation types", len(types)))
+        items = [("type", "seen from the target", "comes from")]
+        items += [(entry["type"], entry["inverse"], "; ".join(entry["from"])) for entry in types]
+        lines = output.rows(items, styles=(("bold",), ()))
+        print(output.dim(lines[0].replace("\033[1m", "").replace("\033[0m", "")))
+        for line in lines[1:]:
+            print(line)
     return EXIT_OK
 
 
@@ -918,7 +1144,7 @@ def cmd_init(args: argparse.Namespace, settings: Settings) -> int:
         if target.exists():
             raise UsageError(f"{target} already exists; not overwriting (run without --write to print a draft)")
         target.write_text(draft, encoding="utf-8")
-        print(f"wrote {target}", file=sys.stderr)
+        print(f"Wrote {target}. Review it, then run 'wiki index refresh'.", file=sys.stderr)
     else:
         print(draft, end="")
     return EXIT_OK
