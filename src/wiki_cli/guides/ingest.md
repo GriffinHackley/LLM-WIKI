@@ -18,6 +18,14 @@ A source is one of:
   record the commit they were checked against. Read the code; never edit it as part of
   this workflow.
 {{/code}}
+{{#records}}
+
+A source can also be a **record**: an item that lives in another system and changes
+there, such as a ticket or issue in a tracker (Jira, GitHub). It is not a file in `raw/`:
+its page names it by `key:` and `url:`, and says in `synced:` which version of it the page
+reflects (the tracker's own last-updated time when you read it), so `wiki stale` can tell
+when to look again. The types marked "a record" below hold them.
+{{/records}}
 
 {{types}}
 
@@ -60,6 +68,12 @@ template.
 1. **Pick the source.**
    - If none was named, run `wiki pending`: it lists the files in `raw/` that no page links
      to yet. Offer those and ask which to ingest.{{#code}} For code, ask what to document.{{/code}}
+   - **Not a file in `raw/`** (a link, a page in another system):
+     {{part:fetch-source}}
+{{#records}}
+   - **A record** (a ticket key or link): fetch it.
+     {{part:fetch-record}}
+{{/records}}
    - To ingest several sources in one run, or "everything new", see *Several sources*
      below.
    - **Is it already in the wiki?** `wiki pending` flags a file with the same content as
@@ -117,6 +131,14 @@ template.
      - a link to its file in `raw/`, for example `[[raw/report.pdf]]`. This link is how
        `wiki pending` knows the source is ingested.
 {{/code}}
+{{#records}}
+   - **A record gets a page of its record type.** Pick a slug from its key and subject
+     (`proj-412-bulk-export`), copy the type's template into its folder, and fill it
+     from the record: `key:`, `url:`, `status:`, and `synced:` set to the tracker's
+     last-updated time as it shows it (quoted). It links no file in `raw/`, unless the
+     user exported the record there: then link that file too. The record's page is the
+     source page for the steps below; cite it like any source, `([[proj-412-bulk-export]])`.
+{{/records}}
 {{#code}}
    - **Code has no source page.** The pages you write in step 7 record what they describe
      in `covers:` and `verified:`.
@@ -203,13 +225,16 @@ template.
 {{/code}}
 9. **Check each page.** Run `wiki index refresh`, then `wiki check <slug>` on every page you
    created or changed, and fix every error and every `missing-section`, `missing-field`,
-   `bad-value` and `uncited-sources` warning.{{#code}} In code pages, also fix every `missing-code-file` and
+   `bad-value` and `uncited-sources` warning{{#records}}, and on record pages every `bad-url` and
+   `bad-synced` one{{/records}}.{{#code}} In code pages, also fix every `missing-code-file` and
    `covers-nothing` warning.{{/code}} Warnings about links to pages not written yet are
    expected. A `summary-stale` warning means you changed a page's body but not its
    summary: re-read the summary and revise it to cover what the page now says, or, if it
    still fits, run `wiki check <slug> --summary-ok`.
-10. **Commit** (if the wiki is a git repository): one commit per source. Add each file you
-    created or changed, and any text copy you saved in `raw/`, then commit with a message
+10. **Commit** (if the wiki is a git repository): one commit per source.
+    {{part:before-commit}}
+    Add each file you created or changed, and any text copy you saved in `raw/`, then
+    commit with a message
     naming the source{{#code}} (or the code documented and the commit it was verified
     against){{/code}}, the pages created and updated, and any questions raised:
 
@@ -220,7 +245,8 @@ template.
 
     There is no `wiki commit`; use git.
 11. **Check the whole ingest.** Run `wiki check <source-slug> --ingested`. It checks what the
-    steps above should have produced: the source page links its file in `raw/`, lists
+    steps above should have produced: the source page links its file in `raw/`{{#records}} (a
+    record's page: names its record in `url:`){{/records}}, lists
     what the source discusses, and is cited by at least one page; those pages pass
     `wiki check`; and everything is committed. Fix what it reports, commit again, and run
     it again until it reports no errors. If an error cannot be fixed (the source really
@@ -246,3 +272,5 @@ When asked to ingest several sources, or everything `wiki pending` lists:
   what is left: `wiki pending` lists it for the next run.
 - **Report** once at the end: each source with its pages created and updated, then all
   questions and follow-ups together.
+
+{{part:ingest-extra}}

@@ -13,7 +13,8 @@ The code repo is `{{code_repo}}`.
 
 1. **Refresh.** `wiki index refresh`.
 2. **Mechanical checks, from the tool.** Run each with `--format json`:
-   - `wiki stale`: pages whose code changed since they were verified, and pages never
+   - `wiki stale`: pages whose code changed since they were verified{{#records}}, record pages
+     due for a recheck (fetch each and update it, setting `synced:`; see `wiki guide sync`),{{/records}} and pages never
      verified. Sync them (`wiki guide sync`), or report them if there are many.
    - `wiki check --all`: frontmatter, missing summaries, undeclared types, ambiguous
      links, stale summaries, `code:` links to files that no longer exist
@@ -37,4 +38,7 @@ The code repo is `{{code_repo}}`.
    (revise, or `wiki check <slug> --summary-ok`).
 5. **Fix and commit** what is mechanical, then `wiki index refresh` and
    `wiki check --all` again. Commit the wiki with a message listing the fixes.
+   {{part:before-commit}}
 6. **Report** what you fixed, and what needs the user's judgment.
+
+{{part:lint-extra}}

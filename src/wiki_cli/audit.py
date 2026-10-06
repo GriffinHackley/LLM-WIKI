@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import subprocess
 
+from wiki_cli import records
 from wiki_cli.cache import Cache
 from wiki_cli.config import Settings
 from wiki_cli.model import ERROR, WARNING, Issue
@@ -18,7 +19,7 @@ from wiki_cli.validation import check_page
 from wiki_cli.vocabulary import REFERS_TO_CODE
 
 OPEN_QUESTIONS = "open-questions"  # where the presets keep questions; linking it is not discussing anything
-TOUCHED_CODES = {"missing-section", "missing-field", "bad-value", "uncited-sources"}  # beside errors, what a touched page must fix
+TOUCHED_CODES = {"missing-section", "missing-field", "bad-value", "uncited-sources", "bad-url", "bad-synced"}  # beside errors, what a touched page must fix
 MAX_LISTED = 5
 
 
@@ -30,7 +31,12 @@ def ingested(settings: Settings, target: str) -> tuple[list[Issue], int]:
     issues = check_page(page, resolver)
 
     index = _RawIndex(settings, scanned, others)
-    if not index.linked(page):
+    record = records.is_record(page)
+    if record:  # a record lives in its tracker: its page names it by key and url, not by a file in raw/
+        if not str((page.data or {}).get("url") or "").strip():
+            issues.append(_on(page, ERROR, "no-original", "names no record: set url: to the record's link in "
+                                                            "the tracker, and key: to its key (step 3)"))
+    elif not index.linked(page):
         issues.append(_on(page, ERROR, "no-original", "links no file in raw/: link the file this source was "
                                                         "ingested from, for example [[raw/report.pdf]] (step 3)"))
 
@@ -39,7 +45,8 @@ def ingested(settings: Settings, target: str) -> tuple[list[Issue], int]:
         cache.refresh()
         outgoing = [target for target, relation in cache.conn.execute(
             "SELECT target_slug, relation_type FROM relations WHERE source_path = ?", (page.file.rel,))
-            if relation != REFERS_TO_CODE and target.casefold() not in raw_keys and not _is_questions(target)]
+            if (record or relation != REFERS_TO_CODE) and target.casefold() not in raw_keys
+            and not _is_questions(target)]
         typed = {slug: page_type for slug, page_type in cache.conn.execute(
             "SELECT slug, page_type FROM pages WHERE kind = 'page'")}
         citing = sorted({(source, path) for source, path in cache.conn.execute(

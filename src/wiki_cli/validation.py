@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 
-from wiki_cli import links
+from wiki_cli import links, records
 from wiki_cli.config import PageType
 from wiki_cli.edges import _link_value, derive
 from wiki_cli.model import ERROR, WARNING, Issue
@@ -42,6 +42,7 @@ def check_page(page: Page, resolver: Resolver) -> list[Issue]:
                      None) if settings is not None else None
     if page_type is not None:
         issues.extend(_required_parts(page, page_type))
+    issues.extend(records.issues(page))
     issues.extend(_uncited_sources(page, resolver))
 
     summary_types = settings.summary_types if settings is not None else ()

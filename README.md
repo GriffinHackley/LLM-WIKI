@@ -104,6 +104,10 @@ sections = ["Summary"]            # headings and frontmatter every page of the t
 fields = ["title", "type", "sources", "last_updated"]   # checked by `wiki check`
 values = { role = ["author", "subject"] }               # allowed values of a field
 hub = false                       # true: pages gather around it (see `wiki clusters`)
+record = false                    # true: each page describes a ticket or the like, kept by key, url, synced
+
+[records]                         # record types: when `wiki stale` asks for a recheck
+recheck_days = 30                 # default
 
 [summary]                         # where a page's summary comes from, in order
 fields = ["summary", "description"]            # frontmatter keys (default)
@@ -131,6 +135,7 @@ group_by = "module"               # "where the work went" by module, or "type" (
 
 [guides]
 dir = "guides"                    # the wiki's own guides, overriding built-in ones by name
+parts = "guides/parts"            # default; <name>.md is the wiki's own text for a guide step
 
 [code]                            # code wikis only
 repo = "../my-app"                # the code repo, relative to the wiki; $WIKI_CODE_REPO overrides
@@ -182,7 +187,7 @@ re-embedding.
 | Command | Purpose |
 |---|---|
 | `wiki new [folder] [--preset research\|code\|<folder>] [--code <repo>] [--agent claude\|copilot\|opencode ...] [--git-hook]` | Create a wiki from a preset; in a folder that already has pages, adopt it (draft its config, add the agent files, leave the pages alone); never overwrites |
-| `wiki guide [<name>]` | Print a workflow's steps for an agent; without a name, list them |
+| `wiki guide [<name>] [--parts]` | Print a workflow's steps for an agent; without a name, list them; `--parts` lists the steps a wiki can fill with its own text (`guides/parts/`) |
 | `wiki search "<question>" [--limit 3] [--include-raw] [--keyword-only]` | Best pages for a question: keyword + vector search, fused and reranked |
 | `wiki nav start \| read \| candidates \| search \| end \| log` | Guided traversal sessions (see [docs/navigation.md](https://github.com/GriffinHackley/LLM-WIKI/blob/main/docs/navigation.md)) |
 | `wiki list [--type T]` | Every page with its type and summary |
@@ -192,7 +197,7 @@ re-embedding.
 | `wiki unwritten [--limit N]` | Link targets with no page, most-linked first |
 | `wiki orphans` | Pages nothing relates to |
 | `wiki clusters [--all] [--min-size 4]` | Groups of pages that link each other densely (Louvain communities) with no hub page most of them link to: leads for pages worth writing. Wikis of 30 pages or more |
-| `wiki stale` | Code wikis: pages whose covered code changed since they were verified |
+| `wiki stale` | Pages whose covered code changed since they were verified, and record pages (tickets) due for a recheck |
 | `wiki weekly [--week 2026-W40 \| current]` | With `[weekly]`: a note per finished week of work (pages added and changed, where the work went, sources, open questions, health, code) and a timeline, from git; `current` shows this week so far |
 | `wiki check <slug> \| --all [--verify-cache] [--strict] [--no-warnings] [--summary-ok]` | Frontmatter, summaries, types and their required sections and fields, uncited sources, ambiguous and unwritten links, stale summaries, code links |
 | `wiki check <source-slug> --ingested` | Whether an ingest is complete: original linked, discussed pages named and citing it, all clean and committed |

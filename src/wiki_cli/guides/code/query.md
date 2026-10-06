@@ -66,3 +66,5 @@ holds.
 questions about structure ("what links to this?", "what does this page depend on?").
 `wiki list --type <type>` lists every page of a type, for questions like "which people
 are in the wiki?"
+
+{{part:query-extra}}

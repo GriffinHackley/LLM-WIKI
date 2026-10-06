@@ -22,7 +22,7 @@ on) pull the guide into the prompt when they run.
 | `ingest` | Pick a source (`wiki pending` lists those not ingested), read all of it, write its source page, decide what gets its own page, create or update those pages with inline citations, file contradictions, check, commit; one source at a time, oldest first, when ingesting several | The same for documents about the code (design docs, RFCs, postmortems); and to document a module, pull request or decision from the code itself: explain it, link the code with `code:` links, set `covers:` and `verified:`. Where a document and the code disagree about what the code does now, the code wins |
 | `query` | Answer from the wiki with `wiki nav`: search, read one section at a time, follow relations by their reasons, cite the pages; fall back to raw source text | The same; when the wiki can't answer, read the code, and offer to document what was learned |
 | `lint` | `wiki check --all`, `wiki unwritten`, `wiki orphans`, `wiki pending`, `wiki clusters`, then contradictions, uncited facts, settled questions, stale summaries; fix and commit | Adds `wiki stale` and coverage of the code's folders |
-| `sync` | (none) | After committing code: `wiki stale`, update each stale page and its `verified:`, check, commit the wiki |
+| `sync` | (none) | After committing code: `wiki stale`, update each stale page and its `verified:`, recheck the records it lists and their `synced:`, check, commit the wiki |
 
 Each guide fills in what depends on the wiki: its page types (from `[types]` in
 `.wiki-cli.toml`, with their folders and templates) and, for a code wiki, the code repo's
@@ -59,12 +59,61 @@ If files in `raw/` are not sources (a manifest, say), list them in the config so
 ignore = ["raw/SOURCES.md"]
 ```
 
+## Records: tickets and other items that live elsewhere
+
+Some sources are neither a file in `raw/` nor code: a Jira ticket, a GitHub issue, a
+Confluence page. They live in another system and change there. A page type marked
+`record = true` holds them (the code preset's `ticket` is one):
+
+- the page names its record by `key:` and `url:`, and links no file in `raw/`;
+  `wiki check` warns on a missing key or URL, a URL that is not a web address
+  (`bad-url`), and a `synced:` that is not a time (`bad-synced`);
+- `synced:` is the tracker's own last-updated time when the agent read the record, as
+  the tracker shows it (`2026-10-01T14:02:11.000+0000` from Jira is fine);
+- `wiki stale` lists record pages due for a recheck: never synced, or synced longer ago
+  than `[records] recheck_days` (30 by default) and not in a final status (done, closed,
+  merged and the like; `[records] final` changes the list);
+- the sync and lint guides have the agent fetch each one, update the page if the record
+  changed since `synced:`, and set `synced:` again.
+
+The `wiki` command never contacts the tracker: it has no credentials and knows no
+tracker's API. The agent fetches records with whatever access it has, and the wiki says
+how in its `fetch-record` part (below).
+
 ## Adding your own rules
 
 Put the wiki's own conventions in the **"Your rules"** section of `AGENTS.md`: editorial
 rules, citation format, naming, what to leave out, how cautious to be. Every guide tells
 the agent to apply them, and that they win over the guide where they conflict. This is
 the first place to customise, and usually enough.
+
+## Parts: the wiki's own text for one step
+
+Some things are a procedure for one step rather than a rule for the whole wiki: how to
+fetch a ticket, what to run before committing. The built-in guides have **parts**, named
+slots at those steps, and a wiki fills one by writing a Markdown file named after it in
+`guides/parts/`. `wiki guide` prints the wiki's text right at that step, indented to fit,
+while the rest of the guide keeps updating with the tool.
+
+```markdown
+<!-- guides/parts/fetch-record.md -->
+Use the Jira MCP tool getJiraIssue with the key; our tracker is acme.atlassian.net. Read
+the description, the acceptance criteria and every comment, and note the "updated" time
+for synced:.
+```
+
+| Part | Where it is printed | Default |
+|---|---|---|
+| `fetch-record` | Ingest (a record), sync and lint (records to recheck) | Use whatever access you have to the tracker; else ask the user to paste or export it |
+| `fetch-source` | Ingest, for a source that is not a file in `raw/` | Save a copy in `raw/` first, or ask the user to |
+| `before-commit` | Ingest, lint and sync, before committing | (nothing) |
+| `ingest-extra`, `query-extra`, `lint-extra`, `sync-extra` | The end of that guide: the wiki's own extra steps | (nothing) |
+
+`wiki guide --parts` lists every part, which guides print it, and whether the wiki fills
+it, the default does, or it is empty; it also flags a file in `guides/parts/` that no
+guide uses (a misspelled name). The folder is `[guides] parts` in the config, and is
+never indexed as pages. Parts are plain text for the agent: write them for whichever agent
+works on this wiki.
 
 ## Replacing or adding a guide
 
@@ -79,8 +128,9 @@ dir = "guides"
 A file there named like a built-in guide (`guides/ingest.md`) replaces it for this wiki;
 any other name (`guides/claims.md`) adds a workflow, listed by `wiki guide` next to the
 built-in ones. The first line (`# Claims: update the ledger`) is the title `wiki guide`
-shows. Guides may use `{{types}}` and `{{rules}}`, which are filled in as for the built-in
-ones. A replaced guide no longer updates with the tool: that is the trade.
+shows. Guides may use `{{types}}`, `{{rules}}` and `{{part:<name>}}`, which are filled in as
+for the built-in ones. A replaced guide no longer updates with the tool: that is the trade,
+so prefer a part when only one step differs.
 
 To start from a built-in guide: `wiki guide ingest > guides/ingest.md`.
 
