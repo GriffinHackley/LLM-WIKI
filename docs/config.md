@@ -79,6 +79,7 @@ values = { kind = ["epic", "story", "bug", "task"] }
 | `sections` | list of strings | `[]` | `##` headings every page of the type has. A page missing one gets a `missing-section` warning. Case is ignored. |
 | `fields` | list of strings | `[]` | Frontmatter keys every page of the type has. A page missing one gets a `missing-field` warning. |
 | `hub` | boolean | `false` | Each page of the type stands for an idea other pages gather around (a module, a concept, an event). `wiki clusters` counts a cluster most of whose pages link to one as covered, and lists only the others. With no hub types, it lists every cluster. |
+| `record` | boolean | `false` | Each page of the type describes an item that lives and changes in another system (a ticket in a tracker). It names it by `key:` and `url:` rather than a file in `raw/`, and records in `synced:` the tracker's last-updated time it reflects; `wiki stale` lists those due for a recheck. See `[records]`. |
 | `values` | table of lists of strings | `{}` | The only values a frontmatter field may hold, per field. A value not listed gets a `bad-value` warning (case ignored; for a list, each item is checked). An absent field is not flagged here; list it in `fields` for that. |
 
 A page's type is its `type:` frontmatter (the key is `[page_type] field`), lowercased;
@@ -181,11 +182,21 @@ command refuses and the pre-commit hook skips it. The `code` preset turns it on.
 | `sections` | list of strings | all | Generated sections, in order: `summary`, `activity`, `pages`, `work`, `sources`, `questions`, `health`, `code` (`code` only with `[code] repo`). |
 | `group_by` | `"type"` or `"module"` | `"type"` | What "where the work went" groups changed pages by. `module`: a module page itself, or the modules a page reaches through typed relations (up to two steps, such as a gotcha affecting a file that is part of a module). |
 
+## `[records]`: items that live elsewhere
+
+For page types marked `record = true` (see [workflows.md](workflows.md#records-tickets-and-other-items-that-live-elsewhere)).
+
+| Key | Type | Default | What it does |
+|---|---|---|---|
+| `recheck_days` | whole number, 1 or more | `30` | A record page synced longer ago than this is due for a recheck in `wiki stale`. |
+| `final` | list of strings | done, closed, resolved, merged, released, cancelled, canceled, rejected, won't do, wont do, won't fix, wontfix, duplicate | `status:` values (case ignored) of records that no longer change: `wiki stale` does not ask to recheck them once synced. |
+
 ## `[guides]`
 
 | Key | Type | Default | What it does |
 |---|---|---|---|
 | `dir` | string | none | A folder of the wiki's own guides, relative to the root. A file named like a built-in guide (`ingest.md`) replaces it; any other name adds a workflow. See [workflows.md](workflows.md). |
+| `parts` | string | `guides/parts`, or `<dir>/parts` with `dir` set | A folder of parts: `<name>.md` fills the guides' `{{part:<name>}}` slot with the wiki's own text for that step. Never indexed as pages. `wiki guide --parts` lists the slots. |
 
 ## `[code]`: code wikis
 

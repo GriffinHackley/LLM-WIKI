@@ -21,6 +21,9 @@ The first release as `llm-wiki-cli` (the command is `wiki`). Earlier installs na
 - `wiki guide ingest|query|lint` (and `sync` for code wikis) prints the steps an agent
   follows, versioned with the command, with the wiki's own page types and rules filled
   in. A wiki's own guides can replace or add to them.
+- Guide parts: a wiki fills a step with its own text, such as how to fetch a ticket or
+  what to run before committing, in `guides/parts/<name>.md`, and the guide prints it at
+  that step. `wiki guide --parts` lists the parts.
 
 **Find and navigate**
 - `wiki search`: keyword and vector search, fused and reranked, with local models
@@ -40,3 +43,7 @@ The first release as `llm-wiki-cli` (the command is `wiki`). Earlier installs na
 - `wiki clusters`: groups of densely linked pages that no hub page (a module, a concept)
   covers, as leads for pages worth writing.
 - `wiki weekly`: a note per week of work and a timeline, built from the git history.
+- Records: a page type marked `record = true` (the code preset's `ticket`) holds items
+  that live in another system, such as Jira tickets. Their pages name them by `key:` and
+  `url:` and record in `synced:` the tracker's last-updated time; `wiki stale` lists those
+  due for a recheck. The tool never contacts the tracker; the agent does.

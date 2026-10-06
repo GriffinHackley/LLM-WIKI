@@ -5,7 +5,8 @@ kind: story
 key: <KEY-123>
 status: <open, in progress, done>
 parent: ""
-url: <where it lives in the tracker>
+url: <its link in the tracker, https://...>
+synced: "<the tracker's last-updated time when you read it, as it shows it>"
 sources: []
 last_updated: YYYY-MM-DD
 ---

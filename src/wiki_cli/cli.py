@@ -14,7 +14,20 @@ import textwrap
 from pathlib import Path
 from typing import Sequence
 
-from wiki_cli import __version__, audit, clusters, codebase, evaluate, guide, init, output, scaffold, sources, weekly
+from wiki_cli import (
+    __version__,
+    audit,
+    clusters,
+    codebase,
+    evaluate,
+    guide,
+    init,
+    output,
+    records,
+    scaffold,
+    sources,
+    weekly,
+)
 from wiki_cli.cache import Cache, CacheUnavailable
 from wiki_cli.config import CONFIG_FILENAME, ConfigError, Settings, load_settings
 from wiki_cli.model import ERROR, WARNING, Issue
@@ -226,10 +239,13 @@ def build_parser() -> argparse.ArgumentParser:
     guide_parser = commands.add_parser("guide", parents=[common], help="print a workflow's steps for an agent")
     guide_parser.add_argument("name", nargs="?", help="the workflow (omit to list them)")
     guide_parser.add_argument("extra", nargs="*", help=argparse.SUPPRESS)
+    guide_parser.add_argument("--parts", action="store_true",
+                              help="list the guides' part slots, and which ones this wiki fills with its own text")
     guide_parser.set_defaults(handler=cmd_guide)
 
     stale = commands.add_parser("stale", parents=[common],
-                                help="code wikis: pages whose covered code changed since they were verified")
+                                help="pages whose code changed since they were verified, and records due for a "
+                                     "recheck")
     stale.set_defaults(handler=cmd_stale)
 
     pending_parser = commands.add_parser("pending", parents=[common],
@@ -560,6 +576,10 @@ def cmd_guide(args: argparse.Namespace, settings: Settings | None) -> int:
     if args.extra:
         raise UsageError(f"`wiki guide {args.name}` takes no other arguments: it prints steps for you to carry "
                          f"out yourself. Follow them, starting at step 1, with {' '.join(args.extra)}.")
+    if args.parts:
+        if args.name:
+            raise UsageError("--parts lists the parts of every guide: wiki guide --parts")
+        return _print_parts(args, settings)
     if args.name is None:
         guides = guide.available(settings)
         if args.format == "json":
@@ -578,12 +598,59 @@ def cmd_guide(args: argparse.Namespace, settings: Settings | None) -> int:
     return EXIT_OK
 
 
+def _print_parts(args: argparse.Namespace, settings: Settings | None) -> int:
+    found = guide.parts(settings)
+    if args.format == "json":
+        _print_json({"parts_dir": settings.guides_parts if settings else None, "parts": found})
+        return EXIT_OK
+    folder = settings.guides_parts if settings else "guides/parts"
+    print(output.heading("Guide parts", len([part for part in found if part["source"] != "unused"])))
+    print(output.dim(output.wrap(f"A wiki fills a part with its own text in {folder}/<name>.md; the guides "
+                                 "print it at that step.")))
+    for part in found:
+        state = {"wiki": f"this wiki's: {part.get('path')}", "default": "built-in default", "empty": "empty",
+                 "unused": f"no guide uses it: {part.get('path')}"}[part["source"]]
+        print(f"\n{output.bold(part['name'])}  {output.dim('in ' + ', '.join(part['guides']))}" if part["guides"]
+              else f"\n{output.bold(part['name'])}")
+        print(f"  {output.style(state, 'yellow') if part['source'] == 'unused' else state}")
+        if part["text"]:
+            print(output.dim(output.wrap(" ".join(part["text"].split()), "    ")))
+    return EXIT_OK
+
+
 def cmd_stale(args: argparse.Namespace, settings: Settings) -> int:
-    try:
-        repo = codebase.repo(settings)
-        head = codebase.head(repo)
-    except codebase.CodeRepoError as exc:
-        raise UsageError(str(exc)) from exc
+    due = records.due(settings)
+    code = None
+    if settings.code_repo is not None or not records.record_types(settings):
+        try:
+            code = _stale_code(settings)
+        except codebase.CodeRepoError as exc:
+            raise UsageError(str(exc)) from exc
+    if args.format == "json":
+        payload = dict(code or {})
+        if records.record_types(settings):
+            payload["records"] = due
+        _print_json(payload)
+        return EXIT_OK
+    if code is not None:
+        _print_stale_code(code)
+    if records.record_types(settings):
+        print(("\n" if code is not None else "") + output.heading("Records to recheck", len(due))
+              + output.dim(f"  never synced, or synced over {settings.records_recheck_days} days ago and not final"))
+        if not due:
+            print("  None: every record page is synced recently enough, or closed.")
+        for entry in due:
+            label = " · ".join(part for part in (entry["key"], entry["status"]) if part)
+            print(f"  {output.bold(entry['slug'])}" + (f"  {output.dim(label)}" if label else "")
+                  + f"  {output.style(entry['reason'], 'yellow')}")
+            if entry["url"]:
+                print(output.dim(f"    {entry['url']}"))
+    return EXIT_OK
+
+
+def _stale_code(settings: Settings) -> dict:
+    repo = codebase.repo(settings)
+    head = codebase.head(repo)
     scanned, _ = scan_vault(settings)
     stale, unverified = [], []
     for page_file, _ in scanned:
@@ -600,27 +667,28 @@ def cmd_stale(args: argparse.Namespace, settings: Settings) -> int:
         result = codebase.staleness(repo, page.slug, page_file.rel, globs, verified)
         if result.changed or result.uncommitted or result.problem:
             stale.append(result)
-    if args.format == "json":
-        _print_json({"code_repo": str(repo), "head": head, "stale": [item.to_dict() for item in stale],
-                     "unverified": unverified})
-        return EXIT_OK
-    print(f"{output.bold('Code repo')} {output.dim('at ' + head[:12])}")
-    print(f"  {repo}")
+    return {"code_repo": str(repo), "head": head, "stale": [item.to_dict() for item in stale],
+            "unverified": unverified}
+
+
+def _print_stale_code(code: dict) -> None:
+    print(f"{output.bold('Code repo')} {output.dim('at ' + code['head'][:12])}")
+    print(f"  {code['code_repo']}")
+    stale, unverified = code["stale"], code["unverified"]
     if not stale and not unverified:
         print("Every page with covers: is up to date.")
     if stale:
         print("\n" + output.heading("Code changed since verified", len(stale)))
     for item in stale:
-        print(f"  {output.bold(item.slug)}  {output.dim('verified at ' + item.verified[:12])}")
-        details = [(output.style("problem", "yellow"), item.problem)] if item.problem else []
-        details += [("changed", ", ".join(item.changed))] if item.changed else []
-        details += [("uncommitted", ", ".join(item.uncommitted))] if item.uncommitted else []
+        print(f"  {output.bold(item['slug'])}  {output.dim('verified at ' + item['verified'][:12])}")
+        details = [(output.style("problem", "yellow"), item["problem"])] if item.get("problem") else []
+        details += [("changed", ", ".join(item["changed"]))] if item.get("changed") else []
+        details += [("uncommitted", ", ".join(item["uncommitted"]))] if item.get("uncommitted") else []
         for label, text in details:
             print(output.wrap(text, f"    {label}: "))
     if unverified:
         print("\n" + output.heading("Never verified", len(unverified)))
         print(output.wrap(", ".join(unverified), "  "))
-    return EXIT_OK
 
 
 def cmd_pending(args: argparse.Namespace, settings: Settings) -> int:

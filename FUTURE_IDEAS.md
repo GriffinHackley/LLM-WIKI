@@ -131,6 +131,23 @@ a Gantt chart of modules by week, or a bar chart of commits and pages per week. 
 show as raw text in a terminal or plain editor, so they would sit beside the block
 characters, not replace them, perhaps behind `[weekly] mermaid = true`.
 
+## Records: asking the tracker directly
+
+`wiki stale` lists records due for a recheck by age and status, and the agent fetches
+them. A wiki whose tracker has a command-line client could let `wiki stale` ask it
+instead: `[records] updated = "jira issue view {key} --raw | jq -r .fields.updated"` (or
+`gh issue view {key} --json updatedAt -q .updatedAt`), run per record and compared with
+`synced:`, so the list holds only records that really changed. Optional: the tool would
+still know no tracker, only the command the wiki gives it.
+
+## Guide parts per agent
+
+Parts are one text per slot, written for the one kind of agent a wiki is worked on by. If
+a shared wiki is worked on by several (one person on Claude Code with a Jira MCP server,
+another on Copilot without one), parts could have variants: `fetch-record.claude.md`
+before `fetch-record.md`, chosen by `wiki guide ingest --agent claude`, which the slash
+commands `wiki new --agent` writes would pass.
+
 ## Other items deferred during planning
 
 - **Persistent model server:** a local process that keeps embedding and reranker

@@ -627,6 +627,45 @@ group of files a PR touched is listed with the PR as its most-linked page and "i
 rounding" as shared terms. On synthetic wikis with random links (Louvain's worst case),
 3,000 pages take 0.4 s and 30,000 pages about 20 s. 303 tests pass.
 
+## Phase 13 (done): Records, and guide parts
+
+Ingesting a Jira ticket showed a gap: the guides knew documents (files in `raw/`, which
+never change) and code (in git, checked against a commit), and a ticket is neither. It
+lives in the tracker and changes there. And how an agent fetches a ticket depends on the
+agent and the wiki, which a guide shipped with the tool cannot know.
+
+- **Records.** `record = true` on a page type (the code preset's `ticket`) marks pages
+  that describe an item in another system. They name it by `key:` and `url:` and link no
+  file in `raw/`; `synced:` is the tracker's own last-updated time when the agent read it,
+  the record's counterpart of `verified:`. `wiki check` warns on a missing key or URL, a
+  URL that is not a web address (`bad-url`), and a `synced:` that is not a time
+  (`bad-synced`); `wiki check --ingested` accepts the URL in place of a file in `raw/`, and
+  counts `code:` links as what a record discusses.
+- **Staleness without contacting the tracker.** The tool has no credentials and knows no
+  tracker's API, so it does not decide whether a record changed. `wiki stale` lists the
+  record pages due for a recheck: never synced, or synced more than `[records]
+  recheck_days` (30) ago and not in a final status (`[records] final`: done, closed,
+  merged...). It works without a code repo. The sync and lint guides have the agent fetch
+  each, compare the tracker's last-updated time with `synced:`, update the page if it
+  changed, and set `synced:` either way.
+- **Guide parts.** `{{part:<name>}}` slots in the guides are filled from the wiki's
+  `guides/parts/<name>.md` (`[guides] parts`), else a built-in default, else nothing,
+  indented to fit the step. Slots: `fetch-record`, `fetch-source`, `before-commit`, and
+  `ingest-extra`, `query-extra`, `lint-extra`, `sync-extra` at the end of each guide.
+  `wiki guide --parts` lists them, which guides print them, where each one's text comes
+  from, and a part file no guide uses. The parts folder is never indexed. Parts are for
+  procedures at a step; `AGENTS.md`'s "Your rules" stays the place for rules that apply
+  throughout. One text per part: a wiki is worked on by one kind of agent, which the part
+  is written for.
+- **Guides** speak of records only in a wiki with a record type (`{{#records}}` blocks,
+  like `{{#code}}`).
+
+Result: on a scratch code wiki with a `fetch-record` part naming a Jira tool and a
+`before-commit` part, `wiki guide ingest` printed each at its step; `wiki guide --parts`
+listed the seven slots and flagged a misspelled part file; `wiki stale` listed a ticket
+never synced and one synced 97 days ago, and skipped a closed one; `wiki check` flagged a
+URL that was not a link and a `synced:` of "soon". 327 tests pass.
+
 ## Open decisions
 
 - None yet.

@@ -26,7 +26,7 @@ DEFAULT_SUMMARY_HEADINGS = ("summary",)
 DEFAULT_SEARCH_RESULTS = 3
 MAX_SEARCH_RESULTS = 20  # search reranks 20 passages (search.RERANK_K), so it never returns more pages
 _TOP_LEVEL = {"pages", "exclude", "raw", "embed_model", "reranker", "relations", "summary", "page_type",
-              "check", "suggest", "search", "preset", "types", "guides", "code", "pending", "weekly"}
+              "check", "suggest", "search", "preset", "types", "guides", "code", "pending", "weekly", "records"}
 _CODE_KEYS = {"repo", "origin"}
 _WEEKLY_KEYS = {"folder", "template", "sections", "group_by"}
 WEEKLY_SECTIONS = ("summary", "activity", "pages", "work", "sources", "questions", "health", "code")
@@ -36,6 +36,14 @@ _TYPE_KEYS = {"description", "folder", "template"}
 _TYPE_LISTS = {"sections", "fields"}
 _TYPE_VALUES = "values"
 _TYPE_HUB = "hub"
+_TYPE_RECORD = "record"
+_RECORDS_KEYS = {"recheck_days", "final"}
+_GUIDES_KEYS = {"dir", "parts"}
+DEFAULT_RECHECK_DAYS = 30
+# Statuses after which a record rarely changes: `wiki stale` stops asking for a recheck.
+DEFAULT_FINAL = ("done", "closed", "resolved", "merged", "released", "cancelled", "canceled", "rejected",
+                 "won't do", "wont do", "won't fix", "wontfix", "duplicate")
+DEFAULT_PARTS = "guides/parts"
 
 
 class ConfigError(Exception):
@@ -49,7 +57,9 @@ class PageType:
     expects every page of the type to have: headings, and frontmatter keys. `values` limits
     frontmatter fields to the values listed for them. A `hub` type's pages each stand for
     an idea other pages gather around (a module, a concept): `wiki clusters` counts a
-    cluster that links to one as covered."""
+    cluster that links to one as covered. A `record` type's pages each describe an item
+    that lives and changes in another system (a ticket in a tracker): they cite it by `key`
+    and `url`, and `synced` says which version of it they reflect."""
     name: str
     description: str = ""
     folder: str | None = None
@@ -58,6 +68,7 @@ class PageType:
     fields: tuple[str, ...] = ()
     values: tuple[tuple[str, tuple[str, ...]], ...] = ()  # (field, allowed values)
     hub: bool = False
+    record: bool = False
 
 
 @dataclass(frozen=True)
@@ -92,6 +103,9 @@ class Settings:
     preset: str | None = None  # the preset `wiki new` made the wiki from; picks guide variants
     types: tuple[PageType, ...] = ()  # declared page types; empty = any type is fine
     guides_dir: str | None = None  # folder of the wiki's own guides, overriding the built-in ones
+    guides_parts: str = DEFAULT_PARTS  # folder of the wiki's guide parts, filling the guides' {{part:...}} slots
+    records_recheck_days: int = DEFAULT_RECHECK_DAYS  # a record synced longer ago is due for a recheck
+    records_final: tuple[str, ...] = DEFAULT_FINAL  # statuses (lowercased) of records that no longer change
     code_repo: Path | None = None  # the code a code wiki describes ([code] repo, or $WIKI_CODE_REPO)
     code_origin: str | None = None  # the code repo's origin URL, to tell a wrong pointer
     pending_ignore: tuple[str, ...] = ()  # files under raw/ that are not sources (`wiki pending` skips them)
@@ -193,9 +207,16 @@ def load_settings(
     preset = config.get("preset")
     if preset is not None and not isinstance(preset, str):
         raise ConfigError(f"{CONFIG_FILENAME}: 'preset' must be a string")
-    guides_dir = _table(config, "guides").get("dir")
-    if guides_dir is not None and not isinstance(guides_dir, str):
-        raise ConfigError(f"{CONFIG_FILENAME}: [guides] dir must be a folder path")
+    guides = _table(config, "guides")
+    if set(guides) - _GUIDES_KEYS:
+        raise ConfigError(f"{CONFIG_FILENAME}: [guides]: unknown key(s) {', '.join(sorted(set(guides) - _GUIDES_KEYS))}")
+    guides_dir, parts = guides.get("dir"), guides.get("parts")
+    for key, value in (("dir", guides_dir), ("parts", parts)):
+        if value is not None and (not isinstance(value, str) or not value.strip("/ ")):
+            raise ConfigError(f"{CONFIG_FILENAME}: [guides] {key} must be a folder path")
+    if parts is None:
+        parts = f"{guides_dir.strip('/')}/parts" if guides_dir else DEFAULT_PARTS
+    recheck_days, final = _records(config)
     code = _table(config, "code")
     if set(code) - _CODE_KEYS or not all(isinstance(value, str) for value in code.values()):
         raise ConfigError(f"{CONFIG_FILENAME}: [code] takes 'repo' (a folder path) and 'origin' (a URL)")
@@ -224,6 +245,9 @@ def load_settings(
         preset=preset,
         types=types,
         guides_dir=guides_dir.strip("/") if guides_dir else None,
+        guides_parts=parts.strip("/ "),
+        records_recheck_days=recheck_days,
+        records_final=final,
         code_repo=code_repo,
         code_origin=code.get("origin") or None,
         pending_ignore=_patterns(_table(config, "pending"), "ignore", (), "[pending] ignore"),
@@ -244,6 +268,18 @@ def _follow_redirect(folder: Path, config: dict) -> Path:
         raise ConfigError(f"{folder / CONFIG_FILENAME} points at {target}, which is not a wiki "
                           f"(no {CONFIG_FILENAME} there)")
     return target
+
+
+def _records(config: dict) -> tuple[int, tuple[str, ...]]:
+    table = _table(config, "records")
+    unknown = set(table) - _RECORDS_KEYS
+    if unknown:
+        raise ConfigError(f"{CONFIG_FILENAME}: [records]: unknown key(s) {', '.join(sorted(unknown))}")
+    days = table.get("recheck_days", DEFAULT_RECHECK_DAYS)
+    if isinstance(days, bool) or not isinstance(days, int) or days < 1:
+        raise ConfigError(f"{CONFIG_FILENAME}: [records] recheck_days must be a whole number of days, 1 or more")
+    final = tuple(status.strip().lower() for status in _patterns(table, "final", DEFAULT_FINAL, "[records] final"))
+    return days, final
 
 
 def _weekly(config: dict) -> Weekly | None:
@@ -276,13 +312,14 @@ def _types(table: dict) -> tuple[PageType, ...]:
         where = f"{CONFIG_FILENAME}: [types.{name}]"
         if not isinstance(entry, dict):
             raise ConfigError(f"{where} must be a table")
-        unknown = set(entry) - _TYPE_KEYS - _TYPE_LISTS - {_TYPE_VALUES, _TYPE_HUB}
+        unknown = set(entry) - _TYPE_KEYS - _TYPE_LISTS - {_TYPE_VALUES, _TYPE_HUB, _TYPE_RECORD}
         if unknown:
             raise ConfigError(f"{where}: unknown key(s) {', '.join(sorted(unknown))}")
         if not all(isinstance(entry[key], str) for key in _TYPE_KEYS & set(entry)):
             raise ConfigError(f"{where}: {', '.join(sorted(_TYPE_KEYS))} must be strings")
-        if not isinstance(entry.get(_TYPE_HUB, False), bool):
-            raise ConfigError(f"{where}: {_TYPE_HUB} must be true or false")
+        for flag in (_TYPE_HUB, _TYPE_RECORD):
+            if not isinstance(entry.get(flag, False), bool):
+                raise ConfigError(f"{where}: {flag} must be true or false")
         lists = {key: _patterns(entry, key, (), f"[types.{name}] {key}") for key in _TYPE_LISTS}
         values = _table(entry, _TYPE_VALUES, f"types.{name}.{_TYPE_VALUES}")
         allowed = tuple((key.strip(), tuple(item.strip() for item in _patterns(
@@ -292,7 +329,7 @@ def _types(table: dict) -> tuple[PageType, ...]:
                               entry.get("template", "").strip() or None,
                               tuple(item.strip() for item in lists["sections"] if item.strip()),
                               tuple(item.strip() for item in lists["fields"] if item.strip()), allowed,
-                              entry.get(_TYPE_HUB, False)))
+                              entry.get(_TYPE_HUB, False), entry.get(_TYPE_RECORD, False)))
     return tuple(found)
 
 

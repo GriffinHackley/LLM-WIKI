@@ -29,6 +29,13 @@ what needs judgment, and commit the fixes.
    - `wiki pending`: sources in `raw/` no page links to yet. Don't ingest them during
      lint; list them in the report (and any flagged as the same content as a source
      already ingested).
+{{#records}}
+   - `wiki stale`: record pages due for a recheck (never synced, or synced long ago and
+     not closed). For each, fetch the record, and if it changed since `synced:`, update
+     the page; either way, set `synced:` to its last-updated time. If there are many, do
+     the oldest and list the rest in the report.
+     {{part:fetch-record}}
+{{/records}}
    - `wiki clusters`: groups of pages that link each other densely, with no hub page
      (a type marked `hub` in the config, such as a concept or event) most of them link
      to; or, in a wiki without hub types, every group with the page most of it links to.
@@ -56,8 +63,12 @@ what needs judgment, and commit the fixes.
      page. Revise it to cover what the page now says, or, if it still fits, run
      `wiki check <slug> --summary-ok`.
 4. **Fix and commit.** Fix what is mechanical (links, citations the sources support,
-   summaries, frontmatter), then `wiki index refresh` and `wiki check --all` again. Commit
+   summaries, frontmatter), then `wiki index refresh` and `wiki check --all` again.
+   {{part:before-commit}}
+   Commit
    the fixes with a message listing what was fixed.
 5. **Report** to the user: what you fixed, and what needs their judgment (contradictions,
    uncited facts you could not source, pages worth writing, orphans with no natural
    home), and the sources still to ingest.
+
+{{part:lint-extra}}

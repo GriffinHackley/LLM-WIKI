@@ -48,7 +48,7 @@ agent that changes the code keeps it current, working from the code repo.
 | `concept` | An idea from the code: a domain term, pattern, interface or piece of configuration | |
 | `decision` | Why something is the way it is (like an ADR); `status:` is proposed, accepted, rejected, superseded or deprecated | `## Affects` -> `decided-for` |
 | `instruction` | How to do a specific task: set up a dev environment, run, test, deploy, backport | |
-| `ticket` | A tracker ticket; `kind:` is epic, story, bug or task (`wiki check` warns on others) | `parent:` -> `child-of` |
+| `ticket` | A tracker ticket, a record: named by `key:` and `url:`, with `synced:` its last-updated time (`wiki stale` lists those due for a recheck); `kind:` is epic, story, bug or task (`wiki check` warns on others) | `parent:` -> `child-of` |
 | `pr` | A pull request: its description, the changes, and `merge_commit:` | `## Implements` -> `implements` |
 | `dependency` | An external library or service: why and how the code uses it | |
 | `gotcha` | A trap in the code: symptom, cause, and how to avoid it | `## Affects` -> `gotcha-for` |
