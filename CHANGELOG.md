@@ -50,6 +50,11 @@
 - Ingest: a record whose parent (a story's epic) has no page yet gets the parent's
   page written first, found by key so it is not duplicated under another slug, and
   `parent:` set to its slug. Only the parent, not its own parent or siblings.
+- `hub_through` on a hub type: a page counts toward the hub's clusters when it reaches
+  it through a chain of these typed relations (up to three steps), not only when it
+  links it directly. The code preset sets `["child-of", "implements"]` on `epic`, so an
+  epic covers the pull requests implementing its stories; `wiki clusters` says how many
+  were reached that way.
 
 ## 0.2.0: first release on PyPI
 

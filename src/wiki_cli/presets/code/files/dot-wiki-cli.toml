@@ -87,6 +87,7 @@ folder = "wiki/epics"
 template = "templates/epic.md"
 record = true                   # lives in the tracker, like a ticket
 hub = true                      # its tickets and pull requests gather around it (wiki clusters)
+hub_through = ["child-of", "implements"]  # it covers a story's pull requests and sub-tasks, not only its stories
 no_links_with = ["file"]        # epics and file pages don't link each other: a file links its ticket,
                                 # an epic the module (wiki check warns)
 sections = ["Summary"]

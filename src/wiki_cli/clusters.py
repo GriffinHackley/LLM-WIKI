@@ -21,6 +21,7 @@ from wiki_cli.model import WARNING, Issue
 MIN_WIKI_PAGES = 30  # below this, communities are noise
 MIN_CLUSTER = 4
 COVER_SHARE = 0.5  # a hub page covers a cluster when this share of its pages link to it
+MAX_THROUGH = 3  # steps of a hub type's `hub_through` relations a page may be from its hub
 PLAIN = {"links-to", "embeds"}  # built-in relations that say nothing about why pages relate
 PLAIN_WEIGHT, TYPED_WEIGHT = 1.0, 2.0
 SEED = 0
@@ -46,6 +47,7 @@ def clusters(cache: Cache, *, min_size: int = MIN_CLUSTER, include_covered: bool
     if not graph.number_of_edges():
         return result
     neighbors = {node: set(graph[node]) for node in graph}
+    reach = _reach(cache, pages)
 
     terms = _Terms(pages)
     found = []
@@ -53,7 +55,7 @@ def clusters(cache: Cache, *, min_size: int = MIN_CLUSTER, include_covered: bool
         if len(members) < min_size:
             continue
         most_linked = _most_linked(members, neighbors, pages)
-        covered_by = _most_linked(members, neighbors, pages, types=set(hub_types)) if hub_types else None
+        covered_by = _most_linked(members, neighbors, pages, types=set(hub_types), reach=reach) if hub_types else None
         if covered_by is not None and covered_by["share"] < COVER_SHARE:
             covered_by = None
         if covered_by is not None:
@@ -91,11 +93,12 @@ def membership(cache: Cache, *, min_size: int = MIN_CLUSTER) -> tuple[dict[str, 
              if len(members) >= min_size]
     found.sort(key=lambda members: (-len(members), min(members)))
     neighbors = {node: set(graph[node]) for node in graph}
+    reach = _reach(cache, pages)
     hub_types = {page_type.name for page_type in cache.settings.types if page_type.hub}
     terms = _Terms(pages)
     names = []
     for number, members in enumerate(found, start=1):
-        hub = _most_linked(members, neighbors, pages, types=hub_types) if hub_types else None
+        hub = _most_linked(members, neighbors, pages, types=hub_types, reach=reach) if hub_types else None
         if hub is not None and hub["share"] >= COVER_SHARE:
             names.append(pages[hub["slug"]][0] or hub["slug"])
         else:
@@ -160,12 +163,19 @@ def _graph(cache: Cache, pages) -> tuple:
 
 
 def _most_linked(members: set[str], neighbors: dict[str, set[str]], pages: dict,
-                 types: set[str] | None = None) -> dict | None:
+                 types: set[str] | None = None, reach: dict[str, set[str]] | None = None) -> dict | None:
     """The page (in the cluster or outside it) related to the most of its pages, with the
-    share of them it is related to; only pages of ``types`` when given."""
+    share of them it is related to; only pages of ``types`` when given. A hub in ``reach``
+    also counts the pages that reach it through its type's `hub_through` relations."""
     counts: Counter[str] = Counter()
     for slug in members:
         counts.update(neighbors.get(slug, ()))
+    through: dict[str, int] = {}
+    for hub, reached in (reach or {}).items():
+        extra = (reached & members) - neighbors.get(hub, set())
+        if extra:
+            counts[hub] += len(extra)
+            through[hub] = len(extra)
     best = None
     for slug, count in counts.items():
         page_type = pages[slug][1]
@@ -174,8 +184,43 @@ def _most_linked(members: set[str], neighbors: dict[str, set[str]], pages: dict,
         share = count / max(len(members) - (slug in members), 1)
         key = (share, count, _neg(slug))
         if best is None or key > best[0]:
-            best = (key, {"slug": slug, "type": page_type, "linked_from": count, "share": round(share, 2)})
+            found = {"slug": slug, "type": page_type, "linked_from": count, "share": round(share, 2)}
+            if through.get(slug):
+                found["through"] = through[slug]  # of linked_from: reached, not linked directly
+            best = (key, found)
     return best[1] if best else None
+
+
+def _reach(cache: Cache, pages: dict) -> dict[str, set[str]]:
+    """For each page of a hub type with `hub_through`, the pages that reach it through a
+    chain of those relations, up to MAX_THROUGH steps (a pull request that implements a
+    story that is a child of an epic)."""
+    through = {page_type.name: set(page_type.hub_through) for page_type in cache.settings.types
+               if page_type.hub_through}
+    if not through:
+        return {}
+    wanted = set().union(*through.values())
+    toward: dict[str, set[tuple[str, str]]] = defaultdict(set)  # target -> (source, relation)
+    for source, target, relation in cache.conn.execute(
+            "SELECT source_slug, target_slug, relation_type FROM relations WHERE resolved = 1"):
+        if relation in wanted and source != target and source in pages and target in pages:
+            toward[target].add((source, relation))
+    reach = {}
+    for slug, (_, page_type, _) in pages.items():
+        kinds = through.get(page_type)
+        if not kinds:
+            continue
+        found: set[str] = set()
+        frontier = {slug}
+        for _ in range(MAX_THROUGH):
+            frontier = {source for target in frontier for source, relation in toward.get(target, ())
+                        if relation in kinds} - found - {slug}
+            if not frontier:
+                break
+            found |= frontier
+        if found:
+            reach[slug] = found
+    return reach
 
 
 def _neg(slug: str) -> tuple[int, ...]:

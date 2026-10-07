@@ -382,3 +382,70 @@ class TestEpics:
                                                  encoding="utf-8")
         with pytest.raises(ConfigError, match="not_linked_from is now no_links_with"):
             load_settings(tmp_path)
+
+
+class TestHubThrough:
+    """An epic covers the pull requests that implement its stories, not only the stories:
+    its type's `hub_through` follows child-of and implements back to it."""
+
+    @staticmethod
+    def build(wiki: Path) -> None:
+        write(wiki, "wiki/epics/proj-1-export.md",
+              '---\ntitle: "PROJ-1: Export"\ntype: epic\nlast_updated: 2026-09-29\n---\n# PROJ-1\n\n## Summary\nExport.\n')
+        stories = ["proj-story-0", "proj-story-1"]
+        for index, slug in enumerate(stories):
+            write(wiki, f"wiki/tickets/{slug}.md",
+                  f"---\ntitle: {slug}\ntype: ticket\nkind: story\nparent: proj-1-export\nlast_updated: 2026-09-29\n"
+                  f"---\n# {slug}\n\n## Summary\nStory {index}, beside [[{stories[1 - index]}]].\n")
+        prs = [f"pr-{index}" for index in range(8)]
+        for index, slug in enumerate(prs):
+            after = ", ".join(f"[[{prs[(index + step) % 8]}]]" for step in (1, 2, 3))
+            write(wiki, f"wiki/prs/{slug}.md",
+                  f"---\ntitle: {slug}\ntype: pr\nlast_updated: 2026-09-29\n---\n# {slug}\n\n## Summary\n"
+                  f"Change {index}, after {after}.\n\n"
+                  f"## Changes\nExport code.\n\n## Implements\n- [[{stories[index % 2]}]] — part of it\n")
+        for index in range(18):
+            write(wiki, f"wiki/concepts/idea-{index}.md",
+                  f"---\ntitle: idea-{index}\ntype: concept\nlast_updated: 2026-09-29\n---\n# idea-{index}\n\n"
+                  f"## Summary\nIdea {index}.\n")
+
+    def feature_clusters(self, wiki: Path, capsys) -> list[dict]:
+        assert run_json(capsys, "index", "refresh", "--no-embed", "--root", str(wiki))[0] == 0
+        _, result = run_json(capsys, "clusters", "--all", "--root", str(wiki))
+        found = [cluster for cluster in result["clusters"] if any(slug.startswith("pr-") for slug in cluster["pages"])]
+        assert found
+        for cluster in found:  # mostly pull requests: the epic links too few of them directly to cover them
+            direct = sum(1 for slug in cluster["pages"] if slug.startswith("proj-story"))
+            assert direct / len(cluster["pages"]) < 0.5
+        return found
+
+    def test_epic_covers_the_pull_requests_of_its_stories(self, code_wiki, capsys):
+        self.build(code_wiki)
+        for cluster in self.feature_clusters(code_wiki, capsys):
+            covered_by, prs = cluster["covered_by"], sum(1 for slug in cluster["pages"] if slug.startswith("pr-"))
+            assert covered_by["slug"] == "proj-1-export" and covered_by["share"] == 1.0
+            others = len(cluster["pages"]) - ("proj-1-export" in cluster["pages"])  # a hub does not count itself
+            assert covered_by["linked_from"] == others and covered_by["through"] == prs
+        capsys.readouterr()
+        main(["clusters", "--all", "--root", str(code_wiki)])
+        assert "through other pages, by hub_through)" in capsys.readouterr().out
+
+    def test_without_hub_through_only_the_stories_count(self, code_wiki, capsys):
+        config = code_wiki / ".wiki-cli.toml"
+        text = config.read_text(encoding="utf-8")
+        config.write_text("\n".join(line for line in text.splitlines() if not line.startswith("hub_through")),
+                          encoding="utf-8")
+        self.build(code_wiki)
+        assert all(cluster["covered_by"] is None for cluster in self.feature_clusters(code_wiki, capsys))
+
+    @pytest.mark.parametrize("table, message", [
+        ('[types.epic]\nhub_through = ["child-of"]\n', "hub_through needs hub = true"),
+        ('[types.epic]\nhub = true\nhub_through = ["child-off"]\n',
+         r"hub_through names relation types no \[\[relations\]\] rule defines: child-off"),
+        ('[types.epic]\nhub = true\nhub_through = ["links-to"]\n', "rule defines: links-to"),
+    ])
+    def test_hub_through_is_checked(self, tmp_path, table, message):
+        rule = '[[relations]]\nfield = "parent"\ntype = "child-of"\ninverse = "parent-of"\n'
+        (tmp_path / ".wiki-cli.toml").write_text(table + rule, encoding="utf-8")
+        with pytest.raises(ConfigError, match=message):
+            load_settings(tmp_path)

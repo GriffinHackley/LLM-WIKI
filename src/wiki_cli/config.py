@@ -33,7 +33,7 @@ WEEKLY_SECTIONS = ("summary", "activity", "pages", "work", "sources", "questions
 WEEKLY_GROUPS = ("type", "module")
 REDIRECT_KEY = "wiki"  # a config holding only this key says "the wiki for this folder is over there"
 _TYPE_KEYS = {"description", "folder", "template"}
-_TYPE_LISTS = {"sections", "fields", "no_links_with"}
+_TYPE_LISTS = {"sections", "fields", "no_links_with", "hub_through"}
 _TYPE_VALUES = "values"
 _TYPE_HUB = "hub"
 _TYPE_RECORD = "record"
@@ -61,7 +61,9 @@ class PageType:
     that lives and changes in another system (a ticket in a tracker): they cite it by `key`
     and `url`, and `synced` says which version of it they reflect. `no_links_with` names
     the types whose pages should not link pages of this type, or be linked by them: either
-    direction joins them in the relations graph (an epic and a file)."""
+    direction joins them in the relations graph (an epic and a file). `hub_through` lets a
+    hub type's pages cover pages that reach them through a chain of these typed relations,
+    not only pages linked directly (a pull request implementing a story of an epic)."""
     name: str
     description: str = ""
     folder: str | None = None
@@ -72,6 +74,7 @@ class PageType:
     hub: bool = False
     record: bool = False
     no_links_with: tuple[str, ...] = ()
+    hub_through: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -204,6 +207,12 @@ def load_settings(
     if not isinstance(folders, dict) or not all(isinstance(v, str) for v in folders.values()):
         raise ConfigError(f"{CONFIG_FILENAME}: [page_type] folders must map folder paths to type names")
     types = _types(_table(config, "types"))
+    typed = {rule.type for rule in rules}
+    for item in types:
+        unknown = [name for name in item.hub_through if name not in typed]
+        if unknown:
+            raise ConfigError(f"{CONFIG_FILENAME}: [types.{item.name}] hub_through names relation types no "
+                              f"[[relations]] rule defines: {', '.join(unknown)}")
     by_folder = {k.strip("/"): v.strip().lower() for k, v in folders.items()}
     by_folder.update({page_type.folder: page_type.name for page_type in types if page_type.folder})
     type_folders = tuple(sorted(by_folder.items(), key=lambda pair: -len(pair[0])))
@@ -336,7 +345,10 @@ def _types(table: dict) -> tuple[PageType, ...]:
                               tuple(item.strip() for item in lists["sections"] if item.strip()),
                               tuple(item.strip() for item in lists["fields"] if item.strip()), allowed,
                               entry.get(_TYPE_HUB, False), entry.get(_TYPE_RECORD, False),
-                              tuple(item.strip().lower() for item in lists["no_links_with"] if item.strip())))
+                              tuple(item.strip().lower() for item in lists["no_links_with"] if item.strip()),
+                              tuple(item.strip().lower() for item in lists["hub_through"] if item.strip())))
+        if found[-1].hub_through and not found[-1].hub:
+            raise ConfigError(f"{where}: hub_through needs hub = true")
     names = {page_type.name for page_type in found}
     for page_type in found:
         undeclared = [item for item in page_type.no_links_with if item not in names]
