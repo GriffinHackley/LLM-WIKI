@@ -6,7 +6,7 @@ import pytest
 
 from wiki_cli.cache import Cache
 from wiki_cli.cli import main
-from wiki_cli.clusters import clusters
+from wiki_cli.clusters import clusters, membership
 from wiki_cli.config import ConfigError, load_settings
 
 CONFIG = """\
@@ -101,3 +101,12 @@ def test_hub_must_be_a_boolean(tmp_path):
     (tmp_path / ".wiki-cli.toml").write_text('[types.module]\nhub = "yes"\n', encoding="utf-8")
     with pytest.raises(ConfigError, match="hub must be true or false"):
         load_settings(tmp_path)
+
+
+def test_membership_names_a_covered_cluster_after_its_hub_page(root):
+    with Cache(load_settings(root)) as cache:
+        cache.refresh()
+        assignment, names = membership(cache)
+    assert names[assignment["cache-0"]] == "cache-module"  # the hub page's title
+    invoice_name = names[assignment["invoice-0"]]
+    assert set(invoice_name.split(", ")) <= {"invoice", "rounding", "part"} and "invoice" in invoice_name

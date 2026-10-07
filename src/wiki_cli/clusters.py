@@ -24,6 +24,7 @@ PLAIN = {"links-to", "embeds"}  # built-in relations that say nothing about why 
 PLAIN_WEIGHT, TYPED_WEIGHT = 1.0, 2.0
 SEED = 0
 MAX_TERMS = 5
+NAME_TERMS = 3  # shared terms in a cluster's name when no hub page covers it
 STOPWORDS = set("""a an the and or of to in on for with by from at as is are was were be been it its this that
 these those which who what when where how why not no but into over under about than then so such can may
 will would should one two page pages wiki""".split())
@@ -74,19 +75,31 @@ def clusters(cache: Cache, *, min_size: int = MIN_CLUSTER, include_covered: bool
     return result
 
 
-def membership(cache: Cache, *, min_size: int = MIN_CLUSTER) -> dict[str, int]:
-    """Each page's community, numbered from 0 by size (largest first); pages in no
-    community of ``min_size`` or more are left out."""
+def membership(cache: Cache, *, min_size: int = MIN_CLUSTER) -> tuple[dict[str, int], list[str]]:
+    """Each page's community, numbered from 0 by size (largest first), and a short name
+    for each: the title of the hub page that covers it, else the terms its pages share,
+    else "cluster N". Pages in no community of ``min_size`` or more are left out."""
     import networkx as nx
 
-    pages = {slug for (slug,) in cache.conn.execute("SELECT slug FROM pages WHERE kind = 'page'")}
+    pages = {slug: (title, page_type, summary) for slug, title, page_type, summary in cache.conn.execute(
+        "SELECT slug, title, page_type, summary FROM pages WHERE kind = 'page'")}
     graph, _ = _graph(cache, pages)
     if not graph.number_of_edges():
-        return {}
+        return {}, []
     found = [members for members in nx.community.louvain_communities(graph, weight="weight", seed=SEED)
              if len(members) >= min_size]
     found.sort(key=lambda members: (-len(members), min(members)))
-    return {slug: number for number, members in enumerate(found) for slug in members}
+    neighbors = {node: set(graph[node]) for node in graph}
+    hub_types = {page_type.name for page_type in cache.settings.types if page_type.hub}
+    terms = _Terms(pages)
+    names = []
+    for number, members in enumerate(found, start=1):
+        hub = _most_linked(members, neighbors, pages, types=hub_types) if hub_types else None
+        if hub is not None and hub["share"] >= COVER_SHARE:
+            names.append(pages[hub["slug"]][0] or hub["slug"])
+        else:
+            names.append(", ".join(terms.shared(members)[:NAME_TERMS]) or f"cluster {number}")
+    return {slug: number for number, members in enumerate(found) for slug in members}, names
 
 
 def _graph(cache: Cache, pages) -> tuple:
