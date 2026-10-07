@@ -209,6 +209,9 @@ template.
        ingest documents three or more files in the file's folder, first write a module
        page for that folder, nested under the broader one, and name it. With fewer, name
        the broader module and list the folder in your report as a module worth writing.
+       Where a file page mentions tracker work, it links the ticket, not the ticket's
+       epic (`wiki check` warns, `link-not-allowed`, when a type's `not_linked_from`
+       forbids a link).
      - **A module inside a larger one** names the larger module under its own
        `## Part of`, and the larger module's `covers:` keeps only the files no nested
        module describes (`src/core/*.py`, not `src/core/**`).
@@ -237,7 +240,8 @@ template.
    created or changed, and fix every error and every `missing-section`, `missing-field`,
    `bad-value` and `uncited-sources` warning{{#records}}, and on record pages every `bad-url` and
    `bad-synced` one{{/records}}.{{#code}} In code pages, also fix every `missing-code-file`,
-   `covers-nothing` and `part-of-broader-module` warning.{{/code}} Warnings about links to pages not written yet are
+   `covers-nothing` and `part-of-broader-module` warning.{{/code}} Fix every
+   `link-not-allowed` warning: remove the link, or link a page that leads there instead. Warnings about links to pages not written yet are
    expected. A `hub-covers-clusters` warning (a hub page that several separate groups of
    pages gather around) is not fixed during an ingest: list it in your report as a page
    to split. A `summary-stale` warning means you changed a page's body but not its

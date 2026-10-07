@@ -42,6 +42,10 @@
   Record pages are exempt from `hub-covers-clusters`. The lint guide checks that a
   finished epic's feature has a module or concept page. An existing wiki moves its epic
   pages to `type: epic` and adds the `[types.epic]` table.
+- `not_linked_from` on a page type lists the types whose pages should not link it;
+  `wiki check` warns (`link-not-allowed`) on a page that does. The code preset sets it
+  on `epic` to `["file"]`: a file page links its ticket, not the epic, so code pages do
+  not gather around the epic in place of the module that describes them.
 
 ## 0.2.0: first release on PyPI
 

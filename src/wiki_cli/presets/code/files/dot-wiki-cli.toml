@@ -87,6 +87,7 @@ folder = "wiki/epics"
 template = "templates/epic.md"
 record = true                   # lives in the tracker, like a ticket
 hub = true                      # its tickets, pull requests and files gather around it (wiki clusters)
+not_linked_from = ["file"]      # a file page links its tickets, not their epic (wiki check warns)
 sections = ["Summary"]
 fields = ["title", "type", "last_updated"]
 

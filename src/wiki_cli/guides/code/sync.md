@@ -40,8 +40,9 @@ The code repo is `{{code_repo}}`.
      changed: the page has been checked.
 {{/records}}
 4. **Check.** `wiki index refresh`, `wiki check` on every page you changed (fix errors,
-   `missing-code-file`, `covers-nothing` and `part-of-broader-module`; revise or `--summary-ok` stale summaries), and
-   `wiki stale` again: it should list nothing you meant to sync.
+   `missing-code-file`, `covers-nothing`, `part-of-broader-module` and
+   `link-not-allowed`; revise or `--summary-ok` stale summaries), and `wiki stale` again:
+   it should list nothing you meant to sync.
 5. **Commit the wiki** with a message naming the code commit synced to and the pages
    updated.
    {{part:before-commit}}
