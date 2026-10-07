@@ -47,6 +47,9 @@
   link. The code preset sets it on `epic` to `["file"]`: a file page links its ticket and
   an epic the module, so code pages do not gather around the epic in place of the module
   that describes them.
+- Ingest: a record whose parent (a story's epic) has no page yet gets the parent's
+  page written first, found by key so it is not duplicated under another slug, and
+  `parent:` set to its slug. Only the parent, not its own parent or siblings.
 
 ## 0.2.0: first release on PyPI
 

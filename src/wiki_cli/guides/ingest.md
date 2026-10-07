@@ -138,6 +138,12 @@ template.
      last-updated time as it shows it (quoted). It links no file in `raw/`, unless the
      user exported the record there: then link that file too. The record's page is the
      source page for the steps below; cite it like any source, `([[proj-412-bulk-export]])`.
+   - **A record's parent** (a story's epic): find its page first,
+     `wiki search "<its key>" --keyword-only`, since it may exist under any slug. If it
+     has none, fetch the parent and write its page now, from its type's template, before
+     finishing this record's page. Then set this record's `parent:` to that page's slug.
+     Write only the parent, not the parent's own parent or its other children. It counts
+     toward the run's page cap (step 4).
 {{/records}}
 {{#code}}
    - **Code has no source page.** The pages you write in step 7 record what they describe
