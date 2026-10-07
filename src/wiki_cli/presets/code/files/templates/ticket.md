@@ -14,8 +14,8 @@ last_updated: YYYY-MM-DD
 # <KEY-123: the ticket's title>
 
 ## Summary
-What the ticket asks for and why, in one paragraph. `kind:` is epic, story, bug or task;
-`parent:` is the slug of its epic, if it has one.
+What the ticket asks for and why, in one paragraph. `kind:` is story, bug or task;
+`parent:` is the slug of its epic page, if it has one (an epic is a page of its own type).
 
 ## Details
 The requirements or acceptance criteria, and for a bug, how it shows and what caused it.

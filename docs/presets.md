@@ -48,14 +48,18 @@ agent that changes the code keeps it current, working from the code repo.
 | `concept` | An idea from the code: a domain term, pattern, interface or piece of configuration | |
 | `decision` | Why something is the way it is (like an ADR); `status:` is proposed, accepted, rejected, superseded or deprecated | `## Affects` -> `decided-for` |
 | `instruction` | How to do a specific task: set up a dev environment, run, test, deploy, backport | |
-| `ticket` | A tracker ticket, a record: named by `key:` and `url:`, with `synced:` its last-updated time (`wiki stale` lists those due for a recheck); `kind:` is epic, story, bug or task (`wiki check` warns on others) | `parent:` -> `child-of` |
+| `ticket` | A tracker ticket, a record: named by `key:` and `url:`, with `synced:` its last-updated time (`wiki stale` lists those due for a recheck); `kind:` is story, bug or task (`wiki check` warns on others); its epic goes in `parent:` | `parent:` -> `child-of` |
+| `epic` | A tracker epic, a record like a ticket: a feature being built, and the tickets, pull requests and code that deliver it | |
 | `pr` | A pull request: its description, the changes, and `merge_commit:` | `## Implements` -> `implements` |
 | `dependency` | An external library or service: why and how the code uses it | |
 | `gotcha` | A trap in the code: symptom, cause, and how to avoid it | `## Affects` -> `gotcha-for` |
 | `analysis` | The wiki's own synthesis, answering a question across pages | `## Key pages` -> `synthesizes` |
 
-`module` and `concept` are hub types: `wiki clusters` counts a group of pages most of which
-link to one as covered, and reports the rest as module or concept pages worth writing.
+`module`, `concept` and `epic` are hub types: `wiki clusters` counts a group of pages most of
+which link to one as covered, and reports the rest as module or concept pages worth writing.
+An epic covers its feature's tickets while it is built; once it is done, lint checks that a
+module or concept page describes the feature. Record types are never flagged
+`hub-covers-clusters`, since a feature spans several areas and the page mirrors the tracker.
 
 There is no type for documents as such. A document from `raw/` is recorded on a page of
 the type it is: a design doc or RFC as a `decision`, an exported ticket as a `ticket`, a
