@@ -210,6 +210,23 @@ class TestGuides:
         assert "**A document:**" in text and "wiki pending" in text
         assert "a page of the type it is" in text and "*the source type*" not in text
         assert "{{" not in text and "}}" not in text and "\n\n\n" not in text
+        assert "**A pull request's tickets:**" in text and "**A record's parent**" in text
+
+    def test_pull_request_tickets_rule_needs_a_record_type(self, code_wiki, capsys):
+        config = code_wiki / ".wiki-cli.toml"
+        config.write_text(config.read_text(encoding="utf-8").replace("record = true", "record = false"),
+                          encoding="utf-8")
+        _, guide = run_json(capsys, "guide", "ingest", "--root", str(code_wiki))
+        assert "**A pull request page**" in guide["text"] and "**A pull request's tickets:**" not in guide["text"]
+
+    def test_pull_request_tickets_part_fills_the_step(self, code_wiki, capsys):
+        _, guide = run_json(capsys, "guide", "ingest", "--root", str(code_wiki))
+        assert "keys (`PROJ-123`) in its title, description, branch name and" in guide["text"]  # the default
+        write(code_wiki, "guides/parts/pr-tickets.md", "The key is on the `Ticket:` line of the PR body.\n")
+        _, guide = run_json(capsys, "guide", "ingest", "--root", str(code_wiki))
+        assert ("find the tickets it implements.\n       The key is on the `Ticket:` line of the PR body.\n"
+                "       For each, find its page first") in guide["text"]
+        assert "in its title, description, branch name" not in guide["text"]
 
     def test_code_query_guide_differs_from_the_generic_one_only_in_step_seven(self):
         guides = Path(__file__).parents[1] / "src/wiki_cli/guides"

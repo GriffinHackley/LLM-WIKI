@@ -224,6 +224,16 @@ template.
        module describes (`src/core/*.py`, not `src/core/**`).
      - **A pull request page** covers the files it changed, with `verified:` and
        `merge_commit:` set to the commit it merged as.
+{{#records}}
+     - **A pull request's tickets:** find the tickets it implements.
+       {{part:pr-tickets}}
+       For each, find its page first, `wiki search "<key>" --keyword-only`. If it has
+       none, fetch the ticket and write its page now (step 3), before finishing the pull
+       request's page, and name it under `## Implements`. Its parent then follows the rule for a
+       record's parent (step 3), so a missing epic is written too. Write only the tickets
+       the pull request names, not their other pull requests or sibling tickets. They
+       count toward the run's page cap (step 4).
+{{/records}}
      - **Link sections:** a module's dependencies (other modules, and `dependency` pages)
        under `## Depends on`, the pages a decision or a gotcha affects under `## Affects`,
        a pull request's tickets under `## Implements`, and a ticket's epic in `parent:`.
@@ -248,8 +258,8 @@ template.
    `bad-value` and `uncited-sources` warning{{#records}}, and on record pages every `bad-url` and
    `bad-synced` one{{/records}}.{{#code}} In code pages, also fix every `missing-code-file`,
    `covers-nothing` and `part-of-broader-module` warning.{{/code}} Fix every
-   `link-not-allowed` warning: remove the link, or link a page that leads there instead. Warnings about links to pages not written yet are
-   expected. A `hub-covers-clusters` warning (a hub page that several separate groups of
+   `link-not-allowed` warning: remove the link, or link a page that leads there
+   instead. Warnings about links to pages not written yet are expected. A `hub-covers-clusters` warning (a hub page that several separate groups of
    pages gather around) is not fixed during an ingest: list it in your report as a page
    to split. A `summary-stale` warning means you changed a page's body but not its
    summary: re-read the summary and revise it to cover what the page now says, or, if it
