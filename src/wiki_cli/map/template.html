@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wiki map</title>
+<style>
+:root {
+  --bg: #f6f6f4; --panel: #ffffffee; --text: #1d1d1b; --dim: #6b6b66; --line: #d9d9d4;
+  --accent: #2f6fdb; --query: #c2410c; --path: #7c3aed; --canvas: #f6f6f4;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121316; --panel: #1b1d22ee; --text: #e8e8e3; --dim: #9a9a94; --line: #30323a;
+    --accent: #6ea0ff; --query: #fb923c; --path: #a78bfa; --canvas: #0e0f12;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121316; --panel: #1b1d22ee; --text: #e8e8e3; --dim: #9a9a94; --line: #30323a;
+  --accent: #6ea0ff; --query: #fb923c; --path: #a78bfa; --canvas: #0e0f12;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; }
+body { background: var(--bg); color: var(--text); font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+#graph { position: fixed; inset: 0; }
+#panel {
+  position: fixed; top: 12px; left: 12px; bottom: 12px; width: 320px; overflow-y: auto;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px;
+  backdrop-filter: blur(6px); z-index: 2;
+}
+#panel.collapsed > :not(#toggle) { display: none; }
+#panel.collapsed { bottom: auto; width: auto; padding: 6px 10px; }
+#toggle { float: right; background: none; border: 0; color: var(--dim); cursor: pointer; font-size: 16px; padding: 0 2px; }
+h1 { font-size: 15px; margin: 0 0 2px; }
+h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); margin: 16px 0 6px; }
+.dim { color: var(--dim); }
+.note { background: color-mix(in srgb, var(--query) 12%, transparent); border-left: 3px solid var(--query);
+  padding: 4px 8px; margin: 6px 0; border-radius: 0 4px 4px 0; }
+label { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 4px 0; }
+select, input[type=search], button.small {
+  font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px;
+}
+input[type=search] { width: 100%; }
+button.small { cursor: pointer; }
+button.small:disabled { opacity: .4; cursor: default; }
+ul { list-style: none; margin: 0; padding: 0; }
+li.item { padding: 3px 6px; border-radius: 5px; cursor: pointer; }
+li.item:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+li.item.current { background: color-mix(in srgb, var(--path) 22%, transparent); }
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+.legend li { display: flex; justify-content: space-between; padding: 1px 0; }
+.legend { max-height: 160px; overflow-y: auto; }
+.tag { font-size: 11px; padding: 0 5px; border-radius: 4px; border: 1px solid var(--line); color: var(--dim); white-space: nowrap; }
+.row { display: flex; gap: 6px; align-items: center; }
+#details .path { font-family: ui-monospace, Consolas, monospace; font-size: 12px; word-break: break-all; }
+.tip { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; max-width: 320px; font: 12px/1.4 system-ui, sans-serif; }
+@media (max-width: 640px) {
+  #panel { top: auto; left: 8px; right: 8px; bottom: 8px; width: auto; max-height: 45vh; }
+}
+</style>
+</head>
+<body>
+<div id="graph"></div>
+<aside id="panel">
+  <button id="toggle" title="Hide panel" aria-label="Hide panel">&#x2013;</button>
+  <h1 id="title">Wiki map</h1>
+  <div id="meta" class="dim"></div>
+  <div id="notes"></div>
+
+  <h2>View</h2>
+  <label>Colour by <select id="colorBy"></select></label>
+  <label>Relations <select id="edgeMode">
+    <option value="typed">typed only</option><option value="all">all links</option><option value="none">none</option>
+  </select></label>
+  <ul id="legend" class="legend"></ul>
+
+  <h2>Find a page</h2>
+  <input id="find" type="search" placeholder="slug or title" list="slugs" autocomplete="off">
+  <datalist id="slugs"></datalist>
+
+  <div id="details"></div>
+  <div id="querySection"></div>
+  <div id="navSection"></div>
+
+  <h2>About this map</h2>
+  <p class="dim">Each point is a page's embedding, squeezed from hundreds of dimensions into three.
+  Nearby points are pages the model thinks are about similar things; distances are a hint, not proof.
+  Drag to orbit, scroll to zoom, click a point for details.</p>
+</aside>
+<script>/*__LIBRARY__*/</script>
+<script>
+const DATA = /*__DATA__*/null;
+const $ = (id) => document.getElementById(id);
+const esc = (text) => String(text ?? "").replace(/[&<>"']/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const PALETTE = ["#4e79a7", "#f28e2b", "#59a14f", "#e15759", "#76b7b2", "#edc948", "#b07aa1", "#ff9da7", "#9c755f", "#86bcb6",
+                 "#d37295", "#8cd17d", "#499894", "#f1ce63", "#a0cbe8"];
+const NONE = "#9a9a94";
+const points = DATA.points;
+const big = points.length > 4000;
+
+// -- header ---------------------------------------------------------------
+document.title = `Wiki map: ${DATA.root}`;
+$("title").textContent = `Map of ${DATA.root}`;
+const method = DATA.method === "umap" ? "UMAP" : DATA.fallback_reason ? `PCA (UMAP unavailable: ${DATA.fallback_reason})` : "PCA";
+$("meta").innerHTML = `${points.length} ${DATA.points_kind} &middot; ${esc(method)}<br>${esc(DATA.embed_model || "")} &middot; ${esc(DATA.generated)}`;
+$("notes").innerHTML = DATA.notes.map((note) => `<div class="note">${esc(note)}</div>`).join("");
+$("toggle").onclick = () => {
+  const collapsed = $("panel").classList.toggle("collapsed");
+  $("toggle").innerHTML = collapsed ? "&#x2630;" : "&#x2013;";
+};
+
+// -- colour ---------------------------------------------------------------
+const modes = {type: "page type", cluster: "link cluster", age: "last changed"};
+if (DATA.nav.length) modes.visits = "nav visits";
+for (const [value, label] of Object.entries(modes)) $("colorBy").add(new Option(label, value));
+$("colorBy").value = modes[DATA.color_by] ? DATA.color_by : "type";
+
+function categorical(values) {
+  const counts = new Map();
+  for (const value of values) if (value !== null && value !== undefined) counts.set(value, (counts.get(value) || 0) + 1);
+  const order = [...counts.keys()].sort((a, b) => counts.get(b) - counts.get(a) || String(a).localeCompare(String(b)));
+  return {colors: new Map(order.map((value, i) => [value, i < PALETTE.length ? PALETTE[i] : NONE])), counts, order};
+}
+function ramp(t) {  // dark blue -> teal -> yellow
+  const stops = [[49, 54, 149], [33, 145, 140], [253, 231, 37]];
+  const x = Math.min(Math.max(t, 0), 1) * (stops.length - 1), i = Math.min(Math.floor(x), stops.length - 2), f = x - i;
+  const c = stops[i].map((v, k) => Math.round(v + (stops[i + 1][k] - v) * f));
+  return `rgb(${c.join(",")})`;
+}
+let colorOf = () => NONE;
+function applyColor() {
+  const mode = $("colorBy").value;
+  const legend = [];
+  if (mode === "type" || mode === "cluster") {
+    const {colors, counts, order} = categorical(points.map((p) => p[mode]));
+    colorOf = (p) => colors.get(p[mode]) || NONE;
+    order.slice(0, PALETTE.length).forEach((value) => legend.push([colors.get(value),
+      mode === "cluster" ? `cluster ${value + 1}` : value, counts.get(value)]));
+    const rest = points.filter((p) => !colors.has(p[mode]) || colors.get(p[mode]) === NONE).length;
+    if (rest) legend.push([NONE, mode === "cluster" ? "in no cluster" : "other / no type", rest]);
+  } else if (mode === "age") {
+    const ages = points.map((p) => Math.log1p(p.age_days)), top = Math.max(...ages, 1e-9);
+    colorOf = (p) => ramp(1 - Math.log1p(p.age_days) / top);
+    legend.push([ramp(1), "changed recently", ""], [ramp(0), `${Math.round(Math.max(...points.map((p) => p.age_days)))} days ago`, ""]);
+  } else {
+    const top = Math.max(...points.map((p) => p.visits), 1);
+    colorOf = (p) => p.visits ? ramp(p.visits / top) : NONE;
+    legend.push([ramp(1), `read ${top}×`, ""], [ramp(1 / top), "read once", ""], [NONE, "never read", points.filter((p) => !p.visits).length]);
+  }
+  $("legend").innerHTML = legend.map(([color, label, count]) =>
+    `<li><span><span class="swatch" style="background:${color}"></span>${esc(label)}</span><span class="dim">${count}</span></li>`).join("");
+  refresh();
+}
+
+// -- graph data -----------------------------------------------------------
+const nodes = points.map((p, i) => ({id: i, p, x: p.pos[0], y: p.pos[1], z: p.pos[2], fx: p.pos[0], fy: p.pos[1], fz: p.pos[2]}));
+const extra = [];  // overlay points: the question, nav questions and follow-up searches
+function overlay(id, pos, kind, label) {
+  if (!pos) return null;
+  const node = {id, kind, label, x: pos[0], y: pos[1], z: pos[2], fx: pos[0], fy: pos[1], fz: pos[2]};
+  extra.push(node);
+  return node;
+}
+const edgeLinks = DATA.edges.map((e) => ({source: e.s, target: e.t, kind: "edge", typed: e.typed, relation: e.relation}));
+const queryLinks = [];
+if (DATA.query && DATA.query.pos) {
+  overlay("q", DATA.query.pos, "query", `Question: ${DATA.query.text}`);
+  for (const hit of DATA.query.hits) if (hit.point !== null) queryLinks.push({source: "q", target: hit.point, kind: "hit", hit});
+}
+const navLinks = [];
+DATA.nav.forEach((session, s) => {
+  let previous = null;
+  session.steps.forEach((step, i) => {
+    let node = null;
+    if (step.kind === "read") node = step.point;
+    else {
+      const made = overlay(`n${s}-${i}`, step.pos, step.kind === "question" ? "navq" : "navs",
+        `${step.kind === "question" ? "Session question" : "Follow-up search"}: ${step.text}`);
+      if (made) { made.session = s; node = made.id; }
+    }
+    step.node = node;
+    if (node !== null && previous !== null && node !== previous) navLinks.push({source: previous, target: node, kind: "nav", session: s, step: i});
+    if (node !== null) previous = node;
+  });
+});
+
+// -- state ----------------------------------------------------------------
+let selected = null;          // point index clicked or found
+let navSession = DATA.nav.length ? DATA.nav.length - 1 : null;
+let navStep = null;           // index into the session's steps
+const hitPoints = new Map((DATA.query?.hits || []).filter((h) => h.point !== null).map((h) => [h.point, h]));
+const citedIn = (s) => new Set(s === null ? [] : DATA.nav[s].cited);
+
+function currentNode() {
+  if (navSession === null || navStep === null) return null;
+  return DATA.nav[navSession].steps[navStep].node;
+}
+function nodeColor(node) {
+  if (node.kind === "query") return css("--query");
+  if (node.kind === "navq" || node.kind === "navs") return node.session === navSession ? css("--path") : css("--dim");
+  return colorOf(node.p);
+}
+function nodeVal(node) {
+  if (node.kind === "query") return 14;
+  if (node.kind) return node.session === navSession ? 5 : 2;
+  const i = node.id;
+  if (i === selected || i === currentNode()) return 10;
+  if (hitPoints.has(i)) return 5;
+  if (navSession !== null && citedIn(navSession).has(node.p.slug)) return 4;
+  return big ? 0.5 : 1;
+}
+function nodeLabel(node) {
+  if (node.kind) return `<div class="tip">${esc(node.label)}</div>`;
+  const p = node.p, hit = hitPoints.get(node.id);
+  return `<div class="tip"><b>${esc(p.title)}</b>${p.section ? ` <span class="dim">§ ${esc(p.section)}</span>` : ""}<br>` +
+    `<span class="dim">${esc(p.type || "no type")}${p.cluster !== null && p.cluster !== undefined ? ` · cluster ${p.cluster + 1}` : ""}</span>` +
+    (hit ? `<br>search result ${hit.rank}` : "") + (p.summary ? `<br>${esc(p.summary)}` : "") + `</div>`;
+}
+function linkVisible(link) {
+  if (link.kind === "edge") return $("edgeMode").value === "all" || ($("edgeMode").value === "typed" && link.typed);
+  return true;
+}
+function linkColor(link) {
+  if (link.kind === "hit") return link.hit.vector_rank ? css("--query") : "rgba(194,65,12,0.45)";
+  if (link.kind === "nav") return link.session === navSession ? css("--path") : "rgba(140,140,140,0.25)";
+  return link.typed ? "rgba(120,140,170,0.55)" : "rgba(120,120,120,0.22)";
+}
+function linkWidth(link) {
+  if (link.kind === "hit") return 1.2;
+  if (link.kind === "nav") return link.session === navSession ? (link.step === navStep ? 2.5 : 1.3) : 0.3;
+  return link.typed ? 0.4 : 0;
+}
+
+// -- graph ----------------------------------------------------------------
+const Graph = ForceGraph3D()($("graph"))
+  .backgroundColor(css("--canvas"))
+  .showNavInfo(false)
+  .nodeId("id")
+  .nodeRelSize(1)
+  .nodeResolution(big ? 4 : 10)
+  .nodeOpacity(0.92)
+  .cooldownTicks(0)
+  .warmupTicks(0)
+  .enableNodeDrag(false)
+  .graphData({nodes: [...nodes, ...extra], links: [...edgeLinks, ...queryLinks, ...navLinks]})
+  .nodeLabel(nodeLabel)
+  .linkLabel((link) => link.kind === "edge" ? esc(link.relation) : link.kind === "hit" ? `result ${link.hit.rank}` : "")
+  .linkDirectionalArrowLength((link) => link.kind === "nav" && link.session === navSession ? 3 : 0)
+  .linkDirectionalArrowRelPos(1)
+  .linkDirectionalParticles((link) => link.kind === "nav" && link.session === navSession ? 2 : 0)
+  .linkDirectionalParticleWidth(1.6)
+  .onNodeClick((node) => { if (!node.kind) select(node.id, false); });
+Graph.d3Force("charge", null); Graph.d3Force("link", null); Graph.d3Force("center", null);
+
+function refresh() {
+  Graph.nodeColor(nodeColor).nodeVal(nodeVal)
+    .linkVisibility(linkVisible).linkColor(linkColor).linkWidth(linkWidth)
+    .linkDirectionalArrowLength(Graph.linkDirectionalArrowLength())
+    .linkDirectionalParticles(Graph.linkDirectionalParticles());
+}
+function focus(pos) {
+  if (!pos) return;
+  const distance = 70, length = Math.hypot(...pos) || 1, k = 1 + distance / length;
+  Graph.cameraPosition({x: pos[0] * k, y: pos[1] * k, z: pos[2] * k + (length < 1 ? distance : 0)}, {x: pos[0], y: pos[1], z: pos[2]}, 800);
+}
+window.addEventListener("resize", () => Graph.width(innerWidth).height(innerHeight));
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { Graph.backgroundColor(css("--canvas")); refresh(); });
+
+// -- details and find -----------------------------------------------------
+function select(index, fly = true) {
+  selected = index;
+  const p = points[index];
+  const links = DATA.edges.filter((e) => e.s === index || e.t === index);
+  $("details").innerHTML = `<h2>Selected</h2><b>${esc(p.title)}</b>${p.section ? ` <span class="dim">§ ${esc(p.section)}</span>` : ""}
+    <div class="dim">${esc(p.type || "no type")} · changed ${p.age_days} days ago${p.visits ? ` · read in ${p.visits} nav ${p.visits === 1 ? "step" : "steps"}` : ""}</div>
+    ${p.summary ? `<p>${esc(p.summary)}</p>` : ""}
+    <div class="row"><span class="path">${esc(p.path)}</span><button class="small" id="copy">copy</button></div>
+    ${links.length ? `<div class="dim" style="margin-top:6px">${links.length} relations</div>` : ""}`;
+  $("copy").onclick = () => navigator.clipboard?.writeText(p.path).then(() => { $("copy").textContent = "copied"; });
+  if (fly) focus(p.pos);
+  refresh();
+}
+const seen = new Set();
+$("slugs").innerHTML = points.filter((p) => !seen.has(p.slug) && seen.add(p.slug))
+  .map((p) => `<option value="${esc(p.slug)}">${esc(p.title)}</option>`).join("");
+$("find").addEventListener("change", () => {
+  const term = $("find").value.trim().toLowerCase();
+  const index = points.findIndex((p) => p.slug.toLowerCase() === term) >= 0 ? points.findIndex((p) => p.slug.toLowerCase() === term)
+    : points.findIndex((p) => p.title.toLowerCase().includes(term) || p.slug.toLowerCase().includes(term));
+  if (term && index >= 0) select(index);
+});
+
+// -- query ----------------------------------------------------------------
+if (DATA.query) {
+  const q = DATA.query;
+  $("querySection").innerHTML = `<h2>Question</h2><div><span class="swatch" style="background:var(--query)"></span>${esc(q.text)}</div>
+    <div class="dim" style="margin:4px 0">Search's results. A solid line: the point is also among the ${q.nearest.length} nearest the question in embedding space. A faint one: search found it another way (a section, keywords, the reranker).</div>
+    <ul id="hits">${q.hits.map((h) => `<li class="item" data-point="${h.point ?? ""}"><b>${h.rank}.</b> ${esc(h.slug)}${h.section ? ` <span class="dim">§ ${esc(h.section)}</span>` : ""}
+      <span class="tag">${h.vector_rank ? `nearest #${h.vector_rank}` : `not in nearest ${q.nearest.length}`}</span></li>`).join("") || "<li class='dim'>No results.</li>"}</ul>
+    <div class="row" style="margin-top:6px"><button class="small" id="toQuery">Go to question</button></div>`;
+  $("toQuery").onclick = () => focus(q.pos);
+  for (const li of document.querySelectorAll("#hits li[data-point]")) if (li.dataset.point !== "") li.onclick = () => select(+li.dataset.point);
+}
+
+// -- nav paths ------------------------------------------------------------
+function renderNav() {
+  if (!DATA.nav.length) return;
+  const session = DATA.nav[navSession];
+  const options = DATA.nav.map((s, i) => `<option value="${i}" ${i === navSession ? "selected" : ""}>${esc(s.session)}: ${esc(s.question.slice(0, 50))}</option>`).join("");
+  const describe = (step) => step.kind === "question" ? `<b>Question</b> ${esc(step.text)}`
+    : step.kind === "search" ? `<b>Search</b> ${esc(step.text)}`
+    : `<b>Read</b> ${esc(step.slug)}${step.part ? ` <span class="dim">§ ${esc(step.part)}</span>` : ""}${session.cited.includes(step.slug) ? ' <span class="tag">cited</span>' : ""}` +
+      (step.why ? `<div class="dim">${esc(step.why)}</div>` : "");
+  $("navSection").innerHTML = `<h2>Navigation ${DATA.nav.length > 1 ? `(${DATA.nav.length} sessions)` : "session"}</h2>
+    ${DATA.nav.length > 1 ? `<select id="navPick" style="width:100%">${options}</select>` : `<div class="dim">${esc(session.session)}${session.ended ? "" : " (not ended)"}</div>`}
+    <div class="row" style="margin:6px 0"><button class="small" id="prev">&larr; prev</button><button class="small" id="next">next &rarr;</button>
+      <span class="dim">${navStep === null ? "" : `step ${navStep + 1} of ${session.steps.length}`}</span></div>
+    <ul>${session.steps.map((step, i) => `<li class="item ${i === navStep ? "current" : ""}" data-step="${i}">${i + 1}. ${describe(step)}</li>`).join("")}</ul>
+    ${session.cited.length ? `<div class="dim" style="margin-top:6px">Cited: ${session.cited.map(esc).join(", ")}</div>` : ""}`;
+  $("navPick")?.addEventListener("change", (event) => { navSession = +event.target.value; navStep = null; renderNav(); refresh(); });
+  $("prev").disabled = navStep === null || navStep === 0;
+  $("next").disabled = navStep !== null && navStep >= session.steps.length - 1;
+  $("prev").onclick = () => goStep(navStep - 1);
+  $("next").onclick = () => goStep(navStep === null ? 0 : navStep + 1);
+  for (const li of document.querySelectorAll("#navSection li[data-step]")) li.onclick = () => goStep(+li.dataset.step);
+}
+function goStep(i) {
+  navStep = i;
+  const step = DATA.nav[navSession].steps[i];
+  renderNav(); refresh();
+  focus(step.kind === "read" ? (step.point !== null ? points[step.point].pos : null) : step.pos);
+}
+
+applyColor();
+renderNav();
+$("colorBy").onchange = applyColor;
+$("edgeMode").onchange = refresh;
+// Frame every point: fit the bounding box to the view, leaving the panel's side clear on wide screens.
+function overview() {
+  const lo = [0, 1, 2].map((k) => Math.min(...points.map((p) => p.pos[k])));
+  const hi = [0, 1, 2].map((k) => Math.max(...points.map((p) => p.pos[k])));
+  const center = lo.map((v, k) => (v + hi[k]) / 2);
+  const panelOpen = innerWidth > 900 && !$("panel").classList.contains("collapsed");
+  const usable = panelOpen ? 1 - ($("panel").offsetWidth + 24) / innerWidth : 1;
+  const tanHalf = Math.tan((Graph.camera().fov * Math.PI / 180) / 2), aspect = (innerWidth * usable) / innerHeight;
+  const distance = Math.max((hi[1] - lo[1]) / 2 / tanHalf, (hi[0] - lo[0]) / 2 / (tanHalf * aspect)) * 1.08 + (hi[2] - lo[2]) / 2;
+  const shift = panelOpen ? -(1 - usable) / 2 * 2 * distance * tanHalf * (innerWidth / innerHeight) : 0;
+  Graph.cameraPosition({x: center[0] + shift, y: center[1], z: center[2] + distance},
+                       {x: center[0] + shift, y: center[1], z: center[2]}, 600);
+}
+overview();
+$("meta").insertAdjacentHTML("beforeend", ` &middot; <a href="#" id="reset" style="color:var(--accent)">reset view</a>`);
+$("reset").onclick = (event) => { event.preventDefault(); overview(); };
+</script>
+</body>
+</html>

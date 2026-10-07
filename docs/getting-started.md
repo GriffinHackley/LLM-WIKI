@@ -416,6 +416,15 @@ wiki clusters        # groups of linked pages no hub page covers: pages worth wr
 wiki suggest <slug>  # pages this one names but doesn't link, or resembles
 ```
 
+To see the whole wiki at once, `wiki map --open` draws every page's embedding in 3D, in
+your browser: pages the model thinks are about the same thing sit together, coloured by
+type, link cluster or age, with their relations as lines. Add `--query "<question>"` to
+see where a question lands and which pages search returns for it, or `--nav last` to
+replay the agent's last navigation session as a path. The page is one file in `.cache/`
+that works offline. The first run takes half a minute while UMAP compiles; later runs
+reuse the layout until pages change. Any projection to three dimensions distorts, so
+treat distances as hints.
+
 `wiki check` exits with 1 when it finds errors, so it works in a pre-commit hook or CI.
 Every command accepts `--format json` for scripts and agents. Text output wraps to the
 terminal and uses a little color there; piped to another program or a file, it is plain

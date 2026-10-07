@@ -666,6 +666,83 @@ listed the seven slots and flagged a misspelled part file; `wiki stale` listed a
 never synced and one synced 97 days ago, and skipped a closed one; `wiki check` flagged a
 URL that was not a link and a `synced:` of "soon". 327 tests pass.
 
+## Phase 14 (done): A 3D map of the vector space
+
+The cache holds an embedding for every page (`summary_vectors`, rowid = `pages.id`) and
+every chunk (`chunk_vectors`, rowid = `chunks.id`), 384 to 1024 dimensions by model, and
+nothing lets a person see them. A map shows what the numbers say: which pages the model
+thinks are about the same thing, which pages sit apart, and where a question lands.
+It is for exploring, not proof: any projection to three dimensions distorts, and the
+map says so.
+
+- **`wiki map`** writes `.cache/map.html`, a single self-contained page (the data inlined
+  as JSON), and prints its path; `--open` opens it in the default browser. No server, no
+  agent needed: a plain file like the rest of the cache, disposable and rebuilt on
+  demand. `--format json` prints the coordinates and metadata instead, for other tools.
+- **Reduction: UMAP by default** (`umap-learn`, cosine metric, fixed `random_state` so the
+  same wiki gives the same map). It adds about 250–350 MB installed (numba, llvmlite,
+  scikit-learn, scipy), well under the cost that would matter, and is imported only by
+  `wiki map`, so no other command slows down. It is a core dependency, so the map works
+  without an extra install. numba compiles on first use (10–30 s once, cached after).
+  `--method pca` (numpy only, instant) stays as the fast option and the fallback if UMAP
+  cannot be used.
+- **The fallback is never silent.** If UMAP fails to import or to fit, `wiki map` prints
+  a note to stderr (`output.note`) naming the reason (the exception's message) and that
+  it used PCA, records `"method": "pca"` and `"fallback_reason"` in JSON output, and
+  the map's header says "PCA (UMAP unavailable: <reason>)". An explicit `--method umap`
+  fails with the reason instead of falling back.
+- **Points.** Pages by default (`summary_vectors`); `--chunks` plots sections instead
+  (coloured like their page, labelled with their heading), which shows long pages whose
+  sections drift into other topics. Relations are drawn only between pages.
+  Below 30 pages (`MIN_WIKI_PAGES`, as clusters) the map is drawn but says the layout is
+  noise; with no vectors it says to run `wiki index refresh`.
+- **Cached layout.** The fitted coordinates and the UMAP model are saved beside the cache
+  (`map-pages.pickle`, `map-chunks.pickle`), keyed by embed model, umap version and the
+  points' `embedded_hash`es, so an unchanged wiki is not refitted and a changed one is.
+  Coordinates are centred on the median point and scaled by the 95th-percentile
+  distance, and the viewer frames the bounding box, so an outlying island neither
+  shrinks the rest nor falls off screen.
+- **Viewer.** 3d-force-graph (three.js) with fixed node positions: orbit, zoom, hover for
+  title, type and summary, click to copy the page's path, find a page by slug or title.
+  `--color-by type | cluster | age | visits` sets the first colouring; the page can switch
+  (type from `pages.page_type`, cluster from `wiki clusters`' Louvain communities, age
+  from mtime, visits from nav reads). Relations from the `relations` table can be drawn as edges, typed
+  ones distinguishable from plain links. Seen together, the two show what neither does
+  alone: pages close in the space but unlinked (candidate links, the signal `wiki
+  suggest` uses) and linked pages far apart (odd or stale links). The JS library is
+  shipped in the package, not loaded from a CDN, so the map works offline.
+- **Query overlay.** `wiki map --query "..."` embeds the question with the cache's own
+  model and query prefix, places it with the fitted UMAP's `transform()` (PCA: the
+  fitted projection; a failed transform: the similarity-weighted mean of its 5 nearest
+  points), and draws a line to each of `wiki search`'s results (`--limit`), numbered by
+  rank. A hit among the question's 10 nearest points by embedding gets a solid line and
+  its rank there; others came by a later section, keywords or the reranker.
+- **Nav path overlay.** `wiki map --nav <session>` (or `--nav last`) draws a navigation
+  session as a path: the question's point (from `nav_sessions.query_vector`), then each
+  page in `nav_events` order, `read` steps as solid steps, follow-up `search` queries as
+  extra points (re-embedded from their text), and the pages cited at `end` highlighted.
+  The viewer can step through the path. `--nav all` draws every session lightly, as a
+  heat map of where agents go and which regions they never visit. Sessions live in the
+  cache, so a full rebuild clears them; the map shows what is there.
+- **Guides.** Not part of any workflow (agents do not look at maps); both lint guides
+  mention `wiki map --open` once, in the report step, as something to offer the user.
+
+Steps: `vecmap.py` (load vectors, reduce, cache the layout, project queries and nav
+steps), the HTML template and vendored JS as package data, the `map` subcommand,
+tests with the `fake:hash` embedder (coordinate shape, same seed gives the same map,
+query and nav points land where `transform` puts them, empty and small wikis, HTML
+contains the data, UMAP made unimportable falls back to PCA with the note and the JSON
+reason, and `--method umap` then fails), docs and CHANGELOG.
+
+Result: on the Politics wiki (414 pages, bge-small), UMAP fits in about 11 s cold
+(5 s of it importing umap) and a cached map, with a question and 14 nav sessions placed,
+takes 10 s, mostly imports and model loading; 3,182 sections take 21 s. The map shows
+one thing a list could not: the Israel material (Goldstein, Ben-Gvir, Kach, 104 pages of
+claims and documents) as an island well apart from the US-politics body. umap-learn added
+334 MB to the environment. With `umap` made unimportable, the map falls back to PCA with
+the note on stderr, `fallback_reason` in JSON and the reason in the page header;
+`--method umap` exits 2. 343 tests pass.
+
 ## Open decisions
 
 - None yet.

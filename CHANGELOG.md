@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+**See the wiki**
+- `wiki map` draws the cache's embeddings in 3D as one self-contained HTML page
+  (`.cache/map.html`, works offline; `--open` opens it). Points are pages, or sections
+  with `--chunks`, coloured by page type, link cluster, age, or how often agents read
+  them; relations are drawn as lines. Hover for a page's summary, click for its path.
+- `--query "<question>"` places a question in the map with lines to its search results,
+  marking which are also its nearest pages by embedding. `--nav <session>|last|all`
+  draws navigation sessions as paths (question, pages read, follow-up searches, pages
+  cited) to step through.
+- Layout by UMAP (now a dependency, about 0.3 GB with numba and scikit-learn, imported
+  only by `wiki map`), cached until pages change. If UMAP cannot be imported or fails,
+  the map uses PCA and says so on stderr, in `--format json` (`fallback_reason`) and in
+  the page's header; `--method umap` fails instead, and `--method pca` skips UMAP.
+
 ## 0.2.0: first release on PyPI
 
 The first release as `llm-wiki-cli` (the command is `wiki`). Earlier installs named

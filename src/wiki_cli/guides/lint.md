@@ -69,6 +69,7 @@ what needs judgment, and commit the fixes.
    the fixes with a message listing what was fixed.
 5. **Report** to the user: what you fixed, and what needs their judgment (contradictions,
    uncited facts you could not source, pages worth writing, orphans with no natural
-   home), and the sources still to ingest.
+   home), and the sources still to ingest. If they want to look over the wiki
+   themselves, `wiki map --open` shows every page in 3D by what it is about.
 
 {{part:lint-extra}}
