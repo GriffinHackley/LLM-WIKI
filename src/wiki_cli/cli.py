@@ -26,6 +26,7 @@ from wiki_cli import (
     records,
     scaffold,
     sources,
+    vecmap,
     weekly,
 )
 from wiki_cli.cache import Cache, CacheUnavailable
@@ -80,7 +81,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             output.note(settings.root_note)
         return args.handler(args, settings)
     except (ConfigError, PageNotFound, CacheUnavailable, UsageError, ModelUnavailable, evaluate.EvalError,
-            guide.GuideError, scaffold.ScaffoldError, weekly.WeeklyError) as exc:
+            guide.GuideError, scaffold.ScaffoldError, weekly.WeeklyError, vecmap.MapError) as exc:
         _print_error(str(exc))
         return EXIT_ERROR
 
@@ -91,7 +92,7 @@ def _print_error(message: str) -> None:
 
 
 COMMAND_ORDER = ("new", "init", "guide", "search", "nav", "list", "neighbors", "suggest", "check", "unwritten",
-                 "orphans", "clusters", "pending", "stale", "weekly", "index", "models", "vocab", "eval")
+                 "orphans", "clusters", "map", "pending", "stale", "weekly", "index", "models", "vocab", "eval")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -172,6 +173,22 @@ def build_parser() -> argparse.ArgumentParser:
     clusters_parser.add_argument("--min-size", type=_positive_int, default=clusters.MIN_CLUSTER,
                                  help=f"smallest cluster listed (default {clusters.MIN_CLUSTER})")
     clusters_parser.set_defaults(handler=cmd_clusters)
+
+    map_parser = commands.add_parser(
+        "map", parents=[common, models],
+        help="a 3D map of the pages' embeddings, as an HTML page (with a question or nav sessions placed in it)")
+    map_parser.add_argument("--method", choices=vecmap.METHODS, default="auto",
+                            help="layout: auto (UMAP, else PCA with a note), umap (fail if unavailable), pca")
+    map_parser.add_argument("--chunks", action="store_true", help="one point per section instead of per page")
+    map_parser.add_argument("--color-by", choices=vecmap.COLOR_BY, default="type",
+                            help="initial colouring (the page can switch); visits needs --nav")
+    map_parser.add_argument("--query", help="place this question in the map, with lines to its search results")
+    map_parser.add_argument("--limit", type=_positive_int,
+                            help="search results drawn for --query (default: [search] results in .wiki-cli.toml, else 3)")
+    map_parser.add_argument("--nav", metavar="SESSION",
+                            help="draw a navigation session as a path: a session id, 'last', or 'all'")
+    map_parser.add_argument("--open", action="store_true", help="open the map in the default browser")
+    map_parser.set_defaults(handler=cmd_map)
 
     neighbors = commands.add_parser("neighbors", parents=[common], help="a page's typed relations (no page bodies)")
     neighbors.add_argument("slug")
@@ -863,6 +880,51 @@ def cmd_clusters(args: argparse.Namespace, settings: Settings) -> int:
             details.append(("relations", ", ".join(f"{kind} {count}" for kind, count in cluster["relations"].items())))
         for line in output.rows(details, indent="   ", styles=(("dim",),)):
             print(line)
+    return EXIT_OK
+
+
+# -- map -------------------------------------------------------------------
+
+def cmd_map(args: argparse.Namespace, settings: Settings) -> int:
+    notes: list[str] = []
+    with Cache(settings) as cache:
+        cache.refresh()
+        embedder = searcher = None
+        if (args.query or args.nav) and cache.embed_model:
+            try:  # the cache's own model, so questions land in the same space as the pages
+                embedder = load_embedder(cache.embed_model, settings.models_dir)
+            except ModelUnavailable as exc:
+                if args.query:
+                    raise
+                notes.append(f"follow-up searches are not placed: {exc}")
+        if args.query and embedder is not None:
+            reranker = load_reranker(settings.reranker, settings.models_dir)
+            limit = args.limit or settings.search_results
+
+            def searcher(question: str) -> list:
+                return search(cache.conn, question, embedder=embedder, reranker=reranker,
+                              embed_model=cache.embed_model, limit=limit).hits
+
+        def progress(message: str) -> None:
+            if args.format == "text":
+                print(f"{message}...", file=sys.stderr, flush=True)
+
+        result = vecmap.build(cache, method=args.method, chunks=args.chunks, color_by=args.color_by,
+                              query=args.query, nav=args.nav, embedder=embedder, searcher=searcher,
+                              progress=progress)
+    result.payload["notes"] += notes
+    for note in result.payload["notes"]:
+        output.note(note)
+    if args.format == "json":
+        _print_json(result.payload)
+        return EXIT_OK
+    path = vecmap.write(result.payload, settings.cache_path)
+    payload = result.payload
+    method = "UMAP" if payload["method"] == "umap" else "PCA"
+    print(f"Map of {output.plural(len(payload['points']), payload['points_kind'][:-1])} ({method}): {path}")
+    if args.open:
+        import webbrowser
+        webbrowser.open(path.as_uri())
     return EXIT_OK
 
 

@@ -39,6 +39,7 @@ The code repo is `{{code_repo}}`.
 5. **Fix and commit** what is mechanical, then `wiki index refresh` and
    `wiki check --all` again. Commit the wiki with a message listing the fixes.
    {{part:before-commit}}
-6. **Report** what you fixed, and what needs the user's judgment.
+6. **Report** what you fixed, and what needs the user's judgment. If they want to look
+   over the wiki themselves, `wiki map --open` shows every page in 3D by what it is about.
 
 {{part:lint-extra}}

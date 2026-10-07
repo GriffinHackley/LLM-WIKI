@@ -3,3 +3,4 @@
 src/wiki_cli/presets/** text eol=lf
 src/wiki_cli/guides/** text eol=lf
 src/wiki_cli/hooks/* text eol=lf
+src/wiki_cli/map/* text eol=lf

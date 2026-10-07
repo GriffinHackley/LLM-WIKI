@@ -40,18 +40,7 @@ def clusters(cache: Cache, *, min_size: int = MIN_CLUSTER, include_covered: bool
         result["too_small"] = MIN_WIKI_PAGES
         return result
 
-    weights: dict[tuple[str, str], float] = defaultdict(float)
-    relations: dict[tuple[str, str], str] = {}
-    for source, target, relation in cache.conn.execute(
-            "SELECT source_slug, target_slug, relation_type FROM relations WHERE resolved = 1"):
-        if source == target or source not in pages or target not in pages:
-            continue
-        pair = (source, target) if source < target else (target, source)
-        weights[pair] += PLAIN_WEIGHT if relation in PLAIN else TYPED_WEIGHT
-        relations[(source, target)] = relation
-    graph = nx.Graph()
-    for (a, b), weight in sorted(weights.items()):
-        graph.add_edge(a, b, weight=weight)
+    graph, relations = _graph(cache, pages)
     if not graph.number_of_edges():
         return result
     neighbors = {node: set(graph[node]) for node in graph}
@@ -83,6 +72,41 @@ def clusters(cache: Cache, *, min_size: int = MIN_CLUSTER, include_covered: bool
     result["clusters"] = sorted(found, key=lambda item: (item["covered_by"] is not None, -item["size"],
                                                            item["pages"][0]))
     return result
+
+
+def membership(cache: Cache, *, min_size: int = MIN_CLUSTER) -> dict[str, int]:
+    """Each page's community, numbered from 0 by size (largest first); pages in no
+    community of ``min_size`` or more are left out."""
+    import networkx as nx
+
+    pages = {slug for (slug,) in cache.conn.execute("SELECT slug FROM pages WHERE kind = 'page'")}
+    graph, _ = _graph(cache, pages)
+    if not graph.number_of_edges():
+        return {}
+    found = [members for members in nx.community.louvain_communities(graph, weight="weight", seed=SEED)
+             if len(members) >= min_size]
+    found.sort(key=lambda members: (-len(members), min(members)))
+    return {slug: number for number, members in enumerate(found) for slug in members}
+
+
+def _graph(cache: Cache, pages) -> tuple:
+    """The undirected relations graph between ``pages`` (typed relations weigh more),
+    and each directed pair's relation type."""
+    import networkx as nx
+
+    weights: dict[tuple[str, str], float] = defaultdict(float)
+    relations: dict[tuple[str, str], str] = {}
+    for source, target, relation in cache.conn.execute(
+            "SELECT source_slug, target_slug, relation_type FROM relations WHERE resolved = 1"):
+        if source == target or source not in pages or target not in pages:
+            continue
+        pair = (source, target) if source < target else (target, source)
+        weights[pair] += PLAIN_WEIGHT if relation in PLAIN else TYPED_WEIGHT
+        relations[(source, target)] = relation
+    graph = nx.Graph()
+    for (a, b), weight in sorted(weights.items()):
+        graph.add_edge(a, b, weight=weight)
+    return graph, relations
 
 
 def _most_linked(members: set[str], neighbors: dict[str, set[str]], pages: dict,
