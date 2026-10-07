@@ -66,11 +66,14 @@ class TestNew:
         assert settings.preset == "code" and settings.code_repo == code_repo.resolve()
         assert (code_wiki / "templates/module.md").is_file() and (code_wiki / "raw/.gitkeep").is_file()
         assert [page_type.name for page_type in settings.types] == [
-            "file", "module", "concept", "decision", "instruction", "ticket", "pr", "dependency", "gotcha", "analysis"]
+            "file", "module", "concept", "decision", "instruction", "ticket", "epic", "pr", "dependency", "gotcha",
+            "analysis"]
         for page_type in settings.types:  # each type's template ships with the preset
             assert (code_wiki / page_type.template).is_file()
         ticket = next(page_type for page_type in settings.types if page_type.name == "ticket")
-        assert ticket.values == (("kind", ("epic", "story", "bug", "task")),)
+        assert ticket.values == (("kind", ("story", "bug", "task")),)
+        epic = next(page_type for page_type in settings.types if page_type.name == "epic")
+        assert epic.record and epic.hub and not ticket.hub
         decision = next(page_type for page_type in settings.types if page_type.name == "decision")
         assert decision.values == (("status", ("proposed", "accepted", "rejected", "superseded", "deprecated")),)
         assert "../app" in (code_wiki / "AGENTS.md").read_text(encoding="utf-8")
@@ -312,3 +315,30 @@ class TestPartOfBroaderModule:
         self.file_page(root, "lexer", "src/core/parser/lexer.py", "parser", commit)
         assert self.warnings(root, capsys) == []
         assert self.warnings(root, capsys, "parser") == []  # nested modules are not checked
+
+
+class TestEpics:
+    """An epic is a hub: its tickets gather around it. It is a record, so it is never told
+    to split, though a feature's tickets fall into several clusters."""
+
+    def test_epic_covers_its_tickets_and_is_never_told_to_split(self, code_wiki, capsys):
+        write(code_wiki, "wiki/epics/proj-1-export.md",
+              '---\ntitle: "PROJ-1: Export"\ntype: epic\nkey: PROJ-1\nstatus: open\nurl: https://jira.example/PROJ-1\n'
+              'synced: "2026-09-29"\nlast_updated: 2026-09-29\n---\n# PROJ-1: Export\n\n## Summary\nThe export feature.\n')
+        for area in ("csv", "pdf"):
+            ring = [f"proj-{area}-{index}" for index in range(8)]
+            for index, slug in enumerate(ring):
+                write(code_wiki, f"wiki/tickets/{slug}.md",
+                      f"---\ntitle: {slug}\ntype: ticket\nkind: story\nparent: proj-1-export\nlast_updated: 2026-09-29\n"
+                      f"---\n# {slug}\n\n## Summary\n{area} export step {index}, after [[{ring[(index + 1) % 8]}]] "
+                      f"and [[{ring[(index + 2) % 8]}]].\n")
+        for index in range(14):
+            write(code_wiki, f"wiki/concepts/idea-{index}.md",
+                  f"---\ntitle: idea-{index}\ntype: concept\nlast_updated: 2026-09-29\n---\n# idea-{index}\n\n"
+                  f"## Summary\nIdea {index}.\n")
+        assert run_json(capsys, "index", "refresh", "--root", str(code_wiki))[0] == 0
+        _, result = run_json(capsys, "clusters", "--all", "--root", str(code_wiki))
+        assert "epic" in result["hub_types"] and result["covered"] == 2
+        assert [cluster["covered_by"]["slug"] for cluster in result["clusters"]] == ["proj-1-export"] * 2
+        _, result = run_json(capsys, "check", "--all", "--root", str(code_wiki))
+        assert not any(issue["code"] == "hub-covers-clusters" for issue in result["issues"])

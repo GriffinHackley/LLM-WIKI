@@ -36,6 +36,12 @@
   widening `covers:`.
 - Code preset: file pages require a `## Part of` section (`missing-section` when a
   rewrite drops it).
+- Code preset: epics are their own type, `epic`, a record and a hub: the tickets, pull
+  requests and files of a feature gather around it, so `wiki clusters` counts them as
+  covered. Tickets keep `kind:` story, bug or task and name their epic in `parent:`.
+  Record pages are exempt from `hub-covers-clusters`. The lint guide checks that a
+  finished epic's feature has a module or concept page. An existing wiki moves its epic
+  pages to `type: epic` and adds the `[types.epic]` table.
 
 ## 0.2.0: first release on PyPI
 

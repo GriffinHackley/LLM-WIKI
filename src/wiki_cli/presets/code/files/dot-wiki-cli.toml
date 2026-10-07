@@ -73,13 +73,22 @@ sections = ["Summary"]
 fields = ["title", "type", "last_updated"]
 
 [types.ticket]
-description = "A tracker ticket (a Jira epic, story, bug or task): what it asked for, and what was done."
+description = "A tracker ticket (a Jira story, bug or task): what it asked for, and what was done. Its epic goes in `parent:`."
 folder = "wiki/tickets"
 template = "templates/ticket.md"
 record = true                   # lives in the tracker: cited by key and url, rechecked by `wiki stale`
 sections = ["Summary"]
 fields = ["title", "type", "kind", "last_updated"]
-values = { kind = ["epic", "story", "bug", "task"] }
+values = { kind = ["story", "bug", "task"] }
+
+[types.epic]
+description = "A tracker epic: a feature being built, what it asks for, and the tickets, pull requests and code that deliver it."
+folder = "wiki/epics"
+template = "templates/epic.md"
+record = true                   # lives in the tracker, like a ticket
+hub = true                      # its tickets, pull requests and files gather around it (wiki clusters)
+sections = ["Summary"]
+fields = ["title", "type", "last_updated"]
 
 [types.pr]
 description = "A pull request: its description, an overview of the changes, and the commit it merged as."

@@ -116,10 +116,13 @@ def overloaded_hubs(cache: Cache, *, min_size: int = MIN_CLUSTER) -> dict[str, l
 
 def hub_issues(cache: Cache, paths: dict[str, str]) -> list[Issue]:
     """A `hub-covers-clusters` warning for each page in ``paths`` (slug -> path) that is
-    a hub over several clusters."""
+    a hub over several clusters. Record pages (an epic) are exempt: a feature spans
+    several areas, and the page mirrors an item in the tracker, so it cannot be split."""
+    records = {page_type.name for page_type in cache.settings.types if page_type.record}
+    types = dict(cache.conn.execute("SELECT slug, page_type FROM pages WHERE kind = 'page'"))
     issues = []
     for slug, found in overloaded_hubs(cache).items():
-        if slug not in paths:
+        if slug not in paths or types.get(slug) in records:
             continue
         groups = []
         for cluster in found:
