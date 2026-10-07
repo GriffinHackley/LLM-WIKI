@@ -21,9 +21,9 @@ The code repo is `{{code_repo}}`.
      (`missing-code-file`), `covers:` globs that match nothing (`covers-nothing`),
      pages that cover files without a `verified:` commit, file pages that name a
      broader module under `## Part of` than the most specific one covering them
-     (`part-of-broader-module`: point them at that one), and links a type's
-     `not_linked_from` forbids, such as a file page linking an epic (`link-not-allowed`:
-     link the ticket instead).
+     (`part-of-broader-module`: point them at that one), and links between types a
+     type's `no_links_with` keeps apart, such as a file page and an epic
+     (`link-not-allowed`: from a file page, link the ticket; from an epic, the module).
    - `wiki unwritten`: links to pages not written yet. Fix typos; list the rest in the
      report as pages worth writing, most-linked first.
    - `wiki orphans`: pages nothing links to. Link them from related pages, or report them.

@@ -343,9 +343,10 @@ class TestEpics:
         _, result = run_json(capsys, "check", "--all", "--root", str(code_wiki))
         assert not any(issue["code"] == "hub-covers-clusters" for issue in result["issues"])
 
-    def test_files_should_not_link_epics(self, code_wiki, capsys):
+    def test_files_and_epics_do_not_link_each_other(self, code_wiki, capsys):
         write(code_wiki, "wiki/epics/proj-1-export.md",
-              '---\ntitle: "PROJ-1: Export"\ntype: epic\nlast_updated: 2026-09-29\n---\n# PROJ-1\n\n## Summary\nExport.\n')
+              '---\ntitle: "PROJ-1: Export"\ntype: epic\nlast_updated: 2026-09-29\n---\n# PROJ-1\n\n## Summary\n'
+              "Export, built in [[search]] and [[export]].\n")
         write(code_wiki, "wiki/tickets/proj-2-csv.md",
               "---\ntitle: PROJ-2\ntype: ticket\nkind: task\nparent: proj-1-export\nlast_updated: 2026-09-29\n---\n"
               "# PROJ-2\n\n## Summary\nCSV export, part of [[proj-1-export]].\n")
@@ -357,17 +358,27 @@ class TestEpics:
               "Writes the CSV for [[proj-1-export]], as [[proj-2-csv]] asked.\n\n## Part of\n- [[search]] — exports\n")
         assert run_json(capsys, "index", "refresh", "--no-embed", "--root", str(code_wiki))[0] == 0
         _, result = run_json(capsys, "check", "--all", "--root", str(code_wiki))
-        [issue] = [issue for issue in result["issues"] if issue["code"] == "link-not-allowed"]
-        assert issue["slug"] == "export" and issue["path"] == "wiki/files/export.md"
-        assert "links [[proj-1-export]], an epic page, but file pages should not link epic pages" in issue["message"]
-        _, result = run_json(capsys, "check", "export", "--root", str(code_wiki))
-        assert [issue["code"] for issue in result["issues"]].count("link-not-allowed") == 1
+        found = {issue["slug"]: issue["message"] for issue in result["issues"] if issue["code"] == "link-not-allowed"}
+        assert set(found) == {"export", "proj-1-export"}  # each direction, on the page holding the link
+        assert "links [[proj-1-export]], an epic page, but file and epic pages should not link each other" \
+            in found["export"]
+        assert "links [[export]], a file page, but epic and file pages should not link each other" \
+            in found["proj-1-export"]
+        for slug in ("export", "proj-1-export"):
+            _, result = run_json(capsys, "check", slug, "--root", str(code_wiki))
+            assert [issue["code"] for issue in result["issues"]].count("link-not-allowed") == 1
         for allowed in ("proj-2-csv", "csv-format"):
             _, result = run_json(capsys, "check", allowed, "--root", str(code_wiki))
             assert not any(issue["code"] == "link-not-allowed" for issue in result["issues"])
 
-    def test_not_linked_from_must_name_declared_types(self, tmp_path):
-        (tmp_path / ".wiki-cli.toml").write_text('[types.epic]\nnot_linked_from = ["files"]\n[types.file]\n',
+    def test_no_links_with_must_name_declared_types(self, tmp_path):
+        (tmp_path / ".wiki-cli.toml").write_text('[types.epic]\nno_links_with = ["files"]\n[types.file]\n',
                                                  encoding="utf-8")
-        with pytest.raises(ConfigError, match=r"\[types.epic\] not_linked_from names types not declared in \[types\]: files"):
+        with pytest.raises(ConfigError, match=r"\[types.epic\] no_links_with names types not declared in \[types\]: files"):
+            load_settings(tmp_path)
+
+    def test_old_name_says_what_to_rename_it_to(self, tmp_path):
+        (tmp_path / ".wiki-cli.toml").write_text('[types.epic]\nnot_linked_from = ["file"]\n[types.file]\n',
+                                                 encoding="utf-8")
+        with pytest.raises(ConfigError, match="not_linked_from is now no_links_with"):
             load_settings(tmp_path)
