@@ -979,6 +979,7 @@ def cmd_check(args: argparse.Namespace, settings: Settings) -> int:
         issues = check_corpus(pages, resolver)
         issues.extend(_cache_issues(pages, settings, resolver, verify=args.verify_cache))
         issues.extend(codebase.check_pages(pages, settings))
+        issues.extend(codebase.check_part_of(pages, _hub_pages(settings, files, pages), settings, resolver))
         checked = sum(1 for page in pages if page.file.kind == "page")
     else:
         if args.verify_cache:
@@ -993,6 +994,8 @@ def cmd_check(args: argparse.Namespace, settings: Settings) -> int:
         issues = check_page(page, resolver)
         issues.extend(_cache_issues([page], settings, resolver, verify=False))
         issues.extend(codebase.check_pages([page], settings))
+        if codebase.covers(page):
+            issues.extend(codebase.check_part_of([page], _hub_pages(settings, files), settings, resolver))
         checked = 1
 
     issues.sort(key=lambda issue: (issue.path or "", issue.severity != ERROR, issue.code, issue.message))
@@ -1029,6 +1032,24 @@ def _print_issues(issues: list[Issue]) -> None:
             print(output.wrap(issue.message, lead))
 
 
+def _hub_pages(settings: Settings, files, pages=None) -> list:
+    """Pages of hub types (modules, concepts): from ``pages`` when all are loaded, else the
+    ones the cache knows (else every page, loaded to find them)."""
+    hub_types = {page_type.name for page_type in settings.types if page_type.hub}
+    if not hub_types:
+        return []
+    if pages is None:
+        try:
+            with Cache(settings, readonly=True) as cache:
+                marks = ",".join("?" * len(hub_types))
+                paths = {row[0] for row in cache.conn.execute(
+                    f"SELECT path FROM pages WHERE page_type IN ({marks})", sorted(hub_types))}
+            pages = [load(page_file, settings) for page_file in files if page_file.rel in paths]
+        except CacheUnavailable:
+            pages = [load(page_file, settings) for page_file in files]
+    return [page for page in pages if page.page_type in hub_types]
+
+
 def _cache_issues(pages, settings: Settings, resolver: Resolver, *, verify: bool) -> list[Issue]:
     """Cache-derived checks: stale summaries always, full verification on request."""
     try:
@@ -1044,6 +1065,10 @@ def _cache_issues(pages, settings: Settings, resolver: Resolver, *, verify: bool
             if stale.get(page.file.rel) == page.content_hash:
                 issues.append(Issue(WARNING, "summary-stale", "body changed but summary did not",
                                     path=page.file.rel, slug=page.slug))
+        hub_types = {page_type.name for page_type in settings.types if page_type.hub}
+        hubs = {page.slug: page.file.rel for page in pages if page.page_type in hub_types}
+        if hubs:  # clusters need the whole graph; skip the work when no hub page is checked
+            issues.extend(clusters.hub_issues(cache, hubs))
         return issues
 
 

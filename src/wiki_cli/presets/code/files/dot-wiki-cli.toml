@@ -38,11 +38,11 @@ group_by = "module"             # "where the work went" by module; or "type"
 description = "One source file: what it is for and what it contains, mirroring the code's own layout."
 folder = "wiki/files"
 template = "templates/file.md"
-sections = ["Summary"]
+sections = ["Summary", "Part of"]
 fields = ["title", "type", "last_updated"]
 
 [types.module]
-description = "One area of the code: what it does, where it lives, and how it fits with the rest."
+description = "One area of the code with one job, usually a folder: what it does, where it lives, and how it fits with the rest. An area inside it with a job of its own gets its own module page, nested under it."
 folder = "wiki/modules"
 template = "templates/module.md"
 hub = true                      # other pages gather around it (wiki clusters)
@@ -133,6 +133,14 @@ inverse = "synthesized-in"
 [[relations]]
 heading = "Part of"
 page_type = "file"
+type = "part-of"
+inverse = "has-part"
+
+# A module inside a larger one (wiki/modules/parser.md inside wiki/modules/core.md): files
+# name the specific module, and the larger one stays an overview of its parts.
+[[relations]]
+heading = "Part of"
+page_type = "module"
 type = "part-of"
 inverse = "has-part"
 

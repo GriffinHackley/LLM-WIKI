@@ -201,12 +201,22 @@ template.
      `covers:` to globs of the files the page describes, and `verified:` to the code
      commit you read, quoted (`git -C <code repo> rev-parse HEAD`). If the files you read
      have uncommitted changes, tell the user: the page describes code that is not
-     committed yet. A file page covers one file and names its module under `## Part of`;
-     a pull request page covers the files it changed, with `verified:` and `merge_commit:`
-     set to the commit it merged as. Put a module's dependencies (other modules, and
-     `dependency` pages) under `## Depends on`, the pages a decision or a gotcha affects
-     under `## Affects`, a pull request's tickets under `## Implements`, and a ticket's
-     epic in `parent:`.
+     committed yet.
+     - **A file page** covers one file and names its module under `## Part of`: the most
+       specific module whose `covers:` match the file (`wiki check` warns,
+       `part-of-broader-module`, when another covers it more specifically). If the only
+       module covering it also spans other folders with jobs of their own, and this
+       ingest documents three or more files in the file's folder, first write a module
+       page for that folder, nested under the broader one, and name it. With fewer, name
+       the broader module and list the folder in your report as a module worth writing.
+     - **A module inside a larger one** names the larger module under its own
+       `## Part of`, and the larger module's `covers:` keeps only the files no nested
+       module describes (`src/core/*.py`, not `src/core/**`).
+     - **A pull request page** covers the files it changed, with `verified:` and
+       `merge_commit:` set to the commit it merged as.
+     - **Link sections:** a module's dependencies (other modules, and `dependency` pages)
+       under `## Depends on`, the pages a decision or a gotcha affects under `## Affects`,
+       a pull request's tickets under `## Implements`, and a ticket's epic in `parent:`.
 {{/code}}
 8. **Record questions** where the wiki keeps open questions (`wiki/open-questions.md` in
    the presets), and mention each on the source page:
@@ -226,9 +236,11 @@ template.
 9. **Check each page.** Run `wiki index refresh`, then `wiki check <slug>` on every page you
    created or changed, and fix every error and every `missing-section`, `missing-field`,
    `bad-value` and `uncited-sources` warning{{#records}}, and on record pages every `bad-url` and
-   `bad-synced` one{{/records}}.{{#code}} In code pages, also fix every `missing-code-file` and
-   `covers-nothing` warning.{{/code}} Warnings about links to pages not written yet are
-   expected. A `summary-stale` warning means you changed a page's body but not its
+   `bad-synced` one{{/records}}.{{#code}} In code pages, also fix every `missing-code-file`,
+   `covers-nothing` and `part-of-broader-module` warning.{{/code}} Warnings about links to pages not written yet are
+   expected. A `hub-covers-clusters` warning (a hub page that several separate groups of
+   pages gather around) is not fixed during an ingest: list it in your report as a page
+   to split. A `summary-stale` warning means you changed a page's body but not its
    summary: re-read the summary and revise it to cover what the page now says, or, if it
    still fits, run `wiki check <slug> --summary-ok`.
 10. **Commit** (if the wiki is a git repository): one commit per source.

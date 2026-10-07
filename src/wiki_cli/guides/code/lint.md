@@ -18,8 +18,10 @@ The code repo is `{{code_repo}}`.
      verified. Sync them (`wiki guide sync`), or report them if there are many.
    - `wiki check --all`: frontmatter, missing summaries, undeclared types, ambiguous
      links, stale summaries, `code:` links to files that no longer exist
-     (`missing-code-file`), `covers:` globs that match nothing (`covers-nothing`), and
-     pages that cover files without a `verified:` commit.
+     (`missing-code-file`), `covers:` globs that match nothing (`covers-nothing`),
+     pages that cover files without a `verified:` commit, and file pages that name a
+     broader module under `## Part of` than the most specific one covering them
+     (`part-of-broader-module`: point them at that one).
    - `wiki unwritten`: links to pages not written yet. Fix typos; list the rest in the
      report as pages worth writing, most-linked first.
    - `wiki orphans`: pages nothing links to. Link them from related pages, or report them.
@@ -30,6 +32,16 @@ The code repo is `{{code_repo}}`.
      they share. If they gather around an area of the code or an idea no page is about
      (a feature a PR built, a pattern several files follow), list it in the report as a
      module or concept page worth writing, with the cluster's pages; if not, leave it.
+   - `hub-covers-clusters` (from `wiki check --all`): a module or concept page that two or
+     more separate clusters gather around. Usually it describes several areas of the code
+     at once. Read the clusters it names. If they are distinct areas (different folders,
+     different jobs), split the page: a module page for each area, with `covers:` narrowed
+     to that area's files, the matching prose moved there, and the old page under its
+     `## Part of`; point each file page's `## Part of` at its new module; and cut the old
+     page to a short overview of its parts, keeping its slug so links still resolve and
+     its `covers:` to the files no new module describes. If the clusters are one area in two
+     groups, or the page is a cross-cutting concept every area uses (logging,
+     configuration), leave it and say why in the report.
 3. **Coverage.** Compare the code's top-level folders (`git -C <code repo> ls-files`) with
    the `covers:` of the module pages (`wiki list --type module`): report important code no
    page covers.

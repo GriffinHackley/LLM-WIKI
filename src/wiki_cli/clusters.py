@@ -16,6 +16,7 @@ import re
 from collections import Counter, defaultdict
 
 from wiki_cli.cache import Cache
+from wiki_cli.model import WARNING, Issue
 
 MIN_WIKI_PAGES = 30  # below this, communities are noise
 MIN_CLUSTER = 4
@@ -100,6 +101,39 @@ def membership(cache: Cache, *, min_size: int = MIN_CLUSTER) -> tuple[dict[str, 
         else:
             names.append(", ".join(terms.shared(members)[:NAME_TERMS]) or f"cluster {number}")
     return {slug: number for number, members in enumerate(found) for slug in members}, names
+
+
+def overloaded_hubs(cache: Cache, *, min_size: int = MIN_CLUSTER) -> dict[str, list[dict]]:
+    """Hub pages that cover two or more clusters, each with the clusters it covers
+    (largest first). One hub over several separate groups of pages is usually several
+    areas described on one page."""
+    by_hub: dict[str, list[dict]] = defaultdict(list)
+    for cluster in clusters(cache, min_size=min_size, include_covered=True)["clusters"]:
+        if cluster["covered_by"] is not None:
+            by_hub[cluster["covered_by"]["slug"]].append(cluster)
+    return {slug: found for slug, found in sorted(by_hub.items()) if len(found) > 1}
+
+
+def hub_issues(cache: Cache, paths: dict[str, str]) -> list[Issue]:
+    """A `hub-covers-clusters` warning for each page in ``paths`` (slug -> path) that is
+    a hub over several clusters."""
+    issues = []
+    for slug, found in overloaded_hubs(cache).items():
+        if slug not in paths:
+            continue
+        groups = []
+        for cluster in found:
+            members = [page for page in cluster["pages"] if page != slug]
+            around = f" around {', '.join(cluster['terms'][:NAME_TERMS])}" if cluster["terms"] else ""
+            groups.append(f"{cluster['size']} pages{around} ({', '.join(members[:3])}"
+                          + (", ..." if len(members) > 3 else "") + ")")
+        issues.append(Issue(
+            WARNING, "hub-covers-clusters",
+            f"this page is the hub of {len(found)} separate clusters of linked pages: {'; '.join(groups)}. Each may be "
+            "an area of its own: consider splitting this page into one page per cluster, and keeping this one "
+            "as a short overview that links them (wiki clusters --all lists the clusters)",
+            path=paths[slug], slug=slug))
+    return issues
 
 
 def _graph(cache: Cache, pages) -> tuple:

@@ -19,8 +19,13 @@ The code repo is `{{code_repo}}`.
    - See what changed: `git -C <code repo> diff <verified>..HEAD -- <files>`.
    - Read the page, and the changed code where the diff is not enough.
    - Update what the page says so it matches the code: behavior, names, `code:` links,
-     `covers:` globs (files added, moved or deleted). Keep the page explaining why, not
+     `covers:` globs (files moved or deleted). Keep the page explaining why, not
      transcribing the diff.
+   - **Files added:** if they do the job the page describes, add them to its `covers:`.
+     If they are a new folder of three or more files with a job of its own (the diff
+     shows the new paths), don't widen `covers:`: document the folder as a new module,
+     nested under this page with `## Part of` (`wiki guide ingest`). When all of a nested
+     module's files are deleted, delete its page and its links.
    - Set `verified:` to the new code commit (`git -C <code repo> rev-parse HEAD`), quoted,
      even when the change needed no edit to the text: the page has been checked.
    - If the change made a new module or decision worth its own page, document it with
@@ -35,7 +40,7 @@ The code repo is `{{code_repo}}`.
      changed: the page has been checked.
 {{/records}}
 4. **Check.** `wiki index refresh`, `wiki check` on every page you changed (fix errors,
-   `missing-code-file` and `covers-nothing`; revise or `--summary-ok` stale summaries), and
+   `missing-code-file`, `covers-nothing` and `part-of-broader-module`; revise or `--summary-ok` stale summaries), and
    `wiki stale` again: it should list nothing you meant to sync.
 5. **Commit the wiki** with a message naming the code commit synced to and the pages
    updated.

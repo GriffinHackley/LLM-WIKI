@@ -214,3 +214,101 @@ class TestGuides:
         code = (guides / "code/query.md").read_text(encoding="utf-8").split("\n7. ")
         assert generic[0] == code[0]
         assert generic[1].split("\n8. ", 1)[1] == code[1].split("\n8. ", 1)[1]
+
+
+class TestNestedModules:
+    """Files name the most specific module; a module inside a larger one names it under
+    `## Part of`, so the larger one does not become the hub of every area under it."""
+
+    @staticmethod
+    def build(wiki: Path, nested: bool) -> None:
+        module_page(wiki, "core", ["src/core/*.py"], None, "## How it works\nThe core.\n")
+        for area in ("parser", "renderer"):
+            if nested:
+                module_page(wiki, area, [f"src/core/{area}/**"], None,
+                            f"## Part of\n- [[core]] — the {area} inside the core\n")
+            ring = [f"{area}-{index}" for index in range(8)]
+            for index, slug in enumerate(ring):
+                write(wiki, f"wiki/files/{slug}.md",
+                      f"---\ntitle: {slug}\ntype: file\nlast_updated: 2026-09-29\n---\n# {slug}\n\n## Summary\n"
+                      f"{area.title()} step {index}. Calls [[{ring[(index + 1) % 8]}]] and [[{ring[(index + 2) % 8]}]].\n\n"
+                      f"## Part of\n- [[{area if nested else 'core'}]] — one step of the {area}\n")
+        for index in range(12):
+            write(wiki, f"wiki/concepts/idea-{index}.md",
+                  f"---\ntitle: idea-{index}\ntype: concept\nlast_updated: 2026-09-29\n---\n# idea-{index}\n\n"
+                  f"## Summary\nIdea {index}.\n")
+
+    def hub_warnings(self, wiki: Path, capsys) -> list[str]:
+        assert run_json(capsys, "index", "refresh", "--root", str(wiki))[0] == 0
+        _, result = run_json(capsys, "check", "--all", "--root", str(wiki))
+        return [issue["slug"] for issue in result["issues"] if issue["code"] == "hub-covers-clusters"]
+
+    def test_flat_module_is_the_hub_of_every_area(self, code_wiki, capsys):
+        self.build(code_wiki, nested=False)
+        assert self.hub_warnings(code_wiki, capsys) == ["core"]
+
+    def test_nested_modules_each_hub_their_own_area(self, code_wiki, capsys):
+        self.build(code_wiki, nested=True)
+        assert self.hub_warnings(code_wiki, capsys) == []
+        _, result = run_json(capsys, "neighbors", "parser", "--outgoing", "--root", str(code_wiki))
+        assert {"slug": "core", "direction": "outgoing", "type": "part-of",
+                "reason": "the parser inside the core"} in result["neighbors"]
+        _, result = run_json(capsys, "neighbors", "parser-0", "--outgoing", "--root", str(code_wiki))
+        assert any(item["slug"] == "parser" and item["type"] == "part-of" for item in result["neighbors"])
+
+    def test_module_template_has_a_part_of_section(self, code_wiki):
+        assert "## Part of\n- [[larger-module]]" in (code_wiki / "templates/module.md").read_text(encoding="utf-8")
+
+
+class TestPartOfBroaderModule:
+    """A file page names the most specific module covering it under `## Part of`."""
+
+    @pytest.fixture
+    def wiki(self, tmp_path):
+        repo = tmp_path / "engine"
+        repo.mkdir()
+        git(repo, "init", "-q")
+        for rel in ("src/core/main.py", "src/core/parser/lexer.py", "src/core/parser/grammar.py",
+                    "src/core/render/paint.py"):
+            write(repo, rel, "x = 1\n")
+        git(repo, "add", "-A")
+        git(repo, "commit", "-qm", "initial")
+        wiki = tmp_path / "engine-wiki"
+        scaffold(wiki, preset="code", code=repo)
+        commit = git(repo, "rev-parse", "HEAD")
+        module_page(wiki, "core", ["src/core/**"], commit)
+        return wiki, commit
+
+    @staticmethod
+    def file_page(wiki: Path, slug: str, covers: str, part_of: str, commit: str) -> None:
+        write(wiki, f"wiki/files/{slug}.md",
+              f'---\ntitle: {slug}\ntype: file\nlast_updated: 2026-09-29\ncovers: ["{covers}"]\nverified: "{commit}"\n'
+              f"---\n# {slug}\n\n## Summary\nThe {slug} file.\n\n## Part of\n- [[{part_of}]] — where it belongs\n")
+
+    def warnings(self, wiki: Path, capsys, *target) -> list[dict]:
+        assert run_json(capsys, "index", "refresh", "--no-embed", "--root", str(wiki))[0] == 0
+        _, result = run_json(capsys, "check", *(target or ("--all",)), "--root", str(wiki))
+        return [issue for issue in result["issues"] if issue["code"] == "part-of-broader-module"]
+
+    def test_no_warning_while_only_the_broad_module_covers_it(self, wiki, capsys):
+        root, commit = wiki
+        self.file_page(root, "lexer", "src/core/parser/lexer.py", "core", commit)
+        assert self.warnings(root, capsys) == []
+
+    def test_warns_when_a_more_specific_module_covers_it(self, wiki, capsys):
+        root, commit = wiki
+        module_page(root, "parser", ["src/core/parser/**"], commit, "## Part of\n- [[core]] — parsing\n")
+        self.file_page(root, "lexer", "src/core/parser/lexer.py", "core", commit)
+        self.file_page(root, "main", "src/core/main.py", "core", commit)
+        [issue] = self.warnings(root, capsys)
+        assert issue["slug"] == "lexer" and issue["path"] == "wiki/files/lexer.md"
+        assert "[[parser]] covers this page's files more specifically (2 files against 4)" in issue["message"]
+        assert [issue["slug"] for issue in self.warnings(root, capsys, "lexer")] == ["lexer"]
+        assert self.warnings(root, capsys, "main") == []  # no module covers main.py more specifically
+
+    def test_no_warning_when_it_names_the_specific_module(self, wiki, capsys):
+        root, commit = wiki
+        module_page(root, "parser", ["src/core/parser/**"], commit, "## Part of\n- [[core]] — parsing\n")
+        self.file_page(root, "lexer", "src/core/parser/lexer.py", "parser", commit)
+        assert self.warnings(root, capsys) == []
+        assert self.warnings(root, capsys, "parser") == []  # nested modules are not checked
