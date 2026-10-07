@@ -55,6 +55,12 @@
   links it directly. The code preset sets `["child-of", "implements"]` on `epic`, so an
   epic covers the pull requests implementing its stories; `wiki clusters` says how many
   were reached that way.
+- Ingest: a pull request's tickets, found by the keys in its title, description, branch
+  or commits, get their pages written first when they have none (and, through the
+  record-parent rule, their epic), so the pull request reaches its epic. Where a
+  wiki's pull requests carry their keys is its own `pr-tickets` part
+  (`guides/parts/pr-tickets.md`); the default looks in the title, description, branch
+  name and commit messages.
 
 ## 0.2.0: first release on PyPI
 

@@ -106,6 +106,7 @@ for synced:.
 |---|---|---|
 | `fetch-record` | Ingest (a record), sync and lint (records to recheck) | Use whatever access you have to the tracker; else ask the user to paste or export it |
 | `fetch-source` | Ingest, for a source that is not a file in `raw/` | Save a copy in `raw/` first, or ask the user to |
+| `pr-tickets` | Ingest, when writing a pull request's page in a code wiki with a record type: where its tickets' keys are | Its title, description, branch name and commit messages |
 | `before-commit` | Ingest, lint and sync, before committing | (nothing) |
 | `ingest-extra`, `query-extra`, `lint-extra`, `sync-extra` | The end of that guide: the wiki's own extra steps | (nothing) |
 
