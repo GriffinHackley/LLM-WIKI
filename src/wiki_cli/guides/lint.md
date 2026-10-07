@@ -18,8 +18,9 @@ what needs judgment, and commit the fixes.
      requires (`missing-section`, `missing-field`), fields holding a value their type
      does not allow (`bad-value`), and sources listed in `sources:` that
      the text never cites (`uncited-sources`: cite each where its facts are used, or
-     remove it from the list), and links a type's `not_linked_from` forbids
-     (`link-not-allowed`: remove them, or link a page that leads there instead).
+     remove it from the list), and links between types a type's `no_links_with`
+     keeps apart (`link-not-allowed`: remove them, or link a page that leads there
+     instead).
    - `wiki unwritten`: link targets with no page, most-linked first. For each, decide:
      a typo or a renamed page (fix the links), a page worth writing (list it in the
      report; the most-linked first), or a link that should not exist (remove it).

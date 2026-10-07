@@ -33,7 +33,7 @@ WEEKLY_SECTIONS = ("summary", "activity", "pages", "work", "sources", "questions
 WEEKLY_GROUPS = ("type", "module")
 REDIRECT_KEY = "wiki"  # a config holding only this key says "the wiki for this folder is over there"
 _TYPE_KEYS = {"description", "folder", "template"}
-_TYPE_LISTS = {"sections", "fields", "not_linked_from"}
+_TYPE_LISTS = {"sections", "fields", "no_links_with"}
 _TYPE_VALUES = "values"
 _TYPE_HUB = "hub"
 _TYPE_RECORD = "record"
@@ -59,8 +59,9 @@ class PageType:
     an idea other pages gather around (a module, a concept): `wiki clusters` counts a
     cluster that links to one as covered. A `record` type's pages each describe an item
     that lives and changes in another system (a ticket in a tracker): they cite it by `key`
-    and `url`, and `synced` says which version of it they reflect. `not_linked_from` names
-    the types whose pages should not link a page of this type (files linking an epic)."""
+    and `url`, and `synced` says which version of it they reflect. `no_links_with` names
+    the types whose pages should not link pages of this type, or be linked by them: either
+    direction joins them in the relations graph (an epic and a file)."""
     name: str
     description: str = ""
     folder: str | None = None
@@ -70,7 +71,7 @@ class PageType:
     values: tuple[tuple[str, tuple[str, ...]], ...] = ()  # (field, allowed values)
     hub: bool = False
     record: bool = False
-    not_linked_from: tuple[str, ...] = ()
+    no_links_with: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -315,6 +316,9 @@ def _types(table: dict) -> tuple[PageType, ...]:
         if not isinstance(entry, dict):
             raise ConfigError(f"{where} must be a table")
         unknown = set(entry) - _TYPE_KEYS - _TYPE_LISTS - {_TYPE_VALUES, _TYPE_HUB, _TYPE_RECORD}
+        if "not_linked_from" in unknown:  # its name before it covered both directions; never released
+            raise ConfigError(f"{where}: not_linked_from is now no_links_with (it applies to links in "
+                              "either direction); rename it")
         if unknown:
             raise ConfigError(f"{where}: unknown key(s) {', '.join(sorted(unknown))}")
         if not all(isinstance(entry[key], str) for key in _TYPE_KEYS & set(entry)):
@@ -332,12 +336,12 @@ def _types(table: dict) -> tuple[PageType, ...]:
                               tuple(item.strip() for item in lists["sections"] if item.strip()),
                               tuple(item.strip() for item in lists["fields"] if item.strip()), allowed,
                               entry.get(_TYPE_HUB, False), entry.get(_TYPE_RECORD, False),
-                              tuple(item.strip().lower() for item in lists["not_linked_from"] if item.strip())))
+                              tuple(item.strip().lower() for item in lists["no_links_with"] if item.strip())))
     names = {page_type.name for page_type in found}
     for page_type in found:
-        undeclared = [item for item in page_type.not_linked_from if item not in names]
+        undeclared = [item for item in page_type.no_links_with if item not in names]
         if undeclared:
-            raise ConfigError(f"{CONFIG_FILENAME}: [types.{page_type.name}] not_linked_from names types not "
+            raise ConfigError(f"{CONFIG_FILENAME}: [types.{page_type.name}] no_links_with names types not "
                               f"declared in [types]: {', '.join(undeclared)}")
     return tuple(found)
 

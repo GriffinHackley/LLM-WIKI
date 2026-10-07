@@ -1051,14 +1051,14 @@ def _hub_pages(settings: Settings, files, pages=None) -> list:
 
 
 def _links_not_allowed(pages, settings: Settings, resolver: Resolver, cache: Cache) -> list[Issue]:
-    """`link-not-allowed`: a page links a page whose type lists the page's own type in
-    `not_linked_from` (a file linking an epic). Targets' types come from the cache."""
-    barred = {page_type.name: set(page_type.not_linked_from) for page_type in settings.types
-              if page_type.not_linked_from}
-    if not barred:
+    """`link-not-allowed`: a page links a page when either page's type lists the other's
+    in `no_links_with` (an epic and a file, either way round). The warning goes on the
+    page holding the link. Targets' types come from the cache."""
+    pairs = {frozenset((page_type.name, other)) for page_type in settings.types for other in page_type.no_links_with}
+    if not pairs:
         return []
-    sources = [page for page in pages if page.file.kind == "page"
-               and any(page.page_type in kinds for kinds in barred.values())]
+    involved = set().union(*pairs)
+    sources = [page for page in pages if page.file.kind == "page" and page.page_type in involved]
     if not sources:
         return []
     from wiki_cli.edges import derive
@@ -1068,12 +1068,13 @@ def _links_not_allowed(pages, settings: Settings, resolver: Resolver, cache: Cac
     for page in sources:
         for edge in derive(page, resolver, settings.vocabulary):
             target_type = types.get(edge.target) if edge.resolved else None
-            if target_type in barred and page.page_type in barred[target_type]:
+            if target_type and frozenset((page.page_type, target_type)) in pairs:
+                article = "an" if target_type[0] in "aeiou" else "a"
                 issues.append(Issue(
                     WARNING, "link-not-allowed",
-                    f"links [[{edge.target}]], {'an' if target_type[0] in 'aeiou' else 'a'} {target_type} page, but {page.page_type} pages should not link "
-                    f"{target_type} pages (not_linked_from in {CONFIG_FILENAME}): remove the link, or link a "
-                    f"page that leads there instead", path=page.file.rel, slug=page.slug))
+                    f"links [[{edge.target}]], {article} {target_type} page, but {page.page_type} and {target_type} "
+                    f"pages should not link each other (no_links_with in {CONFIG_FILENAME}): remove the link, or "
+                    "link a page that leads there instead", path=page.file.rel, slug=page.slug))
     return issues
 
 

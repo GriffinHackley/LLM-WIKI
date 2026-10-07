@@ -210,8 +210,9 @@ template.
        page for that folder, nested under the broader one, and name it. With fewer, name
        the broader module and list the folder in your report as a module worth writing.
        Where a file page mentions tracker work, it links the ticket, not the ticket's
-       epic (`wiki check` warns, `link-not-allowed`, when a type's `not_linked_from`
-       forbids a link).
+       epic; an epic page names the modules a feature touches, not their file pages
+       (`wiki check` warns, `link-not-allowed`, on links between types a type's
+       `no_links_with` keeps apart).
      - **A module inside a larger one** names the larger module under its own
        `## Part of`, and the larger module's `covers:` keeps only the files no nested
        module describes (`src/core/*.py`, not `src/core/**`).
