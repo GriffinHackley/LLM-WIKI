@@ -870,8 +870,10 @@ def cmd_clusters(args: argparse.Namespace, settings: Settings) -> int:
         print(f"\n{number}. {output.bold(size)}" + (output.dim("  covered") if covered else ""))
         details = []
         if top:
+            through = f" ({top['through']} through other pages, by hub_through)" if top.get("through") else ""
             details.append(("covered by" if covered else "most linked",
-                            f"{top['slug']} ({top['type'] or 'no type'}), linked with {top['linked_from']} of them"))
+                            f"{top['slug']} ({top['type'] or 'no type'}), linked with {top['linked_from']} of "
+                            f"them{through}"))
         names = cluster["pages"]
         details.append(("pages", ", ".join(names[:12]) + (f" and {len(names) - 12} more" if len(names) > 12 else "")))
         if cluster["terms"]:
