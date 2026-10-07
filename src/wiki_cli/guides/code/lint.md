@@ -19,9 +19,11 @@ The code repo is `{{code_repo}}`.
    - `wiki check --all`: frontmatter, missing summaries, undeclared types, ambiguous
      links, stale summaries, `code:` links to files that no longer exist
      (`missing-code-file`), `covers:` globs that match nothing (`covers-nothing`),
-     pages that cover files without a `verified:` commit, and file pages that name a
+     pages that cover files without a `verified:` commit, file pages that name a
      broader module under `## Part of` than the most specific one covering them
-     (`part-of-broader-module`: point them at that one).
+     (`part-of-broader-module`: point them at that one), and links a type's
+     `not_linked_from` forbids, such as a file page linking an epic (`link-not-allowed`:
+     link the ticket instead).
    - `wiki unwritten`: links to pages not written yet. Fix typos; list the rest in the
      report as pages worth writing, most-linked first.
    - `wiki orphans`: pages nothing links to. Link them from related pages, or report them.

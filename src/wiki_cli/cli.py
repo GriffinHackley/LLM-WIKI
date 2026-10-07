@@ -1050,6 +1050,33 @@ def _hub_pages(settings: Settings, files, pages=None) -> list:
     return [page for page in pages if page.page_type in hub_types]
 
 
+def _links_not_allowed(pages, settings: Settings, resolver: Resolver, cache: Cache) -> list[Issue]:
+    """`link-not-allowed`: a page links a page whose type lists the page's own type in
+    `not_linked_from` (a file linking an epic). Targets' types come from the cache."""
+    barred = {page_type.name: set(page_type.not_linked_from) for page_type in settings.types
+              if page_type.not_linked_from}
+    if not barred:
+        return []
+    sources = [page for page in pages if page.file.kind == "page"
+               and any(page.page_type in kinds for kinds in barred.values())]
+    if not sources:
+        return []
+    from wiki_cli.edges import derive
+
+    types = dict(cache.conn.execute("SELECT slug, page_type FROM pages WHERE kind = 'page'"))
+    issues = []
+    for page in sources:
+        for edge in derive(page, resolver, settings.vocabulary):
+            target_type = types.get(edge.target) if edge.resolved else None
+            if target_type in barred and page.page_type in barred[target_type]:
+                issues.append(Issue(
+                    WARNING, "link-not-allowed",
+                    f"links [[{edge.target}]], {'an' if target_type[0] in 'aeiou' else 'a'} {target_type} page, but {page.page_type} pages should not link "
+                    f"{target_type} pages (not_linked_from in {CONFIG_FILENAME}): remove the link, or link a "
+                    f"page that leads there instead", path=page.file.rel, slug=page.slug))
+    return issues
+
+
 def _cache_issues(pages, settings: Settings, resolver: Resolver, *, verify: bool) -> list[Issue]:
     """Cache-derived checks: stale summaries always, full verification on request."""
     try:
@@ -1065,6 +1092,7 @@ def _cache_issues(pages, settings: Settings, resolver: Resolver, *, verify: bool
             if stale.get(page.file.rel) == page.content_hash:
                 issues.append(Issue(WARNING, "summary-stale", "body changed but summary did not",
                                     path=page.file.rel, slug=page.slug))
+        issues.extend(_links_not_allowed(pages, settings, resolver, cache))
         hub_types = {page_type.name for page_type in settings.types if page_type.hub}
         hubs = {page.slug: page.file.rel for page in pages if page.page_type in hub_types}
         if hubs:  # clusters need the whole graph; skip the work when no hub page is checked
