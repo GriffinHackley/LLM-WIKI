@@ -260,7 +260,7 @@ def build(cache: Cache, *, method: str = "auto", chunks: bool = False, color_by:
     if layout.fallback_reason:
         notes.insert(0, f"UMAP unavailable ({layout.fallback_reason}); used PCA instead")
 
-    community = clusters.membership(cache)
+    community, cluster_names = clusters.membership(cache)
     by_page: dict[str, list[int]] = {}
     by_chunk: dict[int, int] = {}
     for index, row in enumerate(points.rows):
@@ -333,6 +333,7 @@ def build(cache: Cache, *, method: str = "auto", chunks: bool = False, color_by:
         "points_kind": points.kind,
         "color_by": color_by,
         "points": points.rows,
+        "clusters": cluster_names,
         "edges": edges,
         "query": query_part,
         "nav": nav_part,

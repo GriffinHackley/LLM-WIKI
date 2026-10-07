@@ -706,7 +706,8 @@ map says so.
   title, type and summary, click to copy the page's path, find a page by slug or title.
   `--color-by type | cluster | age | visits` sets the first colouring; the page can switch
   (type from `pages.page_type`, cluster from `wiki clusters`' Louvain communities, age
-  from mtime, visits from nav reads). Relations from the `relations` table can be drawn as edges, typed
+  from mtime, visits from nav reads). A cluster is named after the hub page that covers
+  it, else its top three shared terms (the ones `wiki clusters` lists), else "cluster N". Relations from the `relations` table can be drawn as edges, typed
   ones distinguishable from plain links. Seen together, the two show what neither does
   alone: pages close in the space but unlinked (candidate links, the signal `wiki
   suggest` uses) and linked pages far apart (odd or stale links). The JS library is

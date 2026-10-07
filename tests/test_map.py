@@ -229,3 +229,14 @@ def test_no_vectors_says_to_index(tmp_path, capsys):
     capsys.readouterr()
     code, _, err = run(root, capsys)
     assert code == 2 and "wiki index refresh" in err
+
+
+def test_clusters_are_named_by_shared_terms(root, capsys):
+    _, result, _ = run_json(root, capsys, "--method", "pca")
+    names = result["clusters"]
+    assert names and all(name and not name.startswith("cluster ") for name in names)
+    for point in result["points"]:
+        if point["cluster"] is not None:
+            topic = point["slug"].split("-")[0]
+            assert set(names[point["cluster"]].split(", ")) <= set(TOPICS[topic].split())
+    assert '"clusters":[' in vecmap.render(result)

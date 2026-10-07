@@ -7,6 +7,8 @@
   (`.cache/map.html`, works offline; `--open` opens it). Points are pages, or sections
   with `--chunks`, coloured by page type, link cluster, age, or how often agents read
   them; relations are drawn as lines. Hover for a page's summary, click for its path.
+  Link clusters are named after the hub page that covers them, else the terms their
+  pages share ("fbi, doj, epstein").
 - `--query "<question>"` places a question in the map with lines to its search results,
   marking which are also its nearest pages by embedding. `--nav <session>|last|all`
   draws navigation sessions as paths (question, pages read, follow-up searches, pages

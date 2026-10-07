@@ -96,6 +96,7 @@ const css = (name) => getComputedStyle(document.documentElement).getPropertyValu
 const PALETTE = ["#4e79a7", "#f28e2b", "#59a14f", "#e15759", "#76b7b2", "#edc948", "#b07aa1", "#ff9da7", "#9c755f", "#86bcb6",
                  "#d37295", "#8cd17d", "#499894", "#f1ce63", "#a0cbe8"];
 const NONE = "#9a9a94";
+const clusterName = (index) => (DATA.clusters || [])[index] || `cluster ${index + 1}`;
 const points = DATA.points;
 const big = points.length > 4000;
 
@@ -136,7 +137,7 @@ function applyColor() {
     const {colors, counts, order} = categorical(points.map((p) => p[mode]));
     colorOf = (p) => colors.get(p[mode]) || NONE;
     order.slice(0, PALETTE.length).forEach((value) => legend.push([colors.get(value),
-      mode === "cluster" ? `cluster ${value + 1}` : value, counts.get(value)]));
+      mode === "cluster" ? clusterName(value) : value, counts.get(value)]));
     const rest = points.filter((p) => !colors.has(p[mode]) || colors.get(p[mode]) === NONE).length;
     if (rest) legend.push([NONE, mode === "cluster" ? "in no cluster" : "other / no type", rest]);
   } else if (mode === "age") {
@@ -214,7 +215,7 @@ function nodeLabel(node) {
   if (node.kind) return `<div class="tip">${esc(node.label)}</div>`;
   const p = node.p, hit = hitPoints.get(node.id);
   return `<div class="tip"><b>${esc(p.title)}</b>${p.section ? ` <span class="dim">§ ${esc(p.section)}</span>` : ""}<br>` +
-    `<span class="dim">${esc(p.type || "no type")}${p.cluster !== null && p.cluster !== undefined ? ` · cluster ${p.cluster + 1}` : ""}</span>` +
+    `<span class="dim">${esc(p.type || "no type")}${p.cluster !== null && p.cluster !== undefined ? ` · ${esc(clusterName(p.cluster))}` : ""}</span>` +
     (hit ? `<br>search result ${hit.rank}` : "") + (p.summary ? `<br>${esc(p.summary)}` : "") + `</div>`;
 }
 function linkVisible(link) {
