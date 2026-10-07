@@ -12,11 +12,12 @@ from __future__ import annotations
 
 import subprocess
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from wiki_cli.config import CONFIG_FILENAME, Settings
 
 CODE_PREFIX = "code:"
+PART_OF = "part-of"  # the relation a file or nested module names its module with (code preset)
 
 
 class CodeRepoError(Exception):
@@ -178,3 +179,53 @@ def check_pages(pages, settings: Settings) -> list:
             issues.append(Issue(WARNING, "not-verified", "covers: files but has no verified: commit",
                                 path=page.file.rel, slug=page.slug))
     return issues
+
+
+def check_part_of(pages, modules, settings: Settings, resolver) -> list:
+    """`part-of-broader-module`: a page whose `## Part of` names a module when another
+    module covers all of the page's files more specifically (fewer files in all). ``modules``
+    are the pages that can be named there: hub pages with `covers:`."""
+    from wiki_cli.edges import derive
+    from wiki_cli.model import WARNING, Issue
+
+    modules = {module.slug: covers(module) for module in modules if covers(module)}
+    checked = []
+    for page in pages:
+        if page.text is None or page.file.kind != "page" or page.slug in modules or not covers(page):
+            continue
+        named = [edge.target for edge in derive(page, resolver, settings.vocabulary)
+                 if edge.type == PART_OF and edge.resolved and edge.target in modules]
+        if named:
+            checked.append((page, named))
+    if not checked:
+        return []
+    try:
+        path = repo(settings)
+    except CodeRepoError:
+        return []  # check_pages reports the unusable repo
+    tracked = git(path, "ls-files").splitlines()
+    covered = {slug: _matching(tracked, globs) for slug, globs in modules.items()}
+    issues = []
+    for page, named in checked:
+        files = _matching(tracked, covers(page))
+        if not files:
+            continue
+        holders = sorted((len(found), slug) for slug, found in covered.items() if files <= found)
+        if not holders:
+            continue
+        size, best = holders[0]
+        if best in named or any(len(covered[slug]) <= size for slug in named):
+            continue
+        broader = ", ".join(f"[[{slug}]]" for slug in named)
+        issues.append(Issue(
+            WARNING, "part-of-broader-module",
+            f"## Part of names {broader}, but [[{best}]] covers this page's files more specifically "
+            f"({size} files against {min(len(covered[slug]) for slug in named)}); name [[{best}]] under "
+            "## Part of instead", path=page.file.rel, slug=page.slug))
+    return issues
+
+
+def _matching(tracked: list[str], globs: list[str]) -> set[str]:
+    """Tracked files matching any of ``globs``, as git's :(glob) pathspecs match them."""
+    patterns = [pattern.strip().lstrip("/") for pattern in globs if pattern.strip()]
+    return {name for name in tracked if any(PurePosixPath(name).full_match(pattern) for pattern in patterns)}

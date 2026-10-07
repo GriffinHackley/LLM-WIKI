@@ -18,6 +18,25 @@
   the map uses PCA and says so on stderr, in `--format json` (`fallback_reason`) and in
   the page's header; `--method umap` fails instead, and `--method pca` skips UMAP.
 
+**Keep it healthy**
+- `wiki check` warns (`hub-covers-clusters`) when one hub page, such as a module or
+  concept, covers two or more separate clusters of linked pages: usually several areas
+  described on one page. The warning names each cluster and recommends a page per
+  cluster with the old page kept as an overview. The lint guides say how to judge and
+  split it; the ingest guide leaves it for the report.
+- Code preset: modules nest. A module inside a larger one names it under `## Part of`
+  (`part-of`, like a file's), so file pages link the specific module and the larger one
+  stays an overview instead of the hub of every area under it. An existing code wiki
+  gets the rule from `wiki init --preset code`, which prints the preset's relation rules.
+- `wiki check` warns (`part-of-broader-module`) when a page's `## Part of` names a module
+  while another module's `covers:` include its files more specifically. The ingest guide
+  files each page under the most specific module, writing a nested module first when it
+  documents three or more files of a folder only a broader module covers; the sync
+  guide documents a new folder with a job of its own as a nested module instead of
+  widening `covers:`.
+- Code preset: file pages require a `## Part of` section (`missing-section` when a
+  rewrite drops it).
+
 ## 0.2.0: first release on PyPI
 
 The first release as `llm-wiki-cli` (the command is `wiki`). Earlier installs named

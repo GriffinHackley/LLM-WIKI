@@ -110,3 +110,55 @@ def test_membership_names_a_covered_cluster_after_its_hub_page(root):
     assert names[assignment["cache-0"]] == "cache-module"  # the hub page's title
     invoice_name = names[assignment["invoice-0"]]
     assert set(invoice_name.split(", ")) <= {"invoice", "rounding", "part"} and "invoice" in invoice_name
+
+
+@pytest.fixture
+def split_root(tmp_path):
+    """One module page that two separate rings of files (a parser and a renderer) both
+    point to, one module with a single ring, and notes to pass the size threshold."""
+    root = tmp_path / "split"
+    root.mkdir()
+    (root / ".wiki-cli.toml").write_text(CONFIG, encoding="utf-8")
+    page(root, "core", "module", "Everything in src/core.", [])
+    page(root, "cache-module", "module", "The cache layer.", [])
+    for area, hub in (("parser", "core"), ("renderer", "core"), ("cache", "cache-module")):
+        ring = [f"{area}-{index}" for index in range(8)]
+        for index, slug in enumerate(ring):
+            page(root, slug, "file", f"{area.title()} part {index}.",
+                 [hub, ring[(index + 1) % 8], ring[(index + 2) % 8]])
+    for index in range(4):
+        page(root, f"note-{index}a", "note", f"Note {index}.", [f"note-{index}b"])
+        page(root, f"note-{index}b", "note", f"Note {index} reply.", [])
+    return root
+
+
+def check_json(root, capsys, *args):
+    main(["check", *args, "--root", str(root), "--format", "json"])
+    return [issue for issue in json.loads(capsys.readouterr().out)["issues"] if issue["code"] == "hub-covers-clusters"]
+
+
+def test_check_warns_on_a_hub_over_several_clusters(split_root, capsys):
+    assert main(["index", "refresh", "--root", str(split_root), "--format", "json"]) == 0
+    capsys.readouterr()
+    [issue] = check_json(split_root, capsys, "--all")
+    assert issue["slug"] == "core" and issue["severity"] == "warning" and issue["path"] == "core.md"
+    message = issue["message"]
+    assert "hub of 2 separate clusters" in message and "splitting this page" in message
+    assert "parser-" in message and "renderer-" in message and "cache-" not in message
+
+    assert [issue["slug"] for issue in check_json(split_root, capsys, "core")] == ["core"]
+    assert check_json(split_root, capsys, "cache-module") == []  # a hub over one cluster is fine
+    assert check_json(split_root, capsys, "parser-0") == []  # not a hub page
+
+
+def test_no_hub_warning_in_a_small_wiki(tmp_path, capsys):
+    root = tmp_path / "small"
+    root.mkdir()
+    (root / ".wiki-cli.toml").write_text(CONFIG, encoding="utf-8")
+    page(root, "core", "module", "Everything.", [])
+    for area in ("parser", "renderer"):
+        for index in range(4):
+            page(root, f"{area}-{index}", "file", f"{area} {index}.", ["core", f"{area}-{(index + 1) % 4}"])
+    assert main(["index", "refresh", "--root", str(root), "--format", "json"]) == 0
+    capsys.readouterr()
+    assert check_json(root, capsys, "--all") == []

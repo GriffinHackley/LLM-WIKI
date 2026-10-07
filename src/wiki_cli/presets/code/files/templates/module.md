@@ -16,6 +16,9 @@ What this part of the code does and why it exists, in one paragraph.
 The main flow, the key types and functions, and how data moves through them, with links
 to the code: [the entry point](code:src/<path>/main.py).
 
+## Part of
+- [[larger-module]] — what this area does within it (delete this section for a top-level module)
+
 ## Depends on
 - [[other-module]] — what this module uses it for
 

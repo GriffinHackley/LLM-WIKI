@@ -43,8 +43,8 @@ agent that changes the code keeps it current, working from the code repo.
 
 | Type | What it is | Link sections |
 |---|---|---|
-| `file` | One source file: what it is for and what it contains, mirroring the code's layout | `## Part of` -> `part-of` |
-| `module` | One area of the code: what it does, where it lives, how it fits | `## Depends on` -> `depends-on` |
+| `file` | One source file: what it is for and what it contains, mirroring the code's layout; `## Part of` is required, so `wiki check` notices when a rewrite drops it | `## Part of` -> `part-of` |
+| `module` | One area of the code: what it does, where it lives, how it fits. A module inside a larger one names it under `## Part of`, so files link the specific module and the larger one stays an overview. `wiki check` warns when a page names a broader module than the most specific one whose `covers:` match its files (`part-of-broader-module`) | `## Depends on` -> `depends-on`, `## Part of` -> `part-of` |
 | `concept` | An idea from the code: a domain term, pattern, interface or piece of configuration | |
 | `decision` | Why something is the way it is (like an ADR); `status:` is proposed, accepted, rejected, superseded or deprecated | `## Affects` -> `decided-for` |
 | `instruction` | How to do a specific task: set up a dev environment, run, test, deploy, backport | |

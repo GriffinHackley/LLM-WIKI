@@ -44,6 +44,12 @@ what needs judgment, and commit the fixes.
      report as a page worth writing, with the cluster's pages; if the most-linked page is
      already about that idea, or the pages have nothing in common, leave it. It lists
      nothing in a wiki under 30 pages.
+   - `hub-covers-clusters` (from `wiki check --all`): a hub page that two or more separate
+     clusters gather around, such as an event page that grew to hold several events, or
+     a concept page holding several ideas. Read the clusters it names. If each is a
+     subject of its own, list the page in the report as one to split, a page per cluster
+     with the old page kept as an overview linking them; splitting is the user's call, so
+     don't do it during lint. If the clusters are one subject in two groups, leave it.
 3. **Judgment checks, by reading.** Use `wiki search`, `wiki list --type <type>` and
    `wiki neighbors` to find the pages to compare; read only what you need.
    - **Contradictions:** pages that disagree about the same fact (a date, a role, a
