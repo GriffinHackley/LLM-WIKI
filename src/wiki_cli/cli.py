@@ -6,6 +6,8 @@ Exit codes: 0 success, 1 validation failures, 2 usage or runtime errors.
 from __future__ import annotations
 
 import argparse
+import contextlib
+import io
 import json
 import re
 import shutil
@@ -23,6 +25,7 @@ from wiki_cli import (
     guide,
     init,
     output,
+    precommit,
     records,
     scaffold,
     sources,
@@ -81,7 +84,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             output.note(settings.root_note)
         return args.handler(args, settings)
     except (ConfigError, PageNotFound, CacheUnavailable, UsageError, ModelUnavailable, evaluate.EvalError,
-            guide.GuideError, scaffold.ScaffoldError, weekly.WeeklyError, vecmap.MapError) as exc:
+            guide.GuideError, scaffold.ScaffoldError, weekly.WeeklyError, vecmap.MapError,
+            precommit.HookError) as exc:
         _print_error(str(exc))
         return EXIT_ERROR
 
@@ -92,7 +96,8 @@ def _print_error(message: str) -> None:
 
 
 COMMAND_ORDER = ("new", "init", "guide", "search", "nav", "list", "neighbors", "suggest", "check", "unwritten",
-                 "orphans", "clusters", "map", "pending", "stale", "weekly", "index", "models", "vocab", "eval")
+                 "orphans", "clusters", "map", "pending", "stale", "weekly", "precommit", "index", "models", "vocab",
+                 "eval")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -279,6 +284,11 @@ def build_parser() -> argparse.ArgumentParser:
                                help="for the pre-commit hook: stage what it writes, and do nothing when [weekly] "
                                     "is not in the config")
     weekly_parser.set_defaults(handler=cmd_weekly)
+
+    precommit_parser = commands.add_parser(
+        "precommit", parents=[common],
+        help="what the pre-commit hook checks: raw/ unchanged, 'wiki check --all', the wiki's [hooks] commands")
+    precommit_parser.set_defaults(handler=cmd_precommit)
 
     list_parser = commands.add_parser("list", parents=[common], help="every page, with its type and summary")
     list_parser.add_argument("--type", dest="page_type", help="only pages of this type")
@@ -757,6 +767,45 @@ def cmd_weekly(args: argparse.Namespace, settings: Settings) -> int:
         else:
             print("Weekly notes are up to date.")
     return EXIT_OK
+
+
+def cmd_precommit(args: argparse.Namespace, settings: Settings) -> int:
+    """Everything the pre-commit hook checks; any failure is reported and blocks the commit."""
+    failed = False
+    changed = precommit.changed_sources(settings)
+    if changed:
+        _hook_say("sources in raw/ are never edited, renamed or deleted:")
+        for rel in changed:
+            print(f"  {rel}", file=sys.stderr)
+        _hook_say("restore them (git restore --staged --worktree <file>), then commit again.")
+        failed = True
+    if settings.weekly is not None:
+        try:
+            weekly.stage(settings, weekly.run(settings)["written"])
+        except weekly.WeeklyError as exc:
+            _hook_say(f"weekly notes not written (the commit goes ahead): {exc}")
+    report = io.StringIO()
+    with contextlib.redirect_stdout(report):
+        code = cmd_check(argparse.Namespace(target=None, all=True, verify_cache=False, strict=False, no_warnings=True,
+                                            ingested=False, summary_ok=False, format="text"), settings)
+    if code != EXIT_OK:
+        print(report.getvalue(), end="", file=sys.stderr)
+        _hook_say("'wiki check --all' found errors.")
+        failed = True
+    for command, files in precommit.planned(settings):
+        done = precommit.run(settings, command, files)
+        if done.returncode != 0:
+            _hook_say(f"'{command.run}' failed ([hooks] pre_commit in {CONFIG_FILENAME}):")
+            print((done.stdout + done.stderr).rstrip(), file=sys.stderr)
+            failed = True
+    if failed:
+        _hook_say("fix the problems above, then commit again.")
+        return EXIT_INVALID
+    return EXIT_OK
+
+
+def _hook_say(message: str) -> None:
+    print(f"pre-commit: {message}", file=sys.stderr)
 
 
 def cmd_list(args: argparse.Namespace, settings: Settings) -> int:

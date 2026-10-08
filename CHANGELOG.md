@@ -67,6 +67,12 @@
   request's page names it by `url:` and `merge_commit:`. How to read a description and
   its reviews is a new part, `fetch-pr` (default: the forge's CLI or API). Records are
   likewise listed before the catch-all for other sources.
+- The pre-commit hook calls `wiki precommit`, which does the checking, so the checks
+  update with the command. A wiki adds its own checks as `[hooks] pre_commit` commands
+  in the config; one with `files` runs only when a matching file is staged, and is given
+  those files. The hook no longer refuses changes to README files or `[pending] ignore`
+  files in `raw/` (a manifest updated as sources arrive). An existing wiki gets the new
+  hook by deleting `.githooks/pre-commit` and running `wiki new . --git-hook`.
 - `[clusters]`: `ignore` leaves pages out of clustering (the presets ignore
   `wiki/open-questions.md`, which links pages from every corner of the wiki and glued
   unrelated groups together), and `resolution` sets how readily Louvain splits clusters;

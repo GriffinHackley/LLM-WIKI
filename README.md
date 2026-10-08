@@ -133,6 +133,9 @@ ignore = ["raw/SOURCES.md"]       # files in raw/ that are not sources (default 
 folder = "weekly"                 # default; never indexed
 group_by = "module"               # "where the work went" by module, or "type" (default)
 
+[hooks]                           # the pre-commit hook's extra checks, run from the root
+pre_commit = ["python tools/check.py", { run = "python tools/lint.py", files = ["drafts/*.md"] }]
+
 [guides]
 dir = "guides"                    # the wiki's own guides, overriding built-in ones by name
 parts = "guides/parts"            # default; <name>.md is the wiki's own text for a guide step
@@ -200,6 +203,7 @@ re-embedding.
 | `wiki map [--query "<question>"] [--nav <session>\|last\|all] [--chunks] [--method auto\|umap\|pca] [--color-by type\|cluster\|age\|visits] [--open]` | A 3D map of the pages' embeddings as one HTML page in `.cache/` (works offline): points coloured by type, link cluster or age, relations as lines; a question placed among the pages with lines to its search results; nav sessions drawn as paths to step through. UMAP by default; if UMAP cannot be used it says so and uses PCA |
 | `wiki stale` | Pages whose covered code changed since they were verified, and record pages (tickets) due for a recheck |
 | `wiki weekly [--week 2026-W40 \| current]` | With `[weekly]`: a note per finished week of work (pages added and changed, where the work went, sources, open questions, health, code) and a timeline, from git; `current` shows this week so far |
+| `wiki precommit` | What the pre-commit hook checks: sources in `raw/` unchanged, last week's note, no `wiki check --all` errors, the wiki's `[hooks] pre_commit` commands |
 | `wiki check <slug> \| --all [--verify-cache] [--strict] [--no-warnings] [--summary-ok]` | Frontmatter, summaries, types and their required sections and fields, uncited sources, ambiguous and unwritten links, stale summaries, code links, hub pages that several separate clusters gather around, file pages filed under a broader module than the one covering them |
 | `wiki check <source-slug> --ingested` | Whether an ingest is complete: original linked, discussed pages named and citing it, all clean and committed |
 | `wiki index refresh \| rebuild [--no-embed] \| status` | Manage the cache and embeddings |
