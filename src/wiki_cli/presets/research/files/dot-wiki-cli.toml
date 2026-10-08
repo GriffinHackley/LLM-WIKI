@@ -14,6 +14,11 @@ summary_types = ["source", "person", "organization", "place", "event", "concept"
 [suggest]
 named_types = ["person", "organization", "place", "event", "concept"]
 
+# Groups of linked pages (wiki clusters, the map). The open-questions list links pages from
+# every corner of the wiki, so it would glue unrelated groups together: leave it out.
+[clusters]
+ignore = ["wiki/open-questions.md"]
+
 # Page types. A page's type comes from its `type:` frontmatter, else from its folder.
 # `wiki check` warns when a page lacks one of its type's `sections` or frontmatter `fields`.
 [types.source]

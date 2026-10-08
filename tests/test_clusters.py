@@ -162,3 +162,38 @@ def test_no_hub_warning_in_a_small_wiki(tmp_path, capsys):
     assert main(["index", "refresh", "--root", str(root), "--format", "json"]) == 0
     capsys.readouterr()
     assert check_json(root, capsys, "--all") == []
+
+
+def test_ignored_pages_are_left_out_of_clusters(root, capsys):
+    page(root, "open-questions", "note", "Questions.", ["cache-0", "cache-4", "invoice-0", "invoice-4", "note-0a"])
+    (root / ".wiki-cli.toml").write_text(CONFIG + '[clusters]\nignore = ["open-questions.md"]\n', encoding="utf-8")
+    result = run(root, include_covered=True)
+    assert all("open-questions" not in cluster["pages"] for cluster in result["clusters"])
+    with Cache(load_settings(root)) as cache:
+        total = cache.conn.execute("SELECT COUNT(*) FROM pages WHERE kind = 'page'").fetchone()[0]
+        assignment, _ = membership(cache)
+    assert result["pages"] == total - 1 and "open-questions" not in assignment
+
+
+def test_a_higher_resolution_splits_more(root, capsys):
+    default = run(root, include_covered=True)
+    finer = run(root, include_covered=True, resolution=4.0, min_size=2)
+    assert default["resolution"] == 1.0 and finer["resolution"] == 4.0
+    assert len(finer["clusters"]) > len(default["clusters"])
+    (root / ".wiki-cli.toml").write_text(CONFIG + "[clusters]\nresolution = 4.0\n", encoding="utf-8")
+    assert run(root, include_covered=True, min_size=2)["clusters"] == finer["clusters"]  # the setting, too
+    capsys.readouterr()
+    assert main(["clusters", "--all", "--resolution", "4", "--min-size", "2", "--root", str(root)]) == 0
+    assert "Resolution 4 (1 is the default; higher splits more readily)." in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("table, message", [
+    ("[clusters]\nresolution = 0\n", "resolution must be a number above 0"),
+    ("[clusters]\nresolution = true\n", "resolution must be a number above 0"),
+    ("[clusters]\nignore = \"open-questions.md\"\n", r"'\[clusters\] ignore' must be a list of strings"),
+    ("[clusters]\nhubs = []\n", r"\[clusters\]: unknown key\(s\) hubs"),
+])
+def test_clusters_settings_are_checked(tmp_path, table, message):
+    (tmp_path / ".wiki-cli.toml").write_text(table, encoding="utf-8")
+    with pytest.raises(ConfigError, match=message):
+        load_settings(tmp_path)

@@ -159,6 +159,15 @@ With neither, the summary is the page's first paragraph.
 |---|---|---|---|
 | `named_types` | list of strings | all types | Page types `wiki suggest` looks for by name (title and `aliases:`) in a page's text. Limit it to types with distinctive names, such as people and modules. |
 
+## `[clusters]`: groups of linked pages
+
+Used by `wiki clusters`, the `hub-covers-clusters` check and the map's cluster colours.
+
+| Key | Type | Default | What it does |
+|---|---|---|---|
+| `ignore` | list of globs | `[]` (the presets: `["wiki/open-questions.md"]`) | Pages left out of clustering. A list page that links pages from every corner of the wiki (open questions, an index) glues unrelated groups together; ignored pages stay searchable and linkable. |
+| `resolution` | number above 0 | `1.0` | Louvain resolution: higher splits clusters more readily, lower merges them. `wiki clusters --resolution` tries a value without changing the config. |
+
 ## `[search]`
 
 | Key | Type | Default | What it does |

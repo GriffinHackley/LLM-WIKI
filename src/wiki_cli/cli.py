@@ -172,6 +172,8 @@ def build_parser() -> argparse.ArgumentParser:
     clusters_parser.add_argument("--all", action="store_true", help="also list clusters a hub page covers")
     clusters_parser.add_argument("--min-size", type=_positive_int, default=clusters.MIN_CLUSTER,
                                  help=f"smallest cluster listed (default {clusters.MIN_CLUSTER})")
+    clusters_parser.add_argument("--resolution", type=_positive_float,
+                                 help="higher splits clusters more readily (default: [clusters] resolution, else 1.0)")
     clusters_parser.set_defaults(handler=cmd_clusters)
 
     map_parser = commands.add_parser(
@@ -295,6 +297,13 @@ def build_parser() -> argparse.ArgumentParser:
     # Listed by task in --help: setting up, finding, checking, then the cache and models.
     commands._choices_actions.sort(key=lambda action: COMMAND_ORDER.index(action.dest))
     return parser
+
+
+def _positive_float(value: str) -> float:
+    number = float(value)
+    if not number > 0:
+        raise argparse.ArgumentTypeError("must be above 0")
+    return number
 
 
 def _positive_int(value: str) -> int:
@@ -842,7 +851,7 @@ def cmd_orphans(args: argparse.Namespace, settings: Settings) -> int:
 def cmd_clusters(args: argparse.Namespace, settings: Settings) -> int:
     with Cache(settings) as cache:
         cache.refresh()
-        result = clusters.clusters(cache, min_size=args.min_size, include_covered=args.all)
+        result = clusters.clusters(cache, min_size=args.min_size, include_covered=args.all, resolution=args.resolution)
     if args.format == "json":
         _print_json(result)
         return EXIT_OK
@@ -861,6 +870,8 @@ def cmd_clusters(args: argparse.Namespace, settings: Settings) -> int:
         print(output.heading(f"Clusters of {args.min_size}+ pages", len(shown)))
         print(output.dim(output.wrap("No hub types are declared: judge whether each cluster's most linked page is "
                                      "about what its pages share.")))
+    if result["resolution"] != 1.0:
+        print(output.dim(f"Resolution {result['resolution']:g} (1 is the default; higher splits more readily)."))
     if not result["clusters"]:
         print("None.")
     for number, cluster in enumerate(result["clusters"], start=1):

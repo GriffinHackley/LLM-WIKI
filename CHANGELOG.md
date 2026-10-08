@@ -67,6 +67,10 @@
   request's page names it by `url:` and `merge_commit:`. How to read a description and
   its reviews is a new part, `fetch-pr` (default: the forge's CLI or API). Records are
   likewise listed before the catch-all for other sources.
+- `[clusters]`: `ignore` leaves pages out of clustering (the presets ignore
+  `wiki/open-questions.md`, which links pages from every corner of the wiki and glued
+  unrelated groups together), and `resolution` sets how readily Louvain splits clusters;
+  `wiki clusters --resolution` tries a value without changing the config.
 
 ## 0.2.0: first release on PyPI
 

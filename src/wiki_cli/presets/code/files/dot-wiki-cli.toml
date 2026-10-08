@@ -21,6 +21,11 @@ summary_types = ["file", "module", "concept", "decision", "instruction", "ticket
 [suggest]
 named_types = ["module", "concept", "dependency"]
 
+# Groups of linked pages (wiki clusters, the map). The open-questions list links pages from
+# every corner of the wiki, so it would glue unrelated groups together: leave it out.
+[clusters]
+ignore = ["wiki/open-questions.md"]
+
 # Weekly notes: `wiki weekly` writes one per finished week from the git history, and a
 # timeline, in weekly/ (kept apart from the pages: not searched, not in the graph). The
 # pre-commit hook writes last week's on the first commit of a new week.
