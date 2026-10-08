@@ -257,7 +257,7 @@ class TestNestedModules:
                       f"---\ntitle: {slug}\ntype: file\nlast_updated: 2026-09-29\n---\n# {slug}\n\n## Summary\n"
                       f"{area.title()} step {index}. Calls [[{ring[(index + 1) % 8]}]] and [[{ring[(index + 2) % 8]}]].\n\n"
                       f"## Part of\n- [[{area if nested else 'core'}]] — one step of the {area}\n")
-        for index in range(12):
+        for index in range(13):
             write(wiki, f"wiki/concepts/idea-{index}.md",
                   f"---\ntitle: idea-{index}\ntype: concept\nlast_updated: 2026-09-29\n---\n# idea-{index}\n\n"
                   f"## Summary\nIdea {index}.\n")
@@ -425,7 +425,7 @@ class TestHubThrough:
                   f"---\ntitle: {slug}\ntype: pr\nlast_updated: 2026-09-29\n---\n# {slug}\n\n## Summary\n"
                   f"Change {index}, after {after}.\n\n"
                   f"## Changes\nExport code.\n\n## Implements\n- [[{stories[index % 2]}]] — part of it\n")
-        for index in range(18):
+        for index in range(19):
             write(wiki, f"wiki/concepts/idea-{index}.md",
                   f"---\ntitle: idea-{index}\ntype: concept\nlast_updated: 2026-09-29\n---\n# idea-{index}\n\n"
                   f"## Summary\nIdea {index}.\n")

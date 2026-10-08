@@ -196,7 +196,7 @@ re-embedding.
 | `wiki suggest <slug>` | Pages a page names but does not link, shares linked pages with, or resembles |
 | `wiki unwritten [--limit N]` | Link targets with no page, most-linked first |
 | `wiki orphans` | Pages nothing relates to |
-| `wiki clusters [--all] [--min-size 4]` | Groups of pages that link each other densely (Louvain communities) with no hub page most of them link to: leads for pages worth writing. Wikis of 30 pages or more |
+| `wiki clusters [--all] [--min-size 4] [--resolution 1.0]` | Groups of pages that link each other densely (Louvain communities) with no hub page most of them link to: leads for pages worth writing. Wikis of 30 pages or more |
 | `wiki map [--query "<question>"] [--nav <session>\|last\|all] [--chunks] [--method auto\|umap\|pca] [--color-by type\|cluster\|age\|visits] [--open]` | A 3D map of the pages' embeddings as one HTML page in `.cache/` (works offline): points coloured by type, link cluster or age, relations as lines; a question placed among the pages with lines to its search results; nav sessions drawn as paths to step through. UMAP by default; if UMAP cannot be used it says so and uses PCA |
 | `wiki stale` | Pages whose covered code changed since they were verified, and record pages (tickets) due for a recheck |
 | `wiki weekly [--week 2026-W40 \| current]` | With `[weekly]`: a note per finished week of work (pages added and changed, where the work went, sources, open questions, health, code) and a timeline, from git; `current` shows this week so far |

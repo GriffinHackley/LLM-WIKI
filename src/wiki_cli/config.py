@@ -26,7 +26,8 @@ DEFAULT_SUMMARY_HEADINGS = ("summary",)
 DEFAULT_SEARCH_RESULTS = 3
 MAX_SEARCH_RESULTS = 20  # search reranks 20 passages (search.RERANK_K), so it never returns more pages
 _TOP_LEVEL = {"pages", "exclude", "raw", "embed_model", "reranker", "relations", "summary", "page_type",
-              "check", "suggest", "search", "preset", "types", "guides", "code", "pending", "weekly", "records"}
+              "check", "suggest", "search", "preset", "types", "guides", "code", "pending", "weekly", "records",
+              "clusters"}
 _CODE_KEYS = {"repo", "origin"}
 _WEEKLY_KEYS = {"folder", "template", "sections", "group_by"}
 WEEKLY_SECTIONS = ("summary", "activity", "pages", "work", "sources", "questions", "health", "code")
@@ -38,6 +39,7 @@ _TYPE_VALUES = "values"
 _TYPE_HUB = "hub"
 _TYPE_RECORD = "record"
 _RECORDS_KEYS = {"recheck_days", "final"}
+_CLUSTERS_KEYS = {"ignore", "resolution"}
 _GUIDES_KEYS = {"dir", "parts"}
 DEFAULT_RECHECK_DAYS = 30
 # Statuses after which a record rarely changes: `wiki stale` stops asking for a recheck.
@@ -116,6 +118,8 @@ class Settings:
     code_origin: str | None = None  # the code repo's origin URL, to tell a wrong pointer
     pending_ignore: tuple[str, ...] = ()  # files under raw/ that are not sources (`wiki pending` skips them)
     weekly: Weekly | None = None  # weekly notes, when [weekly] turns them on
+    clusters_ignore: tuple[str, ...] = ()  # pages left out of the clusters graph (open-questions)
+    clusters_resolution: float = 1.0  # Louvain resolution: higher splits clusters more readily
     redirected_from: Path | None = field(default=None, compare=False)  # a code repo that pointed here
     vocabulary: Vocabulary = field(default_factory=Vocabulary, compare=False)
     root_note: str | None = field(default=None, compare=False)  # set when no config chose the root
@@ -229,6 +233,7 @@ def load_settings(
     if parts is None:
         parts = f"{guides_dir.strip('/')}/parts" if guides_dir else DEFAULT_PARTS
     recheck_days, final = _records(config)
+    clusters_ignore, clusters_resolution = _clusters(config)
     code = _table(config, "code")
     if set(code) - _CODE_KEYS or not all(isinstance(value, str) for value in code.values()):
         raise ConfigError(f"{CONFIG_FILENAME}: [code] takes 'repo' (a folder path) and 'origin' (a URL)")
@@ -264,6 +269,8 @@ def load_settings(
         code_origin=code.get("origin") or None,
         pending_ignore=_patterns(_table(config, "pending"), "ignore", (), "[pending] ignore"),
         weekly=_weekly(config),
+        clusters_ignore=clusters_ignore,
+        clusters_resolution=clusters_resolution,
         redirected_from=redirected_from,
         vocabulary=Vocabulary(rules),
         root_note=root_note,
@@ -280,6 +287,18 @@ def _follow_redirect(folder: Path, config: dict) -> Path:
         raise ConfigError(f"{folder / CONFIG_FILENAME} points at {target}, which is not a wiki "
                           f"(no {CONFIG_FILENAME} there)")
     return target
+
+
+def _clusters(config: dict) -> tuple[tuple[str, ...], float]:
+    table = _table(config, "clusters")
+    unknown = set(table) - _CLUSTERS_KEYS
+    if unknown:
+        raise ConfigError(f"{CONFIG_FILENAME}: [clusters]: unknown key(s) {', '.join(sorted(unknown))}")
+    resolution = table.get("resolution", 1.0)
+    if isinstance(resolution, bool) or not isinstance(resolution, (int, float)) or resolution <= 0:
+        raise ConfigError(f"{CONFIG_FILENAME}: [clusters] resolution must be a number above 0 (1.0 is the default)")
+    ignore = tuple(item.strip().lstrip("/") for item in _patterns(table, "ignore", (), "[clusters] ignore") if item.strip())
+    return ignore, float(resolution)
 
 
 def _records(config: dict) -> tuple[int, tuple[str, ...]]:

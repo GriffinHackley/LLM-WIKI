@@ -17,6 +17,7 @@ from collections import Counter, defaultdict
 
 from wiki_cli.cache import Cache
 from wiki_cli.model import WARNING, Issue
+from wiki_cli.pages import matches
 
 MIN_WIKI_PAGES = 30  # below this, communities are noise
 MIN_CLUSTER = 4
@@ -32,13 +33,14 @@ these those which who what when where how why not no but into over under about t
 will would should one two page pages wiki""".split())
 
 
-def clusters(cache: Cache, *, min_size: int = MIN_CLUSTER, include_covered: bool = False) -> dict:
+def clusters(cache: Cache, *, min_size: int = MIN_CLUSTER, include_covered: bool = False,
+             resolution: float | None = None) -> dict:
     import networkx as nx  # only this command needs it
 
-    pages = {slug: (title, page_type, summary) for slug, title, page_type, summary in cache.conn.execute(
-        "SELECT slug, title, page_type, summary FROM pages WHERE kind = 'page'")}
+    pages = _pages(cache)
+    resolution = resolution or cache.settings.clusters_resolution
     hub_types = sorted(page_type.name for page_type in cache.settings.types if page_type.hub)
-    result = {"pages": len(pages), "hub_types": hub_types, "clusters": [], "covered": 0}
+    result = {"pages": len(pages), "hub_types": hub_types, "resolution": resolution, "clusters": [], "covered": 0}
     if len(pages) < MIN_WIKI_PAGES:
         result["too_small"] = MIN_WIKI_PAGES
         return result
@@ -51,7 +53,7 @@ def clusters(cache: Cache, *, min_size: int = MIN_CLUSTER, include_covered: bool
 
     terms = _Terms(pages)
     found = []
-    for members in nx.community.louvain_communities(graph, weight="weight", seed=SEED):
+    for members in nx.community.louvain_communities(graph, weight="weight", resolution=resolution, seed=SEED):
         if len(members) < min_size:
             continue
         most_linked = _most_linked(members, neighbors, pages)
@@ -84,13 +86,12 @@ def membership(cache: Cache, *, min_size: int = MIN_CLUSTER) -> tuple[dict[str, 
     else "cluster N". Pages in no community of ``min_size`` or more are left out."""
     import networkx as nx
 
-    pages = {slug: (title, page_type, summary) for slug, title, page_type, summary in cache.conn.execute(
-        "SELECT slug, title, page_type, summary FROM pages WHERE kind = 'page'")}
+    pages = _pages(cache)
     graph, _ = _graph(cache, pages)
     if not graph.number_of_edges():
         return {}, []
-    found = [members for members in nx.community.louvain_communities(graph, weight="weight", seed=SEED)
-             if len(members) >= min_size]
+    found = [members for members in nx.community.louvain_communities(
+        graph, weight="weight", resolution=cache.settings.clusters_resolution, seed=SEED) if len(members) >= min_size]
     found.sort(key=lambda members: (-len(members), min(members)))
     neighbors = {node: set(graph[node]) for node in graph}
     reach = _reach(cache, pages)
@@ -140,6 +141,16 @@ def hub_issues(cache: Cache, paths: dict[str, str]) -> list[Issue]:
             "as a short overview that links them (wiki clusters --all lists the clusters)",
             path=paths[slug], slug=slug))
     return issues
+
+
+def _pages(cache: Cache) -> dict[str, tuple]:
+    """The pages clustering considers: every page but those `[clusters] ignore` names (an
+    open-questions list links pages from every corner of the wiki, so it would glue
+    unrelated groups together)."""
+    ignore = cache.settings.clusters_ignore
+    return {slug: (title, page_type, summary) for slug, title, page_type, summary, path in cache.conn.execute(
+        "SELECT slug, title, page_type, summary, path FROM pages WHERE kind = 'page'")
+        if not (ignore and matches(path, ignore))}
 
 
 def _graph(cache: Cache, pages) -> tuple:
