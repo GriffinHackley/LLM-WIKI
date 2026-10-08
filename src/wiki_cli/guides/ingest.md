@@ -10,13 +10,14 @@ book, notes). It never changes, so pages cite it by a locator: p. 4, section 2, 
 {{#code}}
 A source is one of:
 
-- **A document:** a file in `raw/` (a design doc, RFC, exported ticket, pull request
-  description, postmortem, meeting notes). It never changes, so pages cite it by a
-  locator: p. 4, section 2.
+- **A document:** a file in `raw/` (a design doc, RFC, exported ticket, postmortem,
+  meeting notes). It never changes, so pages cite it by a locator: p. 4, section 2.
 - **Part of the code:** a file, a module, a pull request, a range of commits or a decision, in the
   code repo at `{{code_repo}}`. The code changes, so pages cite it with `code:` links and
   record the commit they were checked against. Read the code; never edit it as part of
-  this workflow.
+  this workflow. A pull request's description and review discussion live on its forge
+  (GitHub, GitLab): read them there, and never copy them into `raw/`; its page names
+  it by `url:` and `merge_commit:`.
 {{/code}}
 {{#records}}
 
@@ -68,12 +69,18 @@ template.
 1. **Pick the source.**
    - If none was named, run `wiki pending`: it lists the files in `raw/` that no page links
      to yet. Offer those and ask which to ingest.{{#code}} For code, ask what to document.{{/code}}
-   - **Not a file in `raw/`** (a link, a page in another system):
-     {{part:fetch-source}}
+{{#code}}
+   - **Part of the code** (a pull request or commits, by number, link or branch; a module
+     or a file): it is not copied into `raw/`. Read the code from the code repo (step 2),
+     and a pull request's description and review discussion from its forge:
+     {{part:fetch-pr}}
+{{/code}}
 {{#records}}
-   - **A record** (a ticket key or link): fetch it.
+   - **A record** (a ticket key or link): fetch it; it is not copied into `raw/`.
      {{part:fetch-record}}
 {{/records}}
+   - **{{#code}}Any other source{{/code}}{{^code}}{{#records}}Any other source{{/records}}{{^records}}A source{{/records}}{{/code}} not in `raw/`** (a link, a page in another system):
+     {{part:fetch-source}}
    - To ingest several sources in one run, or "everything new", see *Several sources*
      below.
    - **Is it already in the wiki?** `wiki pending` flags a file with the same content as
@@ -147,7 +154,8 @@ template.
 {{/records}}
 {{#code}}
    - **Code has no source page.** The pages you write in step 7 record what they describe
-     in `covers:` and `verified:`.
+     in `covers:` and `verified:`. A pull request's page names it by `url:` and
+     `merge_commit:` and links no file in `raw/`.
 {{/code}}
 4. **Find the pages it touches.** Run `wiki index refresh`, then
    `wiki suggest <source-slug> --format json`: pages the source names without linking,

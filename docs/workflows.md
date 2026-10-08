@@ -105,7 +105,8 @@ for synced:.
 | Part | Where it is printed | Default |
 |---|---|---|
 | `fetch-record` | Ingest (a record), sync and lint (records to recheck) | Use whatever access you have to the tracker; else ask the user to paste or export it |
-| `fetch-source` | Ingest, for a source that is not a file in `raw/` | Save a copy in `raw/` first, or ask the user to |
+| `fetch-source` | Ingest, for a source that is not a file in `raw/` (and not code) | Save a copy in `raw/` first, or ask the user to |
+| `fetch-pr` | Ingest in a code wiki, for a pull request's description and review discussion | Use the forge's CLI (`gh pr view`, `glab mr view`), API or a tool for it; else ask the user to paste it. Never copied into `raw/` |
 | `pr-tickets` | Ingest, when writing a pull request's page in a code wiki with a record type: where its tickets' keys are | Its title, description, branch name and commit messages |
 | `before-commit` | Ingest, lint and sync, before committing | (nothing) |
 | `ingest-extra`, `query-extra`, `lint-extra`, `sync-extra` | The end of that guide: the wiki's own extra steps | (nothing) |

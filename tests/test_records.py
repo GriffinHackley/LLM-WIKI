@@ -116,7 +116,7 @@ class TestParts:
     def test_a_wiki_part_replaces_the_default_at_its_step(self, root):
         write(root, "guides/parts/fetch-record.md", "Use the Jira tool.\nThen read the comments.\n")
         text = guide.render("ingest", load_settings(root))
-        assert "   - **A record** (a ticket key or link): fetch it.\n     Use the Jira tool.\n" \
+        assert "   - **A record** (a ticket key or link): fetch it; it is not copied into `raw/`.\n     Use the Jira tool.\n" \
                "     Then read the comments.\n" in text
         assert "Use whatever access you have" not in text
 

@@ -211,6 +211,10 @@ class TestGuides:
         assert "a page of the type it is" in text and "*the source type*" not in text
         assert "{{" not in text and "}}" not in text and "\n\n\n" not in text
         assert "**A pull request's tickets:**" in text and "**A record's parent**" in text
+        # a pull request is code: read from the repo and its forge, never copied into raw/
+        assert "**Part of the code** (a pull request or commits" in text and "gh pr view" in text
+        assert "exported ticket, postmortem" in text and "pull request\n  description" not in text
+        assert text.index("**Part of the code** (a pull request") < text.index("**Any other source not in `raw/`**")
 
     def test_pull_request_tickets_rule_needs_a_record_type(self, code_wiki, capsys):
         config = code_wiki / ".wiki-cli.toml"
