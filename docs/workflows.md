@@ -194,9 +194,12 @@ relation types in effect, and `wiki neighbors <slug>` shows what a page's links 
 - **Unwritten pages.** Links to pages that don't exist yet are fine: `wiki unwritten`
   lists them, most-linked first, as the pages most worth writing.
 - **The pre-commit hook** (`wiki new --git-hook`) refuses commits that edit, rename or
-  delete sources in `raw/`, or that leave `wiki check` errors: a backstop for edits made
-  outside the workflows. In a wiki with `[weekly]`, it also writes last week's note on
-  the first commit of a new week and adds it to that commit.
+  delete sources in `raw/` (README files and `[pending] ignore` files, such as a manifest,
+  may change), or that leave `wiki check` errors: a backstop for edits made outside the
+  workflows. In a wiki with `[weekly]`, it also writes last week's note on the first
+  commit of a new week and adds it to that commit. The hook only calls `wiki precommit`,
+  so it updates with the command, and a wiki adds its own checks (a script that verifies
+  quotes, say) as `[hooks] pre_commit` commands in the config.
 - **Weekly notes.** `wiki weekly` writes a note for each finished week from the git
   history, with no agent: pages added and changed, where the work went, sources, open
   questions, health and, in code wikis, what changed in the code; plus

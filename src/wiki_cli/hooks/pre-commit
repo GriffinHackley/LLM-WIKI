@@ -1,29 +1,23 @@
 #!/bin/sh
 # Wiki pre-commit hook, installed by `wiki new --git-hook`. A backstop for edits made
-# outside an agent's workflows (an editor, Obsidian, by hand):
-#   - sources in raw/ are never edited, renamed or deleted (adding new ones is fine);
+# outside an agent's workflows (an editor, Obsidian, by hand). `wiki precommit` does the
+# checking, so the checks update with the command:
+#   - sources in raw/ are never edited, renamed or deleted (adding new ones is fine;
+#     README files and those [pending] ignore lists, such as a manifest, may change);
+#   - with [weekly] in the config, the first commit of a week also commits last week's note;
 #   - `wiki check --all` must report no errors;
-#   - with [weekly] in the config, the first commit of a week also commits last week's note.
+#   - the wiki's own [hooks] pre_commit commands in .wiki-cli.toml must pass.
 # Enabled per clone with: git config core.hooksPath .githooks
 # Bypass (not recommended): git commit --no-verify
-changed=$(git diff --cached --name-only --diff-filter=MDR -- raw/)
+if command -v wiki >/dev/null 2>&1; then
+  exec wiki precommit
+fi
+echo "pre-commit: 'wiki' is not installed; checked only that sources in raw/ are unchanged." >&2
+changed=$(git diff --cached --name-only --diff-filter=MDR -- raw/ | grep -v -E '(^|/)README\.(md|txt)$')
 if [ -n "$changed" ]; then
   echo "pre-commit: sources in raw/ are never edited, renamed or deleted:" >&2
   echo "$changed" | sed 's/^/  /' >&2
   echo "pre-commit: restore them (git restore --staged --worktree <file>), then commit again." >&2
   exit 1
-fi
-if command -v wiki >/dev/null 2>&1; then
-  if ! out=$(wiki weekly --hook 2>&1); then
-    echo "$out" >&2
-    echo "pre-commit: weekly notes not written (the commit goes ahead); run 'wiki weekly' to see why." >&2
-  fi
-  if ! out=$(wiki check --all --no-warnings 2>&1); then
-    echo "$out" >&2
-    echo "pre-commit: fix the errors above, then commit again." >&2
-    exit 1
-  fi
-else
-  echo "pre-commit: 'wiki' is not installed; skipped 'wiki check --all'." >&2
 fi
 exit 0

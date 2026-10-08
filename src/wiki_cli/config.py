@@ -27,7 +27,7 @@ DEFAULT_SEARCH_RESULTS = 3
 MAX_SEARCH_RESULTS = 20  # search reranks 20 passages (search.RERANK_K), so it never returns more pages
 _TOP_LEVEL = {"pages", "exclude", "raw", "embed_model", "reranker", "relations", "summary", "page_type",
               "check", "suggest", "search", "preset", "types", "guides", "code", "pending", "weekly", "records",
-              "clusters"}
+              "clusters", "hooks"}
 _CODE_KEYS = {"repo", "origin"}
 _WEEKLY_KEYS = {"folder", "template", "sections", "group_by"}
 WEEKLY_SECTIONS = ("summary", "activity", "pages", "work", "sources", "questions", "health", "code")
@@ -41,6 +41,8 @@ _TYPE_RECORD = "record"
 _RECORDS_KEYS = {"recheck_days", "final"}
 _CLUSTERS_KEYS = {"ignore", "resolution"}
 _GUIDES_KEYS = {"dir", "parts"}
+_HOOKS_KEYS = {"pre_commit"}
+_HOOK_COMMAND_KEYS = {"run", "files"}
 DEFAULT_RECHECK_DAYS = 30
 # Statuses after which a record rarely changes: `wiki stale` stops asking for a recheck.
 DEFAULT_FINAL = ("done", "closed", "resolved", "merged", "released", "cancelled", "canceled", "rejected",
@@ -90,6 +92,15 @@ class Weekly:
 
 
 @dataclass(frozen=True)
+class HookCommand:
+    """A command from `[hooks] pre_commit`, run from the wiki root before each commit. With
+    `files`, it runs only when a staged file matches one of the globs, and is given those
+    files as arguments."""
+    run: str
+    files: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class Settings:
     root: Path
     cache_path: Path
@@ -120,6 +131,7 @@ class Settings:
     weekly: Weekly | None = None  # weekly notes, when [weekly] turns them on
     clusters_ignore: tuple[str, ...] = ()  # pages left out of the clusters graph (open-questions)
     clusters_resolution: float = 1.0  # Louvain resolution: higher splits clusters more readily
+    pre_commit: tuple[HookCommand, ...] = ()  # the wiki's own checks, run by the pre-commit hook
     redirected_from: Path | None = field(default=None, compare=False)  # a code repo that pointed here
     vocabulary: Vocabulary = field(default_factory=Vocabulary, compare=False)
     root_note: str | None = field(default=None, compare=False)  # set when no config chose the root
@@ -271,6 +283,7 @@ def load_settings(
         weekly=_weekly(config),
         clusters_ignore=clusters_ignore,
         clusters_resolution=clusters_resolution,
+        pre_commit=_pre_commit(config),
         redirected_from=redirected_from,
         vocabulary=Vocabulary(rules),
         root_note=root_note,
@@ -299,6 +312,30 @@ def _clusters(config: dict) -> tuple[tuple[str, ...], float]:
         raise ConfigError(f"{CONFIG_FILENAME}: [clusters] resolution must be a number above 0 (1.0 is the default)")
     ignore = tuple(item.strip().lstrip("/") for item in _patterns(table, "ignore", (), "[clusters] ignore") if item.strip())
     return ignore, float(resolution)
+
+
+def _pre_commit(config: dict) -> tuple[HookCommand, ...]:
+    table = _table(config, "hooks")
+    unknown = set(table) - _HOOKS_KEYS
+    if unknown:
+        raise ConfigError(f"{CONFIG_FILENAME}: [hooks]: unknown key(s) {', '.join(sorted(unknown))}")
+    value = table.get("pre_commit", [])
+    where = f"{CONFIG_FILENAME}: [hooks] pre_commit"
+    if not isinstance(value, list):
+        raise ConfigError(f"{where} must be a list of commands")
+    commands = []
+    for item in value:
+        if isinstance(item, str):
+            item = {"run": item}
+        if not isinstance(item, dict) or set(item) - _HOOK_COMMAND_KEYS:
+            raise ConfigError(f"{where}: each entry is a command, or a table with 'run' and optional 'files'")
+        run, files = item.get("run"), item.get("files", [])
+        if not isinstance(run, str) or not run.strip():
+            raise ConfigError(f"{where}: 'run' must be a non-empty command")
+        if not isinstance(files, list) or not all(isinstance(glob, str) and glob.strip() for glob in files):
+            raise ConfigError(f"{where}: 'files' must be a list of globs")
+        commands.append(HookCommand(run.strip(), tuple(glob.strip().lstrip("/") for glob in files)))
+    return tuple(commands)
 
 
 def _records(config: dict) -> tuple[int, tuple[str, ...]]:

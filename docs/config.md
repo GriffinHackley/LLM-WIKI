@@ -209,6 +209,24 @@ For page types marked `record = true` (see [workflows.md](workflows.md#records-t
 | `dir` | string | none | A folder of the wiki's own guides, relative to the root. A file named like a built-in guide (`ingest.md`) replaces it; any other name adds a workflow. See [workflows.md](workflows.md). |
 | `parts` | string | `guides/parts`, or `<dir>/parts` with `dir` set | A folder of parts: `<name>.md` fills the guides' `{{part:<name>}}` slot with the wiki's own text for that step. Never indexed as pages. `wiki guide --parts` lists the slots. |
 
+## `[hooks]`: the wiki's own pre-commit checks
+
+The pre-commit hook (`wiki new --git-hook`) runs `wiki precommit`: sources in the raw
+folders unchanged (README files and `[pending] ignore` files may change), last week's
+note with `[weekly]`, and no `wiki check --all` errors. A wiki adds its own checks here.
+
+```toml
+[hooks]
+pre_commit = [
+  "python tools/check_quotes.py",                                   # every commit
+  { run = "python tools/format.py --check", files = ["drafts/*.md"] },  # only when these change
+]
+```
+
+| Key | Type | Default | What it does |
+|---|---|---|---|
+| `pre_commit` | list of commands | `[]` | Each runs with the system shell from the wiki root; one that exits non-zero blocks the commit, and its output is shown. An entry is a command, or a table with `run` and `files`: a list of globs, so the command runs only when a staged file (added or changed) matches them, with those files appended as arguments. |
+
 ## `[code]`: code wikis
 
 | Key | Type | Default | What it does |
