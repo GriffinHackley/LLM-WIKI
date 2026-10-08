@@ -61,6 +61,12 @@
   wiki's pull requests carry their keys is its own `pr-tickets` part
   (`guides/parts/pr-tickets.md`); the default looks in the title, description, branch
   name and commit messages.
+- Ingest in a code wiki: a pull request or commits named by number, link or branch are
+  part of the code, read from the repo and the forge, and never copied into `raw/`
+  (the guide used to send them through `fetch-source`, which saves a copy). A pull
+  request's page names it by `url:` and `merge_commit:`. How to read a description and
+  its reviews is a new part, `fetch-pr` (default: the forge's CLI or API). Records are
+  likewise listed before the catch-all for other sources.
 
 ## 0.2.0: first release on PyPI
 
