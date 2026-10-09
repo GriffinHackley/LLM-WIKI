@@ -27,7 +27,7 @@ DEFAULT_SEARCH_RESULTS = 3
 MAX_SEARCH_RESULTS = 20  # search reranks 20 passages (search.RERANK_K), so it never returns more pages
 _TOP_LEVEL = {"pages", "exclude", "raw", "embed_model", "reranker", "relations", "summary", "page_type",
               "check", "suggest", "search", "preset", "types", "guides", "code", "pending", "weekly", "records",
-              "clusters", "hooks"}
+              "clusters", "hooks", "groups"}
 _CODE_KEYS = {"repo", "origin"}
 _WEEKLY_KEYS = {"folder", "template", "sections", "group_by"}
 WEEKLY_SECTIONS = ("summary", "activity", "pages", "work", "sources", "questions", "health", "code")
@@ -42,6 +42,8 @@ _RECORDS_KEYS = {"recheck_days", "final"}
 _CLUSTERS_KEYS = {"ignore", "resolution"}
 _GUIDES_KEYS = {"dir", "parts"}
 _HOOKS_KEYS = {"pre_commit"}
+_GROUPS_KEYS = {"fields"}
+DEFAULT_GROUP_FIELDS = ("tags",)
 _HOOK_COMMAND_KEYS = {"run", "files"}
 DEFAULT_RECHECK_DAYS = 30
 # Statuses after which a record rarely changes: `wiki stale` stops asking for a recheck.
@@ -133,6 +135,7 @@ class Settings:
     clusters_ignore: tuple[str, ...] = ()  # pages left out of the clusters graph (open-questions)
     clusters_resolution: float = 1.0  # Louvain resolution: higher splits clusters more readily
     pre_commit: tuple[HookCommand, ...] = ()  # the wiki's own checks, run by the pre-commit hook
+    group_fields: tuple[str, ...] = DEFAULT_GROUP_FIELDS  # frontmatter naming a page's groups (--group)
     redirected_from: Path | None = field(default=None, compare=False)  # a code repo that pointed here
     vocabulary: Vocabulary = field(default_factory=Vocabulary, compare=False)
     root_note: str | None = field(default=None, compare=False)  # set when no config chose the root
@@ -285,6 +288,7 @@ def load_settings(
         clusters_ignore=clusters_ignore,
         clusters_resolution=clusters_resolution,
         pre_commit=_pre_commit(config),
+        group_fields=_group_fields(config),
         redirected_from=redirected_from,
         vocabulary=Vocabulary(rules),
         root_note=root_note,
@@ -337,6 +341,18 @@ def _pre_commit(config: dict) -> tuple[HookCommand, ...]:
             raise ConfigError(f"{where}: 'files' must be a list of globs")
         commands.append(HookCommand(run.strip(), tuple(glob.strip().lstrip("/") for glob in files)))
     return tuple(commands)
+
+
+def _group_fields(config: dict) -> tuple[str, ...]:
+    table = _table(config, "groups")
+    unknown = set(table) - _GROUPS_KEYS
+    if unknown:
+        raise ConfigError(f"{CONFIG_FILENAME}: [groups]: unknown key(s) {', '.join(sorted(unknown))}")
+    fields = tuple(item.strip() for item in _patterns(table, "fields", DEFAULT_GROUP_FIELDS, "[groups] fields")
+                   if item.strip())
+    if not fields:
+        raise ConfigError(f"{CONFIG_FILENAME}: [groups] fields must name at least one frontmatter field")
+    return fields
 
 
 def _records(config: dict) -> tuple[int, tuple[str, ...]]:

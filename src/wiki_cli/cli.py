@@ -22,6 +22,7 @@ from wiki_cli import (
     clusters,
     codebase,
     evaluate,
+    groups,
     guide,
     init,
     output,
@@ -85,7 +86,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return args.handler(args, settings)
     except (ConfigError, PageNotFound, CacheUnavailable, UsageError, ModelUnavailable, evaluate.EvalError,
             guide.GuideError, scaffold.ScaffoldError, weekly.WeeklyError, vecmap.MapError,
-            precommit.HookError) as exc:
+            precommit.HookError, groups.GroupError) as exc:
         _print_error(str(exc))
         return EXIT_ERROR
 
@@ -98,6 +99,10 @@ def _print_error(message: str) -> None:
 COMMAND_ORDER = ("new", "init", "guide", "search", "nav", "list", "neighbors", "suggest", "check", "unwritten",
                  "orphans", "clusters", "map", "pending", "stale", "weekly", "precommit", "index", "models", "vocab",
                  "eval")
+
+
+GROUP_HELP = ("only this group's pages: those whose [groups] fields (default: tags) name it, and the pages they "
+              "link to or are linked from")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -179,6 +184,7 @@ def build_parser() -> argparse.ArgumentParser:
                                  help=f"smallest cluster listed (default {clusters.MIN_CLUSTER})")
     clusters_parser.add_argument("--resolution", type=_positive_float,
                                  help="higher splits clusters more readily (default: [clusters] resolution, else 1.0)")
+    clusters_parser.add_argument("--group", help=GROUP_HELP)
     clusters_parser.set_defaults(handler=cmd_clusters)
 
     map_parser = commands.add_parser(
@@ -187,6 +193,7 @@ def build_parser() -> argparse.ArgumentParser:
     map_parser.add_argument("--method", choices=vecmap.METHODS, default="auto",
                             help="layout: auto (UMAP, else PCA with a note), umap (fail if unavailable), pca")
     map_parser.add_argument("--chunks", action="store_true", help="one point per section instead of per page")
+    map_parser.add_argument("--group", help=GROUP_HELP)
     map_parser.add_argument("--color-by", choices=vecmap.COLOR_BY, default="type",
                             help="initial colouring (the page can switch); visits needs --nav")
     map_parser.add_argument("--query", help="place this question in the map, with lines to its search results")
@@ -900,12 +907,17 @@ def cmd_orphans(args: argparse.Namespace, settings: Settings) -> int:
 def cmd_clusters(args: argparse.Namespace, settings: Settings) -> int:
     with Cache(settings) as cache:
         cache.refresh()
-        result = clusters.clusters(cache, min_size=args.min_size, include_covered=args.all, resolution=args.resolution)
+        only = groups.members(cache, args.group) if args.group else None
+        result = clusters.clusters(cache, min_size=args.min_size, include_covered=args.all, resolution=args.resolution,
+                                   only=only)
+    if args.group:
+        result["group"] = args.group
     if args.format == "json":
         _print_json(result)
         return EXIT_OK
     if result.get("too_small"):
-        print(f"{output.plural(result['pages'], 'page')}: too few for clusters to mean anything "
+        where = f" in group '{args.group}'" if args.group else ""
+        print(f"{output.plural(result['pages'], 'page')}{where}: too few for clusters to mean anything "
               f"(it takes {result['too_small']}).")
         return EXIT_OK
     hubs = result["hub_types"]
@@ -919,6 +931,9 @@ def cmd_clusters(args: argparse.Namespace, settings: Settings) -> int:
         print(output.heading(f"Clusters of {args.min_size}+ pages", len(shown)))
         print(output.dim(output.wrap("No hub types are declared: judge whether each cluster's most linked page is "
                                      "about what its pages share.")))
+    if args.group:
+        print(output.dim(output.wrap(f"Group '{args.group}': {output.plural(result['pages'], 'page')} (those that name "
+                                     "it, and the pages they link to or are linked from).")))
     if result["resolution"] != 1.0:
         print(output.dim(f"Resolution {result['resolution']:g} (1 is the default; higher splits more readily)."))
     if not result["clusters"]:
@@ -971,9 +986,10 @@ def cmd_map(args: argparse.Namespace, settings: Settings) -> int:
             if args.format == "text":
                 print(f"{message}...", file=sys.stderr, flush=True)
 
+        only = groups.members(cache, args.group) if args.group else None
         result = vecmap.build(cache, method=args.method, chunks=args.chunks, color_by=args.color_by,
                               query=args.query, nav=args.nav, embedder=embedder, searcher=searcher,
-                              progress=progress)
+                              progress=progress, group=args.group, only=only)
     result.payload["notes"] += notes
     for note in result.payload["notes"]:
         output.note(note)
@@ -983,7 +999,8 @@ def cmd_map(args: argparse.Namespace, settings: Settings) -> int:
     path = vecmap.write(result.payload, settings.cache_path)
     payload = result.payload
     method = "UMAP" if payload["method"] == "umap" else "PCA"
-    print(f"Map of {output.plural(len(payload['points']), payload['points_kind'][:-1])} ({method}): {path}")
+    group = f" in group '{args.group}'" if args.group else ""
+    print(f"Map of {output.plural(len(payload['points']), payload['points_kind'][:-1])}{group} ({method}): {path}")
     if args.open:
         import webbrowser
         webbrowser.open(path.as_uri())

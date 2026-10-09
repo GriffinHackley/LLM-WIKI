@@ -73,6 +73,11 @@
   those files. The hook no longer refuses changes to README files or `[pending] ignore`
   files in `raw/` (a manifest updated as sources arrive). An existing wiki gets the new
   hook by deleting `.githooks/pre-commit` and running `wiki new . --git-hook`.
+- `--group <name>` on `wiki clusters` and `wiki map` looks at one part of the wiki: the
+  pages whose frontmatter names the group, and every page they link to or are linked
+  from (shared pages, such as people, rarely carry the field). `[groups] fields` says
+  which fields name a page's groups (default `tags`). The map lays a group out on its
+  own, cached apart from the whole wiki's layout, and names the group in its title.
 - `hub_through` takes a relation's inverse name as well as its type: the inverse follows
   the relation's links reversed. Hubs whose links point outward can now cover their
   clusters: an event lists its sources (`appears-in`, inverse `features`), so

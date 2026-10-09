@@ -168,6 +168,24 @@ Used by `wiki clusters`, the `hub-covers-clusters` check and the map's cluster c
 | `ignore` | list of globs | `[]` (the presets: `["wiki/open-questions.md"]`) | Pages left out of clustering. A list page that links pages from every corner of the wiki (open questions, an index) glues unrelated groups together; ignored pages stay searchable and linkable. |
 | `resolution` | number above 0 | `1.0` | Louvain resolution: higher splits clusters more readily, lower merges them. `wiki clusters --resolution` tries a value without changing the config. |
 
+## `[groups]`: the parts of a wiki its pages name
+
+`wiki clusters --group <name>` and `wiki map --group <name>` look at one part of the wiki:
+a project, a dossier, a course. A page belongs to a group when one of these frontmatter
+fields holds the group's name, as a single value or in a list (case and a leading `#` are
+ignored). Pages every group shares, such as a person or a place, rarely carry the field,
+so a group also takes in every page its pages link to or are linked from, one step out.
+An unknown name is an error that lists the groups the pages name.
+
+```toml
+[groups]
+fields = ["dossiers", "dossier"]   # source pages say dossiers: [a, b]; claim pages dossier: a
+```
+
+| Key | Type | Default | What it does |
+|---|---|---|---|
+| `fields` | list of strings | `["tags"]` | Frontmatter fields that name the groups a page belongs to. |
+
 ## `[search]`
 
 | Key | Type | Default | What it does |
