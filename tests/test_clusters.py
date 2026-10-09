@@ -6,7 +6,7 @@ import pytest
 
 from wiki_cli.cache import Cache
 from wiki_cli.cli import main
-from wiki_cli.clusters import clusters, membership
+from wiki_cli.clusters import _reach, _pages, clusters, membership, overloaded_hubs
 from wiki_cli.config import ConfigError, load_settings
 
 CONFIG = """\
@@ -197,3 +197,126 @@ def test_clusters_settings_are_checked(tmp_path, table, message):
     (tmp_path / ".wiki-cli.toml").write_text(table, encoding="utf-8")
     with pytest.raises(ConfigError, match=message):
         load_settings(tmp_path)
+
+
+# -- hub_through with inverse names: hubs whose relations point outward ------------------
+
+RESEARCH = """\
+[types.event]
+hub = true
+hub_through = {through}
+[types.claim]
+[types.document]
+[types.org]
+hub = true
+hub_through = ["associated-with"]
+[types.person]
+[types.note]
+
+[[relations]]
+heading = "Sources"
+page_type = "event"
+type = "appears-in"
+inverse = "features"
+
+[[relations]]
+heading = "Sources"
+page_type = "claim"
+type = "sourced-by"
+inverse = "source-for"
+
+[[relations]]
+heading = "Relationships"
+page_type = ["org", "person"]
+type = "associated-with"
+inverse = "associated-with"
+"""
+
+
+def research_page(root, slug, page_type, sections):
+    body = "".join(f"\n## {heading}\n" + "\n".join(f"- [[{target}]] — why" for target in links) + "\n"
+                   for heading, links in sections.items())
+    (root / f"{slug}.md").write_text(f"---\ntitle: {slug}\ntype: {page_type}\n---\n# {slug}\n\n## Summary\n"
+                                     f"About {slug}.\n{body}", encoding="utf-8")
+
+
+def research_wiki(root, through):
+    """An event whose relations all point outward (event -appears-in-> document), claims
+    sourced by those documents (claim -sourced-by-> document), and nothing pointing into
+    the event; an org tied to people by a symmetric relation, stored in both directions;
+    and notes to pass the size threshold."""
+    root.mkdir()
+    (root / ".wiki-cli.toml").write_text(RESEARCH.format(through=json.dumps(through)), encoding="utf-8")
+    documents = ["doc-0", "doc-1"]
+    claims = [f"claim-{index}" for index in range(8)]
+    research_page(root, "meeting", "event", {"Sources": documents})
+    for slug in documents:
+        research_page(root, slug, "document", {})
+    for index, slug in enumerate(claims):
+        research_page(root, slug, "claim", {"Sources": [documents[index % 2]],
+                                            "Related": [claims[(index + step) % 8] for step in (1, 2, 3)]})
+    people = [f"person-{index}" for index in range(10)]
+    research_page(root, "acme", "org", {"Relationships": people[:2]})  # acme -> person-0, person-1
+    for index, slug in enumerate(people[2:], start=2):
+        linked = [people[index % 2]] if index < 6 else []  # person-2..5 -> person-0 or person-1
+        research_page(root, slug, "person", {"Relationships": linked,
+                                             "Related": [people[2 + (index - 1) % 8], people[2 + index % 8]]})
+    research_page(root, "person-0", "person", {"Relationships": people[6:8]})  # person-0 -> person-6, 7
+    research_page(root, "person-1", "person", {"Relationships": people[8:]})  # person-1 -> person-8, 9
+    for index in range(4):
+        page(root, f"note-{index}a", "note", f"Note {index}.", [f"note-{index}b"])
+        page(root, f"note-{index}b", "note", f"Note {index} reply.", [])
+    return root
+
+
+def cluster_of(result, slug):
+    [found] = [cluster for cluster in result["clusters"] if slug in cluster["pages"]]
+    return found
+
+
+def reach_of(root):
+    with Cache(load_settings(root)) as cache:
+        cache.refresh()
+        return _reach(cache, _pages(cache))
+
+
+def test_an_inverse_name_lets_an_outward_hub_cover_its_cluster(tmp_path):
+    root = research_wiki(tmp_path / "w", ["features", "sourced-by"])
+    assert reach_of(root)["meeting"] == {"doc-0", "doc-1"} | {f"claim-{index}" for index in range(8)}
+    cluster = cluster_of(run(root, include_covered=True), "claim-0")
+    assert cluster["covered_by"]["slug"] == "meeting" and cluster["covered_by"]["share"] == 1.0
+    assert cluster["covered_by"]["through"] == 8  # every claim, by its document
+    with Cache(load_settings(root)) as cache:
+        assignment, names = membership(cache)
+        assert names[assignment["claim-0"]] == "meeting"  # wiki map names the cluster after the event
+        assert overloaded_hubs(cache) == {}
+
+
+def test_forward_names_alone_do_not_reach_an_outward_hub(tmp_path):
+    root = research_wiki(tmp_path / "w", ["appears-in", "sourced-by"])
+    assert "meeting" not in reach_of(root)
+    assert cluster_of(run(root, include_covered=True), "claim-0")["covered_by"] is None
+
+
+def test_a_symmetric_relation_is_walked_both_ways_once(tmp_path):
+    root = research_wiki(tmp_path / "w", ["features", "sourced-by"])
+    # person-2..5 point at person-0/1, which acme points at; person-6..9 are pointed at by them
+    assert reach_of(root)["acme"] == {f"person-{index}" for index in range(10)}
+    covered_by = cluster_of(run(root, include_covered=True), "person-5")["covered_by"]
+    assert covered_by["slug"] == "acme" and covered_by["share"] == 1.0  # each person counted once
+
+
+@pytest.mark.parametrize("through, message", [
+    ('["features", "source-for"]', None),
+    ('["appears-in", "sourced-by"]', None),
+    ('["featured"]', "rule defines as its type or inverse: featured"),
+    ('["linked-from"]', "rule defines as its type or inverse: linked-from"),
+])
+def test_hub_through_accepts_types_and_inverses(tmp_path, through, message):
+    (tmp_path / ".wiki-cli.toml").write_text(RESEARCH.format(through=through), encoding="utf-8")
+    if message is None:
+        event = next(page_type for page_type in load_settings(tmp_path).types if page_type.name == "event")
+        assert event.hub_through == tuple(json.loads(through))
+    else:
+        with pytest.raises(ConfigError, match=message):
+            load_settings(tmp_path)

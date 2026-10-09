@@ -73,6 +73,12 @@
   those files. The hook no longer refuses changes to README files or `[pending] ignore`
   files in `raw/` (a manifest updated as sources arrive). An existing wiki gets the new
   hook by deleting `.githooks/pre-commit` and running `wiki new . --git-hook`.
+- `hub_through` takes a relation's inverse name as well as its type: the inverse follows
+  the relation's links reversed. Hubs whose links point outward can now cover their
+  clusters: an event lists its sources (`appears-in`, inverse `features`), so
+  `hub_through = ["features", "sourced-by"]` on `event` lets the claims sourced by those
+  documents reach the event. Type names follow links as before, and a symmetric relation
+  is followed both ways.
 - `[clusters]`: `ignore` leaves pages out of clustering (the presets ignore
   `wiki/open-questions.md`, which links pages from every corner of the wiki and glued
   unrelated groups together), and `resolution` sets how readily Louvain splits clusters;

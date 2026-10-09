@@ -67,7 +67,8 @@ class PageType:
     the types whose pages should not link pages of this type, or be linked by them: either
     direction joins them in the relations graph (an epic and a file). `hub_through` lets a
     hub type's pages cover pages that reach them through a chain of these typed relations,
-    not only pages linked directly (a pull request implementing a story of an epic)."""
+    not only pages linked directly (a pull request implementing a story of an epic); an
+    inverse name walks its relation reversed (a document `features` the event citing it)."""
     name: str
     description: str = ""
     folder: str | None = None
@@ -223,12 +224,12 @@ def load_settings(
     if not isinstance(folders, dict) or not all(isinstance(v, str) for v in folders.values()):
         raise ConfigError(f"{CONFIG_FILENAME}: [page_type] folders must map folder paths to type names")
     types = _types(_table(config, "types"))
-    typed = {rule.type for rule in rules}
+    named = {rule.type for rule in rules} | {rule.inverse for rule in rules}
     for item in types:
-        unknown = [name for name in item.hub_through if name not in typed]
+        unknown = [name for name in item.hub_through if name not in named]
         if unknown:
-            raise ConfigError(f"{CONFIG_FILENAME}: [types.{item.name}] hub_through names relation types no "
-                              f"[[relations]] rule defines: {', '.join(unknown)}")
+            raise ConfigError(f"{CONFIG_FILENAME}: [types.{item.name}] hub_through names relations no "
+                              f"[[relations]] rule defines as its type or inverse: {', '.join(unknown)}")
     by_folder = {k.strip("/"): v.strip().lower() for k, v in folders.items()}
     by_folder.update({page_type.folder: page_type.name for page_type in types if page_type.folder})
     type_folders = tuple(sorted(by_folder.items(), key=lambda pair: -len(pair[0])))

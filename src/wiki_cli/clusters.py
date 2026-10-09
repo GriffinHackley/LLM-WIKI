@@ -205,33 +205,52 @@ def _most_linked(members: set[str], neighbors: dict[str, set[str]], pages: dict,
 def _reach(cache: Cache, pages: dict) -> dict[str, set[str]]:
     """For each page of a hub type with `hub_through`, the pages that reach it through a
     chain of those relations, up to MAX_THROUGH steps (a pull request that implements a
-    story that is a child of an epic)."""
-    through = {page_type.name: set(page_type.hub_through) for page_type in cache.settings.types
-               if page_type.hub_through}
-    if not through:
+    story that is a child of an epic). A relation's type is followed as stored, toward its
+    target; its inverse name follows it reversed, so `event -appears-in-> document` reads
+    as `document -features-> event` and the document reaches the event. A symmetric
+    relation (its own inverse) is followed both ways."""
+    steps = {page_type.name: _steps(cache.settings.relations, page_type.hub_through)
+             for page_type in cache.settings.types if page_type.hub_through}
+    if not steps:
         return {}
-    wanted = set().union(*through.values())
-    toward: dict[str, set[tuple[str, str]]] = defaultdict(set)  # target -> (source, relation)
+    wanted = set().union(*steps.values())
+    toward: dict[str, set[tuple[str, tuple[str, bool]]]] = defaultdict(set)  # page -> (page reaching it, step)
     for source, target, relation in cache.conn.execute(
             "SELECT source_slug, target_slug, relation_type FROM relations WHERE resolved = 1"):
-        if relation in wanted and source != target and source in pages and target in pages:
-            toward[target].add((source, relation))
+        if source == target or source not in pages or target not in pages:
+            continue
+        if (relation, False) in wanted:
+            toward[target].add((source, (relation, False)))
+        if (relation, True) in wanted:
+            toward[source].add((target, (relation, True)))
     reach = {}
     for slug, (_, page_type, _) in pages.items():
-        kinds = through.get(page_type)
+        kinds = steps.get(page_type)
         if not kinds:
             continue
         found: set[str] = set()
         frontier = {slug}
         for _ in range(MAX_THROUGH):
-            frontier = {source for target in frontier for source, relation in toward.get(target, ())
-                        if relation in kinds} - found - {slug}
+            frontier = {other for page in frontier for other, step in toward.get(page, ())
+                        if step in kinds} - found - {slug}
             if not frontier:
                 break
             found |= frontier
         if found:
             reach[slug] = found
     return reach
+
+
+def _steps(rules, names: tuple[str, ...]) -> set[tuple[str, bool]]:
+    """`hub_through` names as (relation type, reversed) steps: a rule's type walks its
+    edges as stored, its inverse walks them reversed."""
+    steps = set()
+    for rule in rules:
+        if rule.type in names:
+            steps.add((rule.type, False))
+        if rule.inverse in names:
+            steps.add((rule.type, True))
+    return steps
 
 
 def _neg(slug: str) -> tuple[int, ...]:

@@ -462,8 +462,9 @@ class TestHubThrough:
     @pytest.mark.parametrize("table, message", [
         ('[types.epic]\nhub_through = ["child-of"]\n', "hub_through needs hub = true"),
         ('[types.epic]\nhub = true\nhub_through = ["child-off"]\n',
-         r"hub_through names relation types no \[\[relations\]\] rule defines: child-off"),
-        ('[types.epic]\nhub = true\nhub_through = ["links-to"]\n', "rule defines: links-to"),
+         r"hub_through names relations no \[\[relations\]\] rule defines as its type or inverse: child-off"),
+        ('[types.epic]\nhub = true\nhub_through = ["links-to"]\n', "type or inverse: links-to"),
+        ('[types.epic]\nhub = true\nhub_through = ["linked-from"]\n', "type or inverse: linked-from"),
     ])
     def test_hub_through_is_checked(self, tmp_path, table, message):
         rule = '[[relations]]\nfield = "parent"\ntype = "child-of"\ninverse = "parent-of"\n'
