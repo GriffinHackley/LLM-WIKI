@@ -86,10 +86,11 @@ class MapResult:
 
 # -- loading -----------------------------------------------------------------
 
-def load_points(cache: Cache, *, chunks: bool = False) -> Points:
+def load_points(cache: Cache, *, chunks: bool = False, only: set[str] | None = None) -> Points:
+    """The pages (or sections) to map, with their vectors: all pages, or those in ``only``."""
     pages = {row[0]: row for row in cache.conn.execute(
         "SELECT id, slug, COALESCE(title, slug), page_type, summary, path, mtime_ns, embedded_hash "
-        "FROM pages WHERE kind = 'page'")}
+        "FROM pages WHERE kind = 'page'") if only is None or row[1] in only}
     if not cache.has_vectors:
         return Points("chunks" if chunks else "pages", [], np.zeros((0, 0), dtype=np.float32), [])
     now = time.time()
@@ -237,14 +238,16 @@ def _save(store: Path | None, key: str, layout: Layout) -> None:
 def build(cache: Cache, *, method: str = "auto", chunks: bool = False, color_by: str = "type",
           query: str | None = None, nav: str | None = None, embedder: Embedder | None = None,
           searcher: Callable[[str], list] | None = None,
-          progress: Callable[[str], None] | None = None) -> MapResult:
+          progress: Callable[[str], None] | None = None, group: str | None = None,
+          only: set[str] | None = None) -> MapResult:
     """Everything the viewer draws. ``embedder`` must be the cache's model (for a query
-    or a nav session's follow-up searches); ``searcher`` returns search hits for a query."""
+    or a nav session's follow-up searches); ``searcher`` returns search hits for a query.
+    With ``only``, just those pages (the group named ``group``), laid out on their own."""
     if color_by not in COLOR_BY:
         raise MapError(f"unknown --color-by '{color_by}'; choose one of {', '.join(COLOR_BY)}")
     if color_by == "visits" and not nav:
         raise MapError("--color-by visits needs --nav")
-    points = load_points(cache, chunks=chunks)
+    points = load_points(cache, chunks=chunks, only=only)
     if not len(points):
         raise MapError("no embedded pages to map; run 'wiki index refresh'")
     notes: list[str] = []
@@ -255,12 +258,13 @@ def build(cache: Cache, *, method: str = "auto", chunks: bool = False, color_by:
     if pending:
         notes.append(f"{pending} files are not embedded yet, or changed since; run 'wiki index refresh'")
 
-    store = cache.settings.cache_path.parent / f"map-{points.kind}.pickle"
+    suffix = f"-group-{hashlib.sha256(group.casefold().encode()).hexdigest()[:12]}" if group else ""
+    store = cache.settings.cache_path.parent / f"map-{points.kind}{suffix}.pickle"  # one layout per group
     layout = fit(points, method, store=store, embed_model=cache.embed_model, progress=progress)
     if layout.fallback_reason:
         notes.insert(0, f"UMAP unavailable ({layout.fallback_reason}); used PCA instead")
 
-    community, cluster_names = clusters.membership(cache)
+    community, cluster_names = clusters.membership(cache, only=only)
     by_page: dict[str, list[int]] = {}
     by_chunk: dict[int, int] = {}
     for index, row in enumerate(points.rows):
@@ -326,6 +330,7 @@ def build(cache: Cache, *, method: str = "auto", chunks: bool = False, color_by:
 
     payload = {
         "root": cache.settings.root.name,
+        "group": group,
         "generated": time.strftime("%Y-%m-%d %H:%M"),
         "embed_model": cache.embed_model,
         "method": layout.method,

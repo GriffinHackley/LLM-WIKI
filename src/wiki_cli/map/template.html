@@ -101,8 +101,9 @@ const points = DATA.points;
 const big = points.length > 4000;
 
 // -- header ---------------------------------------------------------------
-document.title = `Wiki map: ${DATA.root}`;
-$("title").textContent = `Map of ${DATA.root}`;
+const scope = DATA.group ? ` (group: ${DATA.group})` : "";
+document.title = `Wiki map: ${DATA.root}${scope}`;
+$("title").textContent = `Map of ${DATA.root}${scope}`;
 const method = DATA.method === "umap" ? "UMAP" : DATA.fallback_reason ? `PCA (UMAP unavailable: ${DATA.fallback_reason})` : "PCA";
 $("meta").innerHTML = `${points.length} ${DATA.points_kind} &middot; ${esc(method)}<br>${esc(DATA.embed_model || "")} &middot; ${esc(DATA.generated)}`;
 $("notes").innerHTML = DATA.notes.map((note) => `<div class="note">${esc(note)}</div>`).join("");

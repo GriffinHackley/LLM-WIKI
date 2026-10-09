@@ -34,10 +34,11 @@ will would should one two page pages wiki""".split())
 
 
 def clusters(cache: Cache, *, min_size: int = MIN_CLUSTER, include_covered: bool = False,
-             resolution: float | None = None) -> dict:
+             resolution: float | None = None, only: set[str] | None = None) -> dict:
+    """Clusters among all pages, or among ``only`` (a group's pages)."""
     import networkx as nx  # only this command needs it
 
-    pages = _pages(cache)
+    pages = _pages(cache, only)
     resolution = resolution or cache.settings.clusters_resolution
     hub_types = sorted(page_type.name for page_type in cache.settings.types if page_type.hub)
     result = {"pages": len(pages), "hub_types": hub_types, "resolution": resolution, "clusters": [], "covered": 0}
@@ -80,13 +81,15 @@ def clusters(cache: Cache, *, min_size: int = MIN_CLUSTER, include_covered: bool
     return result
 
 
-def membership(cache: Cache, *, min_size: int = MIN_CLUSTER) -> tuple[dict[str, int], list[str]]:
+def membership(cache: Cache, *, min_size: int = MIN_CLUSTER,
+               only: set[str] | None = None) -> tuple[dict[str, int], list[str]]:
     """Each page's community, numbered from 0 by size (largest first), and a short name
     for each: the title of the hub page that covers it, else the terms its pages share,
-    else "cluster N". Pages in no community of ``min_size`` or more are left out."""
+    else "cluster N". Pages in no community of ``min_size`` or more are left out, and,
+    with ``only``, pages outside it."""
     import networkx as nx
 
-    pages = _pages(cache)
+    pages = _pages(cache, only)
     graph, _ = _graph(cache, pages)
     if not graph.number_of_edges():
         return {}, []
@@ -143,14 +146,14 @@ def hub_issues(cache: Cache, paths: dict[str, str]) -> list[Issue]:
     return issues
 
 
-def _pages(cache: Cache) -> dict[str, tuple]:
-    """The pages clustering considers: every page but those `[clusters] ignore` names (an
-    open-questions list links pages from every corner of the wiki, so it would glue
-    unrelated groups together)."""
+def _pages(cache: Cache, only: set[str] | None = None) -> dict[str, tuple]:
+    """The pages clustering considers: every page (or every page in ``only``) but those
+    `[clusters] ignore` names (an open-questions list links pages from every corner of
+    the wiki, so it would glue unrelated groups together)."""
     ignore = cache.settings.clusters_ignore
     return {slug: (title, page_type, summary) for slug, title, page_type, summary, path in cache.conn.execute(
         "SELECT slug, title, page_type, summary, path FROM pages WHERE kind = 'page'")
-        if not (ignore and matches(path, ignore))}
+        if not (ignore and matches(path, ignore)) and (only is None or slug in only)}
 
 
 def _graph(cache: Cache, pages) -> tuple:
