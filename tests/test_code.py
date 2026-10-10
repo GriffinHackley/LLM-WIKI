@@ -108,6 +108,11 @@ class TestNew:
         claude = json.loads(files[".claude/settings.json"])["permissions"]
         assert claude == {"allow": ["Bash(wiki:*)"], "deny": ["Edit(/docs/wiki/raw/**)"]}
 
+        adopted = code_repo / "notes"  # an existing folder of pages, adopted: AGENTS.md is the short section
+        write(adopted, "intro.md", "# Intro\n\nAbout the app.\n")
+        scaffold(adopted, preset="code", code=code_repo)
+        assert (adopted / "AGENTS.md").read_text(encoding="utf-8").startswith("## Code wiki\n\nThis folder is")
+
         write(code_repo, ".wiki-cli.toml", files[".wiki-cli.toml"])
         head = git(code_repo, "rev-parse", "HEAD")
         module_page(wiki, "search", ["src/app/search.py"], head)
