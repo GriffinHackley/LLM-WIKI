@@ -72,6 +72,7 @@ def scaffold(target: Path, preset: str = DEFAULT_PRESET, agent: str | Sequence[s
     if code_repo is not None:
         variables["code_repo"] = _relative(code_repo, target)
         variables["code_origin"] = codebase.origin(code_repo) or ""
+        variables.update(_git_layout(code_repo, target))
     if not (target / CONFIG_FILENAME).exists():
         _adopt(target, (name, folder), variables if code_repo is not None else None, result)
     # A wiki with a config keeps its own pages and templates: only the files that connect
@@ -104,7 +105,8 @@ def scaffold(target: Path, preset: str = DEFAULT_PRESET, agent: str | Sequence[s
 
     result["git_init"] = _git_init(target, result)
     if git_hook:
-        _git_hook(target, result)
+        nested = code_repo is not None and _nested(code_repo, target)
+        _git_hook(target, result, repo_top=code_repo if nested else None)
     try:
         settings = load_settings(target)
     except ConfigError as exc:
@@ -130,7 +132,9 @@ def scaffold(target: Path, preset: str = DEFAULT_PRESET, agent: str | Sequence[s
 
 
 def _code_repo(code: Path | None, target: Path) -> Path:
-    """The code repo a code wiki describes: the top folder of a git repository, outside the wiki."""
+    """The code repo a code wiki describes: the top folder of a git repository. The wiki is
+    its own repository beside it, or a folder inside it (such as `docs/wiki`), committed with
+    the code."""
     if code is None:
         raise ScaffoldError(f"the {CODE_PRESET} preset needs --code <path>: the top folder of the code's "
                             "git repository")
@@ -142,10 +146,43 @@ def _code_repo(code: Path | None, target: Path) -> Path:
         raise ScaffoldError(f"--code {path} is not in a git repository")
     if top != path:
         raise ScaffoldError(f"--code {path} is inside the git repository {top}; pass its top folder: {top}")
-    if target == path or path in target.parents:
-        raise ScaffoldError(f"the wiki must be its own repository, outside the code repo {path}; "
-                            f"choose a folder beside it, such as {path.parent / (path.name + '-wiki')}")
+    if target == path:
+        raise ScaffoldError(f"the wiki needs a folder of its own, not the code repo's top folder {path}: "
+                            f"one inside it, such as {path / 'docs' / 'wiki'}, or a repository beside it, "
+                            f"such as {path.parent / (path.name + '-wiki')}")
     return path
+
+
+def _nested(code_repo: Path, target: Path) -> bool:
+    """Whether the wiki is a folder inside the code repo, rather than a repository beside it."""
+    return code_repo in target.parents
+
+
+# How the wiki and the code are committed: text for the code preset's AGENTS.md and for the
+# section printed for the code repo's instructions.
+_SEPARATE = {
+    "wiki_is": "This repository is",
+    "code_where": "own repository, at",
+    "git_layout": "The wiki and the code are separate repositories, committed separately. Commit code\n"
+                  "changes first, then update the pages with `verified:` set to the new code commit, then\n"
+                  "commit the wiki with a message naming that commit.",
+    "wiki_where": "a separate repository (this\nrepository's `.wiki-cli.toml` points `wiki` commands at it)",
+    "wiki_commit": "Commit the wiki separately.",
+}
+_NESTED = {
+    "wiki_is": "This folder is",
+    "code_where": "repository, which holds this wiki as a folder, at",
+    "git_layout": "The wiki is a folder of the code's repository. Commit code changes first, then update\n"
+                  "the pages with `verified:` set to that commit, then commit the pages as a commit of\n"
+                  "their own, naming the code commit. A page can't name the commit it is part of, so the\n"
+                  "code and the pages describing it are two commits.",
+    "wiki_where": "a folder of this repository (the\n`.wiki-cli.toml` at the top points `wiki` commands at it)",
+    "wiki_commit": "Commit the pages as a commit of\n  their own, after the code's: a page records the code commit it was checked against.",
+}
+
+
+def _git_layout(code_repo: Path, target: Path) -> dict[str, str]:
+    return dict(_NESTED if _nested(code_repo, target) else _SEPARATE)
 
 
 def _relative(path: Path, start: Path) -> str:
@@ -160,23 +197,29 @@ def _code_setup(code_repo: Path, target: Path, preset: Path, agents: tuple[str, 
     """What the code repo needs so an agent working there finds and keeps the wiki. Never
     written by `wiki new`: the code repo is the user's to change."""
     wiki_path = _relative(target, code_repo)
+    nested = _nested(code_repo, target)
     setup = []
     if _redirect_target(code_repo) != target:
         setup.append({"file": CONFIG_FILENAME, "text": f'wiki = "{wiki_path}"\n',
                       "why": "points wiki commands run in the code repo at the wiki"})
     instructions = code_repo / "AGENTS.md"
     if not (instructions.is_file() and "wiki guide sync" in instructions.read_text(encoding="utf-8", errors="replace")):
-        section = (preset / "code-repo-section.md").read_text(encoding="utf-8").replace("{{wiki_path}}", wiki_path)
+        section = _fill((preset / "code-repo-section.md").read_bytes(),
+                        {"wiki_path": wiki_path, **_git_layout(code_repo, target)}).decode("utf-8")
         setup.append({"file": "AGENTS.md", "text": section,
                       "why": "tells the agent working on the code to keep the wiki current"})
     if "claude" in agents:
-        # From the code repo the wiki is another folder, so its raw folders are named absolutely.
-        deny = [f"Edit(/{_posix_absolute(target)}/{raw}/**)" for raw in raw_folders]
-        settings = {"permissions": {"allow": [CLAUDE_PERMISSION], "deny": deny,
-                                    "additionalDirectories": [target.as_posix()]}}
-        setup.append({"file": ".claude/settings.json", "text": json.dumps(settings, indent=2) + "\n",
-                      "why": "lets Claude Code run wiki commands and read and edit the wiki from the code repo, "
-                             "but not change the sources in its raw/"})
+        if nested:  # a folder of the project Claude Code is started in, named from its top
+            deny = [f"Edit(/{wiki_path}/{raw}/**)" for raw in raw_folders]
+            settings = {"permissions": {"allow": [CLAUDE_PERMISSION], "deny": deny}}
+            why = "lets Claude Code run wiki commands, but not change the sources in the wiki's raw/"
+        else:  # another folder, so its raw folders are named absolutely, and it is added
+            deny = [f"Edit(/{_posix_absolute(target)}/{raw}/**)" for raw in raw_folders]
+            settings = {"permissions": {"allow": [CLAUDE_PERMISSION], "deny": deny,
+                                        "additionalDirectories": [target.as_posix()]}}
+            why = ("lets Claude Code run wiki commands and read and edit the wiki from the code repo, "
+                   "but not change the sources in its raw/")
+        setup.append({"file": ".claude/settings.json", "text": json.dumps(settings, indent=2) + "\n", "why": why})
     return setup
 
 
@@ -290,10 +333,13 @@ def _git_init(target: Path, result: dict) -> bool:
     return True
 
 
-def _git_hook(target: Path, result: dict) -> None:
+def _git_hook(target: Path, result: dict, repo_top: Path | None = None) -> None:
     """Install the pre-commit backstop as `.githooks/pre-commit`, versioned with the wiki,
-    and point this clone's `core.hooksPath` at it unless it already points elsewhere."""
+    and point this clone's `core.hooksPath` at it unless it already points elsewhere.
+    ``repo_top`` is the top of the repository when the wiki is a folder inside one: git
+    reads a relative `core.hooksPath` from there."""
     rel = ".githooks/pre-commit"
+    hooks = _relative(target / ".githooks", repo_top) if repo_top is not None else ".githooks"
     path = target / rel
     if path.exists():
         result["kept"].append(rel)
@@ -313,16 +359,16 @@ def _git_hook(target: Path, result: dict) -> None:
     try:
         current = subprocess.run(["git", "config", "--get", "core.hooksPath"], cwd=target,
                                  capture_output=True, text=True).stdout.strip()
-        if current and current != ".githooks":
+        if current and current != hooks:
             result["notes"].append(f"core.hooksPath is already '{current}'; the hook in {rel} is not active. "
-                                   "Call it from your hooks, or run 'git config core.hooksPath .githooks'")
+                                   f"Call it from your hooks, or run 'git config core.hooksPath {hooks}'")
         elif not current:
-            subprocess.run(["git", "config", "core.hooksPath", ".githooks"], cwd=target, check=True,
+            subprocess.run(["git", "config", "core.hooksPath", hooks], cwd=target, check=True,
                            capture_output=True)
             result["notes"].append("pre-commit hook enabled for this clone; other clones enable it with "
-                                   "'git config core.hooksPath .githooks'")
+                                   f"'git config core.hooksPath {hooks}'")
     except (OSError, subprocess.CalledProcessError):
-        result["notes"].append(f"wrote {rel}, but could not enable it: run 'git config core.hooksPath .githooks'")
+        result["notes"].append(f"wrote {rel}, but could not enable it: run 'git config core.hooksPath {hooks}'")
 
 
 def _claude(target: Path, settings, result: dict, extra_dir: Path | None = None) -> None:

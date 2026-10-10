@@ -1,4 +1,4 @@
-"""The code preset: a wiki in its own repo describing a code repo."""
+"""The code preset: a wiki describing a code repo, in its own repo or a folder of the code's."""
 
 import json
 import shutil
@@ -94,13 +94,55 @@ class TestNew:
         assert wiki_settings["permissions"]["additionalDirectories"] == [code_repo.resolve().as_posix()]
         assert (tmp_path / "w/.claude/skills/wiki-sync/SKILL.md").is_file()
 
+    def test_a_wiki_can_be_a_folder_of_the_code_repo(self, code_repo, capsys, monkeypatch):
+        wiki = code_repo / "docs" / "wiki"
+        result = scaffold(wiki, preset="code", code=code_repo, agent="claude")
+        assert not result["git_init"] and not (wiki / ".git").exists()
+        assert load_settings(wiki).code_repo == code_repo.resolve()
+        agents = (wiki / "AGENTS.md").read_text(encoding="utf-8")
+        assert agents.startswith("# wiki: code wiki\n\nThis folder is") and "../.." in agents
+        assert "separate repositories" not in agents and "commit of\ntheir own" in agents
+        files = {item["file"]: item["text"] for item in result["code_setup"]}
+        assert files[".wiki-cli.toml"] == 'wiki = "docs/wiki"\n'
+        assert "a folder of this repository" in files["AGENTS.md"] and "separate" not in files["AGENTS.md"]
+        claude = json.loads(files[".claude/settings.json"])["permissions"]
+        assert claude == {"allow": ["Bash(wiki:*)"], "deny": ["Edit(/docs/wiki/raw/**)"]}
+
+        write(code_repo, ".wiki-cli.toml", files[".wiki-cli.toml"])
+        head = git(code_repo, "rev-parse", "HEAD")
+        module_page(wiki, "search", ["src/app/search.py"], head)
+        monkeypatch.chdir(code_repo / "src")
+        code, report = run_json(capsys, "check", "--all")
+        assert report["issues"] == []
+        git(code_repo, "add", "-A")
+        git(code_repo, "commit", "-qm", "wiki")  # committing the pages leaves them current
+        code, result = run_json(capsys, "stale")
+        assert result["stale"] == [] and result["head"] != head
+        write(code_repo, "src/app/search.py", "def search():\n    return [1]\n")
+        code, result = run_json(capsys, "stale")
+        assert [item["slug"] for item in result["stale"]] == ["search"]
+
+    def test_a_nested_wiki_hook_is_enabled_from_the_top_of_the_repo(self, code_repo):
+        wiki = code_repo / "docs" / "wiki"
+        result = scaffold(wiki, preset="code", code=code_repo, git_hook=True)
+        assert ".githooks/pre-commit" in result["created"]
+        assert git(code_repo, "config", "--get", "core.hooksPath") == "docs/wiki/.githooks"
+        write(wiki, "raw/design.txt", "original\n")
+        git(code_repo, "add", "-A")
+        git(code_repo, "commit", "-qm", "add a source")  # check=True: adding sources is fine
+        write(wiki, "raw/design.txt", "edited\n")
+        git(code_repo, "add", "-A")
+        refused = subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "edit"],
+                                 cwd=code_repo, capture_output=True, text=True)
+        assert refused.returncode != 0 and "raw/design.txt" in refused.stderr
+
     def test_refusals(self, tmp_path, code_repo):
         with pytest.raises(ScaffoldError, match="needs --code"):
             scaffold(tmp_path / "w", preset="code")
         with pytest.raises(ScaffoldError, match="pass its top folder"):
             scaffold(tmp_path / "w", preset="code", code=code_repo / "src")
-        with pytest.raises(ScaffoldError, match="outside the code repo"):
-            scaffold(code_repo / "docs" / "wiki", preset="code", code=code_repo)
+        with pytest.raises(ScaffoldError, match="not the code repo's top folder"):
+            scaffold(code_repo, preset="code", code=code_repo)
         with pytest.raises(ScaffoldError, match="not in a git repository"):
             scaffold(tmp_path / "w", preset="code", code=tmp_path)
         with pytest.raises(ScaffoldError, match="--code is for the code preset"):

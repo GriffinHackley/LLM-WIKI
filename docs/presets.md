@@ -38,8 +38,9 @@ Guides: `ingest`, `query`, `lint`.
 
 ## `code`
 
-For a wiki about a codebase. The wiki is its own repository beside the code, and the
-agent that changes the code keeps it current, working from the code repo.
+For a wiki about a codebase. The wiki is its own repository beside the code, or a folder
+of the code's repository, and the agent that changes the code keeps it current, working
+from the code repo.
 
 | Type | What it is | Link sections |
 |---|---|---|
@@ -74,8 +75,8 @@ level; `refers-to-code` relations), list the files they describe in `covers:` (g
 and record the code commit they were checked against in `verified:`. `wiki stale` lists
 the pages whose covered files changed since.
 
-`--code` is required: the top folder of the code's git repository, outside the wiki. The
-config records it:
+`--code` is required: the top folder of the code's git repository. The wiki is beside it
+or a folder inside it, never that top folder itself. The config records it:
 
 ```toml
 [code]
@@ -89,7 +90,7 @@ week in `weekly/`, from `templates/weekly.md`, plus a timeline; see
 
 `WIKI_CODE_REPO` overrides the path on a machine where the code is checked out
 elsewhere. `wiki new` prints, and never writes, what the code repo needs: a
-`.wiki-cli.toml` redirect (`wiki = "../my-app-wiki"`), an `AGENTS.md` section, and with
+`.wiki-cli.toml` redirect (`wiki = "../my-app-wiki"`, or `"docs/wiki"`), an `AGENTS.md` section, and with
 `--agent claude` its Claude settings. One code repo per wiki for now.
 
 Guides: `ingest` (document code), `sync` (after code changes), `query` (falls back to

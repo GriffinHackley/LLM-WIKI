@@ -7,8 +7,12 @@
 #   - with [weekly] in the config, the first commit of a week also commits last week's note;
 #   - `wiki check --all` must report no errors;
 #   - the wiki's own [hooks] pre_commit commands in .wiki-cli.toml must pass.
-# Enabled per clone with: git config core.hooksPath .githooks
+# Enabled per clone with: git config core.hooksPath .githooks (from the top of the
+# repository: <wiki folder>/.githooks when the wiki is a folder of a code repo)
 # Bypass (not recommended): git commit --no-verify
+# Run from the wiki's own folder: git runs hooks from the top of the repository, which
+# is a folder above the wiki when the wiki is a folder of a code repo.
+cd "$(dirname "$0")/.." || exit 1
 if command -v wiki >/dev/null 2>&1; then
   exec wiki precommit
 fi

@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+**Start a wiki**
+- A code wiki can be a folder inside the code's repository (`wiki new docs/wiki --preset
+  code --code .`), committed with the code, as well as a repository beside it. Only the
+  code repo's top folder itself is refused. Its `AGENTS.md` and the section printed for
+  the code repo say the pages are committed after the code, as a commit of their own; the
+  printed Claude settings deny edits to the wiki's `raw/` by its path in the repository
+  and add no extra directory. `--git-hook` sets `core.hooksPath` from the top of the
+  repository (`docs/wiki/.githooks`), and the hook runs from the wiki's folder.
+
 **See the wiki**
 - `wiki map` draws the cache's embeddings in 3D as one self-contained HTML page
   (`.cache/map.html`, works offline; `--open` opens it). Points are pages, or sections

@@ -125,15 +125,16 @@ more.
 
 ## 4. Start a wiki about a codebase
 
-The wiki lives in its own repository beside the code, and needs to know where the code
-is:
+The wiki lives in its own repository beside the code, or in a folder of the code's
+repository, and needs to know where the code is:
 
 ```bash
-wiki new my-app-wiki --preset code --code ../my-app
+wiki new my-app-wiki --preset code --code ../my-app     # a repository beside the code
+wiki new docs/wiki --preset code --code .               # or a folder of it, run from the code repo
 ```
 
-`--code` must be the top folder of the code's git repository, and the wiki must be
-outside it. `wiki new` records the path (relative to the wiki) and the repo's origin in
+`--code` must be the top folder of the code's git repository; the wiki can't be that
+folder itself. `wiki new` records the path (relative to the wiki) and the repo's origin in
 the wiki's `.wiki-cli.toml`, and prints what the code repo needs so that the agent
 working on the code also keeps the wiki. It never writes to the code repo itself; add
 these yourself:
@@ -143,14 +144,17 @@ these yourself:
 - A section for the code repo's `AGENTS.md`: answer questions about the code with the
   query guide; after changing code, commit it and follow `wiki guide sync`.
 - With `--agent claude`, the code repo's `.claude/settings.json` entries: the `wiki`
-  permission, and the wiki folder in `additionalDirectories` so Claude can edit it.
+  permission, a rule against editing the wiki's `raw/`, and for a wiki beside the code,
+  the wiki folder in `additionalDirectories` so Claude can edit it.
 
 Then work in the code repo as usual. To document a module or a decision, ask the agent
 (it follows `wiki guide ingest`): pages link to code with `[name](code:src/app.py)`, list
 the files they describe in `covers:`, and record the code commit they were checked
 against in `verified:`. After code changes, `wiki stale` lists the pages whose covered
 files changed, and `wiki guide sync` brings them back in line. The code and the wiki are
-committed separately: code first, then the wiki. On a machine where the code is checked
+committed separately: code first, then the wiki. That holds for a wiki in a folder of the
+code repo too: a page records the code commit it was checked against, so the pages
+describing a change are a commit after it. On a machine where the code is checked
 out somewhere else, set `WIKI_CODE_REPO` to its path.
 
 ## 5. Add to an existing wiki

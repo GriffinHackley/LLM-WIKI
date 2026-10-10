@@ -55,10 +55,11 @@ cd my-wiki
 # put a source in raw/, then ask your agent: "ingest raw/<file>"
 ```
 
-A wiki about a codebase, in its own repo beside the code:
+A wiki about a codebase, in its own repo beside the code, or in a folder of the code's repo:
 
 ```bash
 wiki new my-app-wiki --preset code --code ../my-app
+# or, from the code repo: wiki new docs/wiki --preset code --code .
 # add the lines it prints to the code repo, then work from there as usual
 ```
 

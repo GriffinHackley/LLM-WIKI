@@ -1,7 +1,7 @@
 # {{name}}: code wiki
 
-This repository is an **LLM-maintained wiki about a codebase**. The code lives in its
-own repository, at `{{code_repo}}` (relative to this wiki; `[code] repo` in
+{{wiki_is}} an **LLM-maintained wiki about a codebase**. The code lives in its
+{{code_where}} `{{code_repo}}` (relative to this wiki; `[code] repo` in
 `.wiki-cli.toml`). You, the agent, keep this wiki accurate as the code changes: what each
 part of the code does and why, the decisions behind it, and how to work on it. Documents
 about the code (design docs, RFCs, postmortems, meeting notes) go in `raw/` and are
@@ -60,9 +60,7 @@ guides and declared in `.wiki-cli.toml` under `[types]`.
 
 ## Git
 
-The wiki and the code are separate repositories, committed separately. Commit code
-changes first, then update the pages with `verified:` set to the new code commit, then
-commit the wiki with a message naming that commit.
+{{git_layout}}
 
 ## Your rules
 
