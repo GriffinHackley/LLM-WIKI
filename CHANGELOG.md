@@ -28,6 +28,8 @@
   the page's header; `--method umap` fails instead, and `--method pca` skips UMAP.
 
 **Keep it healthy**
+- `part-of-broader-module` compares a page's `## Part of` only with pages of the type it
+  names: a concept page whose `covers:` match the same files is not a more specific module.
 - `wiki clusters` no longer reports a cluster that is several subjects, each with its
   hub page, as a gap. A cluster no single hub covers is split once more, at 1.5 times the
   run's resolution (2 if that does not split it). When every part has its own hub it is

@@ -184,10 +184,12 @@ def check_pages(pages, settings: Settings) -> list:
 def check_part_of(pages, modules, settings: Settings, resolver) -> list:
     """`part-of-broader-module`: a page whose `## Part of` names a module when another
     module covers all of the page's files more specifically (fewer files in all). ``modules``
-    are the pages that can be named there: hub pages with `covers:`."""
+    are the pages that can be named there: hub pages with `covers:`. Only pages of the type
+    the page names are compared, so a concept page covering the same files is no module."""
     from wiki_cli.edges import derive
     from wiki_cli.model import WARNING, Issue
 
+    kinds = {module.slug: module.page_type for module in modules if covers(module)}
     modules = {module.slug: covers(module) for module in modules if covers(module)}
     checked = []
     for page in pages:
@@ -210,7 +212,9 @@ def check_part_of(pages, modules, settings: Settings, resolver) -> list:
         files = _matching(tracked, covers(page))
         if not files:
             continue
-        holders = sorted((len(found), slug) for slug, found in covered.items() if files <= found)
+        kinds_named = {kinds[slug] for slug in named}
+        holders = sorted((len(found), slug) for slug, found in covered.items()
+                         if files <= found and kinds[slug] in kinds_named)
         if not holders:
             continue
         size, best = holders[0]

@@ -384,6 +384,14 @@ class TestPartOfBroaderModule:
         assert self.warnings(root, capsys) == []
         assert self.warnings(root, capsys, "parser") == []  # nested modules are not checked
 
+    def test_a_concept_covering_the_files_is_not_a_more_specific_module(self, wiki, capsys):
+        root, commit = wiki
+        write(root, "wiki/concepts/tokens.md",
+              f'---\ntitle: tokens\ntype: concept\nlast_updated: 2026-09-29\ncovers: ["src/core/parser/lexer.py"]\n'
+              f'verified: "{commit}"\n---\n# tokens\n\n## Summary\nHow the lexer splits input.\n')
+        self.file_page(root, "lexer", "src/core/parser/lexer.py", "core", commit)
+        assert self.warnings(root, capsys) == []
+
 
 class TestEpics:
     """An epic is a hub: its tickets gather around it. It is a record, so it is never told
