@@ -19,6 +19,16 @@
   the page's header; `--method umap` fails instead, and `--method pca` skips UMAP.
 
 **Keep it healthy**
+- `wiki clusters` no longer reports a cluster that is several subjects, each with its
+  hub page, as a gap. A cluster no single hub covers is split once more, at 1.5 times the
+  run's resolution (2 if that does not split it). When every part has its own hub it is
+  listed as *covered in parts*, with each part and its hub. When a part has none, the
+  cluster stays a gap and the report names the part: `splits into ... NOT COVERED`. An
+  uncovered split is not retried higher, since that only breaks the gap into fragments
+  small enough for some page to cover. JSON output carries the split under `split`.
+  `wiki map --color-by cluster` colours such a cluster by its parts, each named after its
+  own hub (or its terms, for the part with none) instead of one unnamed mass; parts with
+  the same hub share a colour.
 - `wiki check` warns (`hub-covers-clusters`) when one hub page, such as a module or
   concept, covers two or more separate clusters of linked pages: usually several areas
   described on one page. The warning names each cluster and recommends a page per

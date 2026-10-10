@@ -921,11 +921,13 @@ def cmd_clusters(args: argparse.Namespace, settings: Settings) -> int:
               f"(it takes {result['too_small']}).")
         return EXIT_OK
     hubs = result["hub_types"]
-    shown = [cluster for cluster in result["clusters"] if cluster["covered_by"] is None]
+    shown = [cluster for cluster in result["clusters"] if not clusters.is_covered(cluster)]
     if hubs:
         print(output.heading(f"Clusters of {args.min_size}+ pages no hub page covers", len(shown)))
         more = "1 more cluster is" if result["covered"] == 1 else f"{result['covered']} more clusters are"
-        print(output.dim(output.wrap(f"Hub types: {', '.join(hubs)}. {more} covered"
+        in_parts = result.get("covered_in_parts", 0)
+        parts_note = f", {in_parts} of them in parts" if in_parts else ""
+        print(output.dim(output.wrap(f"Hub types: {', '.join(hubs)}. {more} covered{parts_note}"
                                      + (" (listed last)." if args.all else " (--all lists them)."))))
     else:
         print(output.heading(f"Clusters of {args.min_size}+ pages", len(shown)))
@@ -940,15 +942,29 @@ def cmd_clusters(args: argparse.Namespace, settings: Settings) -> int:
         print("None.")
     for number, cluster in enumerate(result["clusters"], start=1):
         covered = cluster["covered_by"]
+        split = cluster.get("split")
+        in_parts = covered is None and bool(split and split["covered"])
         top = covered or cluster["most_linked"]
         size = output.plural(cluster["size"], "page")
-        print(f"\n{number}. {output.bold(size)}" + (output.dim("  covered") if covered else ""))
+        mark = "  covered in parts" if in_parts else "  covered" if covered else ""
+        print(f"\n{number}. {output.bold(size)}" + (output.dim(mark) if mark else ""))
         details = []
-        if top:
-            through = f" ({top['through']} through other pages, by hub_through)" if top.get("through") else ""
-            details.append(("covered by" if covered else "most linked",
-                            f"{top['slug']} ({top['type'] or 'no type'}), linked with {top['linked_from']} of "
-                            f"them{through}"))
+        if top and not in_parts:
+            details.append(("covered by" if covered else "most linked", _hub_line(top)))
+        if split and covered is None:
+            for index, part in enumerate(split["parts"]):
+                hub = part["covered_by"]
+                if hub:
+                    what = f"covered by {_hub_line(hub)}"
+                elif part["most_linked"]:
+                    what = f"NOT COVERED; most linked {_hub_line(part['most_linked'])}"
+                else:
+                    what = "NOT COVERED"
+                shared = ", ".join(part["terms"][:3]) or "no shared terms"
+                details.append(("parts" if index == 0 and in_parts else "splits into" if index == 0 else "",
+                                f"{output.plural(part['size'], 'page')} ({shared}): {what}"))
+            if split["unplaced"]:
+                details.append(("", f"{output.plural(split['unplaced'], 'page')} in parts under {args.min_size} pages"))
         names = cluster["pages"]
         details.append(("pages", ", ".join(names[:12]) + (f" and {len(names) - 12} more" if len(names) > 12 else "")))
         if cluster["terms"]:
@@ -958,6 +974,11 @@ def cmd_clusters(args: argparse.Namespace, settings: Settings) -> int:
         for line in output.rows(details, indent="   ", styles=(("dim",),)):
             print(line)
     return EXIT_OK
+
+
+def _hub_line(hub: dict) -> str:
+    through = f" ({hub['through']} through other pages, by hub_through)" if hub.get("through") else ""
+    return f"{hub['slug']} ({hub['type'] or 'no type'}), linked with {hub['linked_from']} of them{through}"
 
 
 # -- map -------------------------------------------------------------------

@@ -4,9 +4,12 @@ about what they share exists.
 Communities come from Louvain over the relations graph (undirected; typed relations
 weigh more than plain links), with a fixed seed so the same wiki gives the same
 clusters. A cluster is *covered* when most of its pages link to (or from) one page of a
-hub type (`hub = true` in `[types]`): a module, a concept. The ones left over are leads
-for pages worth writing. With no hub types declared, every cluster is listed with the
-page most of it links to, for the agent to judge.
+hub type (`hub = true` in `[types]`): a module, a concept. A cluster no one hub covers
+is split once more, at higher resolutions: when it falls into parts that each have their
+own hub, it is *covered in parts* (several subjects that link each other, each with its
+page), not a gap. The ones left over are leads for pages worth writing. With no hub types
+declared, every cluster is listed with the page most of it links to, for the agent to
+judge.
 """
 
 from __future__ import annotations
@@ -23,6 +26,9 @@ MIN_WIKI_PAGES = 30  # below this, communities are noise
 MIN_CLUSTER = 4
 COVER_SHARE = 0.5  # a hub page covers a cluster when this share of its pages link to it
 MAX_THROUGH = 3  # steps of a hub type's `hub_through` relations a page may be from its hub
+SPLIT_FACTORS = (1.5, 2.0)  # resolutions, relative to the run's, an uncovered cluster is split at; higher
+# ones shatter it into fragments so small that any page they link to "covers" them
+SPLIT_UNPLACED = 0.25  # share of a split cluster's pages that may fall in parts under the minimum size
 PLAIN = {"links-to", "embeds"}  # built-in relations that say nothing about why pages relate
 PLAIN_WEIGHT, TYPED_WEIGHT = 1.0, 2.0
 SEED = 0
@@ -41,7 +47,8 @@ def clusters(cache: Cache, *, min_size: int = MIN_CLUSTER, include_covered: bool
     pages = _pages(cache, only)
     resolution = resolution or cache.settings.clusters_resolution
     hub_types = sorted(page_type.name for page_type in cache.settings.types if page_type.hub)
-    result = {"pages": len(pages), "hub_types": hub_types, "resolution": resolution, "clusters": [], "covered": 0}
+    result = {"pages": len(pages), "hub_types": hub_types, "resolution": resolution, "clusters": [], "covered": 0,
+              "covered_in_parts": 0}
     if len(pages) < MIN_WIKI_PAGES:
         result["too_small"] = MIN_WIKI_PAGES
         return result
@@ -61,8 +68,12 @@ def clusters(cache: Cache, *, min_size: int = MIN_CLUSTER, include_covered: bool
         covered_by = _most_linked(members, neighbors, pages, types=set(hub_types), reach=reach) if hub_types else None
         if covered_by is not None and covered_by["share"] < COVER_SHARE:
             covered_by = None
-        if covered_by is not None:
+        split = None
+        if hub_types and covered_by is None:
+            split = _split(graph, members, neighbors, pages, set(hub_types), reach, resolution, min_size, terms)
+        if covered_by is not None or (split and split["covered"]):
             result["covered"] += 1
+            result["covered_in_parts"] += covered_by is None
             if not include_covered:
                 continue
         inside = Counter(relation for (a, b), relation in relations.items() if a in members and b in members)
@@ -75,39 +86,123 @@ def clusters(cache: Cache, *, min_size: int = MIN_CLUSTER, include_covered: bool
             "most_linked": most_linked,
             "terms": terms.shared(members),
             "relations": dict(inside.most_common()),
+            "split": split,
         })
-    result["clusters"] = sorted(found, key=lambda item: (item["covered_by"] is not None, -item["size"],
-                                                           item["pages"][0]))
+    result["clusters"] = sorted(found, key=lambda item: (is_covered(item), -item["size"], item["pages"][0]))
     return result
+
+
+def is_covered(cluster: dict) -> bool:
+    """Whether one hub page covers the cluster, or each of the parts it splits into has one."""
+    return cluster["covered_by"] is not None or bool(cluster.get("split") and cluster["split"]["covered"])
+
+
+def _split(graph, members: set[str], neighbors: dict[str, set[str]], pages: dict, hub_types: set[str],
+           reach: dict[str, set[str]], resolution: float, min_size: int, terms) -> dict | None:
+    """A cluster no one hub covers, split at the first of SPLIT_FACTORS times the run's
+    resolution that gives two or more parts of ``min_size`` or more; None when none does.
+    The split is covered when each part has its hub and at most SPLIT_UNPLACED of the
+    pages fall in smaller parts. An uncovered split is returned as it is, not retried at
+    a higher resolution: its uncovered part is the gap, and splitting further would only
+    break that part into fragments small enough for some page to "cover"."""
+    import networkx as nx
+
+    # Built in sorted order, as _graph builds the whole graph: a subgraph view iterates
+    # ``members``, a set, so its order (and so Louvain's result) would vary between runs.
+    edges = sorted({(min(a, b), max(a, b), weight) for a, b, weight in graph.edges(members, data="weight")
+                    if a in members and b in members})
+    subgraph = nx.Graph()
+    subgraph.add_nodes_from(sorted(members))
+    subgraph.add_weighted_edges_from(edges, weight="weight")
+    for factor in SPLIT_FACTORS:
+        found = [part for part in nx.community.louvain_communities(
+            subgraph, weight="weight", resolution=resolution * factor, seed=SEED) if len(part) >= min_size]
+        if len(found) < 2:
+            continue
+        unplaced = len(members) - sum(len(part) for part in found)
+        parts = []
+        for part in sorted(found, key=lambda part: (-len(part), min(part))):
+            hub = _most_linked(part, neighbors, pages, types=hub_types, reach=reach)
+            if hub is not None and hub["share"] < COVER_SHARE:
+                hub = None
+            strength = {slug: sum(subgraph[slug][other]["weight"] for other in subgraph[slug] if other in part)
+                        for slug in part}
+            parts.append({
+                "size": len(part),
+                "pages": sorted(part, key=lambda slug: (-strength[slug], slug)),
+                "covered_by": hub,
+                "most_linked": None if hub else _most_linked(part, neighbors, pages),
+                "terms": terms.shared(part),
+            })
+        covered = all(part["covered_by"] for part in parts) and unplaced <= SPLIT_UNPLACED * len(members)
+        return {"resolution": round(resolution * factor, 3), "covered": covered, "parts": parts,
+                "unplaced": unplaced}
+    return None
 
 
 def membership(cache: Cache, *, min_size: int = MIN_CLUSTER,
                only: set[str] | None = None) -> tuple[dict[str, int], list[str]]:
     """Each page's community, numbered from 0 by size (largest first), and a short name
     for each: the title of the hub page that covers it, else the terms its pages share,
-    else "cluster N". Pages in no community of ``min_size`` or more are left out, and,
-    with ``only``, pages outside it."""
+    else "cluster N". A community no one hub covers but that `wiki clusters` splits
+    (see _split) is replaced by its parts, each named the same way, so the map shows the
+    smaller hubs instead of one unnamed mass; parts with the same hub are one community,
+    and the pages the split left in smaller parts join the part they are most linked to.
+    Pages in no community of ``min_size`` or more are left out, and, with ``only``, pages
+    outside it."""
     import networkx as nx
 
     pages = _pages(cache, only)
     graph, _ = _graph(cache, pages)
     if not graph.number_of_edges():
         return {}, []
-    found = [members for members in nx.community.louvain_communities(
-        graph, weight="weight", resolution=cache.settings.clusters_resolution, seed=SEED) if len(members) >= min_size]
-    found.sort(key=lambda members: (-len(members), min(members)))
+    resolution = cache.settings.clusters_resolution
     neighbors = {node: set(graph[node]) for node in graph}
     reach = _reach(cache, pages)
     hub_types = {page_type.name for page_type in cache.settings.types if page_type.hub}
     terms = _Terms(pages)
-    names = []
-    for number, members in enumerate(found, start=1):
+    found: list[tuple[set[str], dict | None]] = []  # (members, the hub covering them)
+    for members in nx.community.louvain_communities(graph, weight="weight", resolution=resolution, seed=SEED):
+        if len(members) < min_size:
+            continue
         hub = _most_linked(members, neighbors, pages, types=hub_types, reach=reach) if hub_types else None
         if hub is not None and hub["share"] >= COVER_SHARE:
+            found.append((members, hub))
+            continue
+        split = _split(graph, members, neighbors, pages, hub_types, reach, resolution, min_size, terms) \
+            if hub_types else None
+        if split is None:
+            found.append((members, None))
+            continue
+        found.extend(_parts_of(split, members, neighbors))
+    found.sort(key=lambda item: (-len(item[0]), min(item[0])))
+    names = []
+    for number, (members, hub) in enumerate(found, start=1):
+        if hub is not None:
             names.append(pages[hub["slug"]][0] or hub["slug"])
         else:
             names.append(", ".join(terms.shared(members)[:NAME_TERMS]) or f"cluster {number}")
-    return {slug: number for number, members in enumerate(found) for slug in members}, names
+    return {slug: number for number, (members, _) in enumerate(found) for slug in members}, names
+
+
+def _parts_of(split: dict, members: set[str], neighbors: dict[str, set[str]]) -> list[tuple[set[str], dict | None]]:
+    """A split cluster's parts as (pages, hub) pairs for the map: parts covered by the same
+    hub page merged into one, and each page left in a part under the minimum size added to
+    the part it has most links into (ties to the larger part); one with no link to any
+    part stays out."""
+    merged: dict[str, tuple[set[str], dict | None]] = {}
+    for index, part in enumerate(split["parts"]):
+        hub = part["covered_by"]
+        key = hub["slug"] if hub else f"#{index}"
+        pages, _ = merged.setdefault(key, (set(), hub))
+        pages.update(part["pages"])
+    result = sorted(merged.values(), key=lambda item: (-len(item[0]), min(item[0])))
+    placed = set().union(*(pages for pages, _ in result))
+    for slug in sorted(members - placed):
+        links = [len(neighbors.get(slug, set()) & pages) for pages, _ in result]
+        if max(links, default=0):
+            result[links.index(max(links))][0].add(slug)
+    return result
 
 
 def overloaded_hubs(cache: Cache, *, min_size: int = MIN_CLUSTER) -> dict[str, list[dict]]:

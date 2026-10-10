@@ -320,3 +320,97 @@ def test_hub_through_accepts_types_and_inverses(tmp_path, through, message):
     else:
         with pytest.raises(ConfigError, match=message):
             load_settings(tmp_path)
+
+
+@pytest.fixture
+def parts_root(tmp_path):
+    """Two rings of files, alpha and beta, each around its own module page, joined by four
+    alpha-to-beta links and an overview page linking every file: at resolution 0.3 one
+    cluster that neither module covers alone, which splits back into the rings at 0.45."""
+    root = tmp_path / "parts"
+    root.mkdir()
+    (root / ".wiki-cli.toml").write_text("[types.module]\nhub = true\n[types.file]\n[types.note]\n", encoding="utf-8")
+    for side in "ab":
+        page(root, f"mod-{side}", "module", f"Module {side}.", [])
+    for index in range(8):
+        ring = [(index + step) % 8 for step in (1, 2, 3)]
+        page(root, f"a{index}", "file", f"Alpha part {index}.",
+             ["mod-a", *(f"a{other}" for other in ring)] + ([f"b{index}"] if index < 4 else []))
+        page(root, f"b{index}", "file", f"Beta part {index}.", ["mod-b", *(f"b{other}" for other in ring)])
+    page(root, "overview", "file", "Overview.", [f"{side}{index}" for side in "ab" for index in range(8)])
+    for index in range(10):
+        page(root, f"note-{index}a", "note", f"Note {index}.", [f"note-{index}b"])
+        page(root, f"note-{index}b", "note", f"Note {index} reply.", [])
+    return root
+
+
+ALPHA = {"mod-a", *(f"a{index}" for index in range(8))}
+BETA = {*(f"b{index}" for index in range(8)), "overview"}
+
+
+def test_a_cluster_whose_parts_each_have_a_hub_is_covered_in_parts(parts_root):
+    result = run(parts_root, resolution=0.3)
+    assert result["clusters"] == [] and result["covered"] == 1 and result["covered_in_parts"] == 1
+    [cluster] = run(parts_root, resolution=0.3, include_covered=True)["clusters"]
+    assert cluster["size"] == 19 and cluster["covered_by"] is None  # neither module reaches half of it
+    split = cluster["split"]
+    assert split["covered"] and split["resolution"] == 0.45 and split["unplaced"] == 0
+    by_hub = {part["covered_by"]["slug"]: set(part["pages"]) for part in split["parts"]}
+    assert by_hub == {"mod-a": ALPHA, "mod-b": BETA | {"mod-b"}}
+
+
+def test_a_split_with_an_uncovered_part_stays_a_gap_and_names_the_part(parts_root):
+    (parts_root / "mod-b.md").unlink()  # the beta ring loses its hub
+    [cluster] = run(parts_root, resolution=0.3)["clusters"]
+    split = cluster["split"]
+    assert not split["covered"] and cluster["covered_by"] is None
+    by_hub = {part["covered_by"]["slug"] if part["covered_by"] else None: set(part["pages"])
+              for part in split["parts"]}
+    assert by_hub == {"mod-a": ALPHA, None: BETA}
+    assert all(part["most_linked"] for part in split["parts"] if part["covered_by"] is None)
+
+
+def test_the_same_wiki_splits_the_same_way(parts_root):
+    first = run(parts_root, resolution=0.3, include_covered=True)
+    assert run(parts_root, resolution=0.3, include_covered=True) == first
+
+
+def test_no_split_without_hub_types(parts_root):
+    (parts_root / ".wiki-cli.toml").write_text("", encoding="utf-8")
+    assert all(cluster["split"] is None for cluster in run(parts_root, resolution=0.3)["clusters"])
+
+
+def test_cli_shows_parts(parts_root, capsys):
+    assert main(["clusters", "--root", str(parts_root), "--resolution", "0.3"]) == 0
+    assert "1 more cluster is covered, 1 of them in parts (--all lists them)." in capsys.readouterr().out
+    assert main(["clusters", "--root", str(parts_root), "--resolution", "0.3", "--all"]) == 0
+    out = capsys.readouterr().out
+    assert "19 pages  covered in parts" in out and "covered by mod-a (module)" in out and "covered by mod-b" in out
+    (parts_root / "mod-b.md").unlink()
+    assert main(["clusters", "--root", str(parts_root), "--resolution", "0.3"]) == 0
+    out = capsys.readouterr().out
+    assert "splits into" in out and "NOT COVERED" in out and "covered by mod-a" in out
+
+
+def _membership(root):
+    with Cache(load_settings(root)) as cache:
+        cache.refresh()
+        return membership(cache)
+
+
+def test_the_map_shows_a_cluster_covered_in_parts_as_its_parts_named_after_their_hubs(parts_root):
+    config = parts_root / ".wiki-cli.toml"
+    config.write_text(config.read_text(encoding="utf-8") + "[clusters]\nresolution = 0.3\n", encoding="utf-8")
+    assignment, names = _membership(parts_root)
+    by_name = {names[number]: {slug for slug, value in assignment.items() if value == number}
+               for number in set(assignment.values())}
+    assert by_name == {"mod-a": ALPHA, "mod-b": BETA | {"mod-b"}}
+
+
+def test_the_map_names_an_uncovered_part_by_its_terms(parts_root):
+    config = parts_root / ".wiki-cli.toml"
+    config.write_text(config.read_text(encoding="utf-8") + "[clusters]\nresolution = 0.3\n", encoding="utf-8")
+    (parts_root / "mod-b.md").unlink()
+    assignment, names = _membership(parts_root)
+    assert names[assignment["a0"]] == "mod-a"
+    assert assignment["b0"] != assignment["a0"] and "beta" in names[assignment["b0"]]
