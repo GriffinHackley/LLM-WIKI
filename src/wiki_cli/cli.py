@@ -23,6 +23,7 @@ from wiki_cli import (
     audit,
     clusters,
     codebase,
+    commit,
     connect,
     covering,
     evaluate,
@@ -106,7 +107,7 @@ def _print_error(message: str) -> None:
 
 
 COMMAND_ORDER = ("new", "init", "guide", "search", "nav", "list", "neighbors", "suggest", "check", "unwritten",
-                 "orphans", "clusters", "map", "pending", "stale", "covering", "connect", "task", "finish", "weekly",
+                 "orphans", "clusters", "map", "pending", "stale", "covering", "connect", "task", "finish", "commit", "weekly",
                  "precommit", "hook", "index",
                  "models", "vocab", "eval")
 
@@ -274,6 +275,12 @@ def build_parser() -> argparse.ArgumentParser:
                                help="also commit this changed code file the task did not edit; repeatable")
     finish_parser.add_argument("--dry-run", action="store_true", help="show what it would commit, and stop")
     finish_parser.set_defaults(handler=cmd_finish)
+
+    commit_parser = commands.add_parser(
+        "commit", parents=[common],
+        help="commit the wiki's changes (everything but the originals folder), waiting out a locked index")
+    commit_parser.add_argument("message", help="the commit message, e.g. \"ingest: the-salt-road/02-storm\"")
+    commit_parser.set_defaults(handler=cmd_commit)
 
     index = commands.add_parser("index", help="manage the derived cache").add_subparsers(title="index commands", metavar="<command>")
     for name, handler, help_text in (
@@ -1037,6 +1044,24 @@ def cmd_finish(args: argparse.Namespace, settings: Settings) -> int:
     if result["left_out"]:
         print("Left out, changed but not by this task: " + ", ".join(result["left_out"]))
     print(f"The task \"{result['task']}\" is finished.")
+    return EXIT_OK
+
+
+def cmd_commit(args: argparse.Namespace, settings: Settings) -> int:
+    try:
+        result = commit.commit(settings, args.message)
+    except commit.CommitError as exc:
+        if args.format == "json":
+            _print_json({"ok": False, "error": str(exc)})
+        else:
+            print(f"Not committed: {exc}", file=sys.stderr)
+        return EXIT_INVALID
+    if args.format == "json":
+        _print_json({"ok": True, **result.to_dict()})
+    elif result.commit is None:
+        print("Nothing to commit.")
+    else:
+        print(f"Committed {result.commit[:12]} ({output.plural(len(result.files), 'file')})")
     return EXIT_OK
 
 
