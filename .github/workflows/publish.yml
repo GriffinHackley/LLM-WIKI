@@ -3,7 +3,9 @@ name: Publish
 # Publishes to PyPI when a version tag (v0.3.0, ...) is pushed. Needs, once: the
 # "llm-wiki-kit" project on PyPI set up for trusted publishing from this repository's
 # "pypi" environment (no token stored here). Nothing is published unless the tests pass
-# on every OS, the tag matches the package version, and the built wheel installs and runs.
+# on every OS, the tag matches the package version, CHANGELOG.md has a dated section for
+# it, and the built wheel installs and runs. Once PyPI accepts it, a GitHub Release is
+# made from that section, with the wheel and sdist attached.
 on:
   push:
     tags: ["v*"]
@@ -39,6 +41,8 @@ jobs:
         run: |
           version=$(ls dist/*.whl | sed -E 's/.*llm_wiki_kit-([^-]+)-.*/\1/')
           test "v$version" = "$GITHUB_REF_NAME" || { echo "tag $GITHUB_REF_NAME but package $version"; exit 1; }
+      - name: CHANGELOG.md has a section for this version
+        run: python3 .github/release_notes.py "$GITHUB_REF_NAME" --title
       - name: Metadata and README render on PyPI
         run: uvx twine check --strict dist/*
       - name: The wheel installs and runs
@@ -65,3 +69,23 @@ jobs:
           name: dist
           path: dist/
       - uses: pypa/gh-action-pypi-publish@release/v1
+
+  release:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: GitHub Release from the changelog
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 .github/release_notes.py "$GITHUB_REF_NAME" > "$RUNNER_TEMP/notes.md"
+          title=$(python3 .github/release_notes.py "$GITHUB_REF_NAME" --title)
+          gh release create "$GITHUB_REF_NAME" dist/* --title "$title" \
+            --notes-file "$RUNNER_TEMP/notes.md" --verify-tag

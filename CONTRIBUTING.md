@@ -40,12 +40,17 @@ uv run python benchmarks/bench_synthetic.py --pages 30000 --relations 100000
 
 ## Releasing
 
-1. Set `__version__` in `src/wiki_cli/__init__.py`, and give the changes a heading in
-   `CHANGELOG.md`.
-2. Commit, then tag and push: `git tag v<version>` and `git push origin main v<version>`.
-3. The publish workflow runs the tests on every OS, checks the tag matches the version,
-   builds, and installs the wheel to try it. It then waits for approval on the `pypi`
-   environment before uploading.
+1. Set `__version__` in `src/wiki_cli/__init__.py`.
+2. In `CHANGELOG.md`, rename `## Unreleased` to `## <version> (<YYYY-MM-DD>)`, with
+   `: <subtitle>` after it if the release has a theme, and start a new, empty
+   `## Unreleased` above it. `python .github/release_notes.py <version>` prints the notes
+   the release will get.
+3. Commit, then tag and push: `git tag v<version>` and `git push origin main v<version>`.
+4. The publish workflow runs the tests on every OS, checks the tag matches the version
+   and that the changelog has its section, builds, and installs the wheel to try it. It
+   then waits for approval on the `pypi` environment before uploading. Once PyPI accepts
+   it, it makes a GitHub Release from the changelog section, with the wheel and sdist
+   attached.
 
 [PLAN.md](PLAN.md) is the current plan; [FUTURE_IDEAS.md](FUTURE_IDEAS.md) holds ideas
 not scheduled yet.

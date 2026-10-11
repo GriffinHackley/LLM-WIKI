@@ -6,7 +6,7 @@
   `source` template now quote their placeholder titles: unquoted, the `: ` in them made
   the frontmatter invalid YAML.
 
-## 0.3.0: first release on PyPI
+## 0.3.0 (2026-10-11): first release on PyPI
 
 The first release as `llm-wiki-kit` (the command is `wiki`), with everything from 0.2.0,
 which was never published. Earlier installs also provide `wiki` under another name,
