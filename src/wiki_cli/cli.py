@@ -23,6 +23,7 @@ from wiki_cli import (
     audit,
     clusters,
     codebase,
+    connect,
     covering,
     evaluate,
     groups,
@@ -104,8 +105,8 @@ def _print_error(message: str) -> None:
 
 
 COMMAND_ORDER = ("new", "init", "guide", "search", "nav", "list", "neighbors", "suggest", "check", "unwritten",
-                 "orphans", "clusters", "map", "pending", "stale", "covering", "task", "finish", "weekly", "precommit",
-                 "hook", "index",
+                 "orphans", "clusters", "map", "pending", "stale", "covering", "connect", "task", "finish", "weekly",
+                 "precommit", "hook", "index",
                  "models", "vocab", "eval")
 
 
@@ -232,6 +233,16 @@ def build_parser() -> argparse.ArgumentParser:
     check.add_argument("--summary-ok", action="store_true",
                        help="record that the page's summary still fits its body (clears summary-stale)")
     check.set_defaults(handler=cmd_check)
+
+    connect_parser = commands.add_parser(
+        "connect", parents=[common],
+        help="set up a code repo for its agents: write the wiki's files there, and print the lines you add by hand")
+    connect_parser.add_argument("code_repo", nargs="?", help="the code repo (default: the wiki's [code] repo)")
+    connect_parser.add_argument("--agent", choices=agents.NAMES, action="append",
+                                help="an agent working in the code repo; repeatable (default: those it names)")
+    connect_parser.add_argument("--check", action="store_true",
+                                help="write nothing: report what is missing or out of date (exits 1 if anything is)")
+    connect_parser.set_defaults(handler=cmd_connect)
 
     task_commands = commands.add_parser(
         "task", help="the one open task on the code: start it, take it over, cancel it, or see it").add_subparsers(
@@ -615,7 +626,8 @@ def _print_new(result: dict) -> None:
         steps.append(("wiki index refresh", "index and embed the pages, about 2 minutes per 500 on CPU"))
         steps.append(("wiki check --all", "see what the checks find in the pages as they are"))
     if result.get("code_repo"):
-        steps.append(("Add the code repo lines above", "so the agent working on the code keeps the wiki"))
+        steps.append(("Add the code repo lines above", "so the agent working on the code keeps the wiki; or, "
+                      "for the work loop with agent hooks, 'wiki connect <code-repo> --agent <name>'"))
         steps.append(("Ask your agent", "from the code repo, to document a module ('wiki guide ingest') and to sync "
                                         "the wiki after code changes ('wiki guide sync')"))
     else:
@@ -887,6 +899,34 @@ def cmd_hook(args: argparse.Namespace) -> int:
 
 def _hook_say(message: str) -> None:
     print(f"pre-commit: {message}", file=sys.stderr)
+
+
+def cmd_connect(args: argparse.Namespace, settings: Settings) -> int:
+    try:
+        result = connect.connect(settings, Path(args.code_repo) if args.code_repo else None, args.agent,
+                                 check=args.check)
+    except connect.ConnectError as exc:
+        raise UsageError(str(exc)) from exc
+    if args.format == "json":
+        _print_json(result.to_dict())
+        return EXIT_INVALID if args.check and not result.ok else EXIT_OK
+    print(f"{output.bold('Code repo')} {result.code_repo}")
+    print(f"{output.bold('Agents')} {', '.join(result.agents)}")
+    print("\n" + output.heading("1. The wiki's files" + (" (checked)" if args.check else ""), len(result.files)))
+    styles = {"created": "green", "updated": "green", "current": "dim", "missing": "red", "outdated": "yellow"}
+    for item in result.files:
+        print(f"  {output.style(item['status'], styles[item['status']]):<10} {item['file']}")
+    if result.by_hand:
+        print("\n" + output.heading("2. Add these by hand", len(result.by_hand)))
+        for item in result.by_hand:
+            print(f"\n  {output.bold(item['file'])}  {output.dim(item['why'])}")
+            print(textwrap.indent(item["text"].rstrip(), "    "))
+    else:
+        print("\n2. Your own files are set up: nothing to add by hand.")
+    if args.check:
+        print("\n" + ("Connected." if result.ok else "Not fully connected: run `wiki connect` and add the lines above."))
+        return EXIT_OK if result.ok else EXIT_INVALID
+    return EXIT_OK
 
 
 def cmd_task_status(args: argparse.Namespace, settings: Settings) -> int:

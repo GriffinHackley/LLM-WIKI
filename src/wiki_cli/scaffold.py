@@ -104,6 +104,8 @@ def scaffold(target: Path, preset: str = DEFAULT_PRESET, agent: str | Sequence[s
         destination.write_bytes(content)
         result["created"].append(rel)
 
+    if agents:
+        _save_agents(target, agents, result)
     result["git_init"] = _git_init(target, result)
     if git_hook:
         nested = code_repo is not None and _nested(code_repo, target)
@@ -222,6 +224,28 @@ def _code_setup(code_repo: Path, target: Path, preset: Path, agents: tuple[str, 
                    "but not change the sources in its raw/")
         setup.append({"file": ".claude/settings.json", "text": json.dumps(settings, indent=2) + "\n", "why": why})
     return setup
+
+
+def _save_agents(target: Path, agents: tuple[str, ...], result: dict) -> None:
+    """Name the agents in the config: in one written now, as a top-level key before its
+    first table; in a kept one that names none, as a line to add."""
+    path = target / CONFIG_FILENAME
+    line = f"agents = [{', '.join(json.dumps(name) for name in agents)}]  # the agents working in this folder\n"
+    if not path.is_file():
+        return
+    text = path.read_text(encoding="utf-8")
+    try:
+        if "agents" in tomllib.loads(text):
+            return
+    except tomllib.TOMLDecodeError:
+        return
+    if CONFIG_FILENAME not in result["created"]:
+        result["add"].append({"file": CONFIG_FILENAME, "text": line})
+        return
+    lines = text.splitlines(keepends=True)
+    first_table = next((index for index, item in enumerate(lines) if item.lstrip().startswith("[")), len(lines))
+    lines.insert(first_table, line + ("\n" if first_table < len(lines) else ""))
+    path.write_text("".join(lines), encoding="utf-8", newline="\n")
 
 
 def _redirect_target(code_repo: Path) -> Path | None:

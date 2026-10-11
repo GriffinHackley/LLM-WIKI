@@ -65,6 +65,7 @@ class Agent:
     read_event: Callable[[str, dict], Event] | None = None  # (agent's event name, payload) -> Event
     write_reply: Callable[[str, Reply], dict | None] | None = None  # (event kind, reply) -> stdout JSON
     accepts: Callable[[dict], bool] | None = None  # is the payload in this agent's format?
+    hook_entries: Callable[[], dict] | None = None  # the hooks `wiki connect` sets up, as its hook file holds them
 
     def event_name(self, kind: str) -> str | None:
         return dict(self.events).get(kind)
@@ -123,10 +124,24 @@ def _claude_accepts(payload: dict) -> bool:
     return "timestamp" not in payload
 
 
+def _claude_hooks() -> dict:
+    """The `hooks` table of `.claude/settings.json`: each event runs `wiki hook`, before the
+    tools the guardrail and the notes need and after the ones whose files it records."""
+    def entry(event: str, matcher: str | None) -> dict:
+        hook = {"type": "command", "command": f"wiki hook {event} --agent claude-code"}
+        return {**({"matcher": matcher} if matcher else {}), "hooks": [hook]}
+    edits = "|".join(name for name, kind in _CLAUDE_TOOLS if kind == EDIT)
+    shells = "|".join(name for name, kind in _CLAUDE_TOOLS if kind == SHELL)
+    reads = "|".join(name for name, kind in _CLAUDE_TOOLS if kind == READ)
+    return {"SessionStart": [entry("SessionStart", None)],
+            "PreToolUse": [entry("PreToolUse", f"{edits}|{shells}")],
+            "PostToolUse": [entry("PostToolUse", f"{reads}|{edits}")]}
+
+
 CLAUDE_CODE = Agent(
     id="claude-code", name="Claude Code", aliases=("claude",), hook_file=".claude/settings.json",
     events=_CLAUDE_EVENTS, tools=_CLAUDE_TOOLS, context_before_tool=True,
-    read_event=_claude_read, write_reply=_claude_reply, accepts=_claude_accepts)
+    read_event=_claude_read, write_reply=_claude_reply, accepts=_claude_accepts, hook_entries=_claude_hooks)
 
 
 # --- GitHub Copilot (VS Code's Copilot agent, the Copilot CLI, the cloud agent) -----------
@@ -172,10 +187,19 @@ def _copilot_accepts(payload: dict) -> bool:
     return "hook_event_name" not in payload  # the snake_case "VS Code format" is read as Claude Code's
 
 
+def _copilot_hooks() -> dict:
+    """The whole `.github/hooks/wiki.json`: Copilot runs a hook for every tool, so the
+    command sorts them."""
+    def entry(event: str) -> dict:
+        command = f"wiki hook {event} --agent copilot"
+        return {"type": "command", "bash": command, "powershell": command, "timeoutSec": 30}
+    return {"version": 1, "hooks": {name: [entry(name)] for _, name in _COPILOT_EVENTS}}
+
+
 COPILOT = Agent(
     id="copilot", name="GitHub Copilot", hook_file=".github/hooks/wiki.json",
     events=_COPILOT_EVENTS, tools=_COPILOT_TOOLS, context_before_tool=False,
-    read_event=_copilot_read, write_reply=_copilot_reply, accepts=_copilot_accepts)
+    read_event=_copilot_read, write_reply=_copilot_reply, accepts=_copilot_accepts, hook_entries=_copilot_hooks)
 
 
 # --- OpenCode: slash commands only, no hooks yet ------------------------------------------

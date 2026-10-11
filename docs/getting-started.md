@@ -147,6 +147,27 @@ these yourself:
   permission, a rule against editing the wiki's `raw/`, and for a wiki beside the code,
   the wiki folder in `additionalDirectories` so Claude can edit it.
 
+**The work loop.** For agents that run hooks (Claude Code, GitHub Copilot), connect the
+code repo instead: `wiki connect ../my-app --agent claude-code` (or `--agent copilot`, or
+both). It writes the files the wiki owns into the code repo: the pointer
+`.wiki-cli.toml` naming the agents, `WIKI.md` saying how to work with the wiki, the
+workflow skills, and Copilot's hook file and instructions. It prints the lines your own
+files need, which you add by hand: one line in `AGENTS.md` sending agents to `WIKI.md`,
+`@AGENTS.md` in `CLAUDE.md`, and for Claude Code the hooks and permissions to merge into
+`.claude/settings.json`. `wiki connect --check` says what is still missing. From then on:
+
+- a session starts by learning where the wiki is, the open task, and the decisions
+  waiting for your approval;
+- the first time the agent opens a file, it sees the wiki's pages on it and the gotchas
+  and decisions that affect it (`wiki covering <file>`);
+- `wiki guide work` runs each task: a plan you approve, then `wiki task start` (you
+  confirm), each settled choice written as a decision you approve, the work, the wiki
+  pages brought up to date, and your approval of the result;
+- edits to the code and the wiki are refused until a task is open, and from any session
+  but the one holding it; `git commit` is refused;
+- `wiki finish -m "<message>"` (you confirm, seeing the files) commits exactly the files
+  the task edited, then the wiki pages, with `verified:` set to the new commit.
+
 Then work in the code repo as usual. To document a module or a decision, ask the agent
 (it follows `wiki guide ingest`): pages link to code with `[name](code:src/app.py)`, list
 the files they describe in `covers:`, and record the code commit they were checked

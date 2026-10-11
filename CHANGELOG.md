@@ -54,6 +54,15 @@
   `--dry-run` shows the plan. The hook asks the user before it runs, showing the files.
 - `wiki stale` and `wiki check` accept `verified: "pending"`, and `covers:` match new files
   not yet committed.
+- `wiki connect <code-repo> --agent <name>` sets up a code repo for its agents in two
+  steps. It writes the files the wiki owns, and rewrites them when the tool's version
+  changed: the pointer `.wiki-cli.toml` with `agents`, `WIKI.md` (how to work with the
+  wiki), the workflow skills, and for Copilot `.github/hooks/wiki.json` and
+  `.github/instructions/wiki.instructions.md`. It prints, and never writes, the lines
+  your own files need: `AGENTS.md` sending agents to `WIKI.md`, `@AGENTS.md` in
+  `CLAUDE.md`, and the hooks and permissions to merge into `.claude/settings.json`.
+  `--check` writes nothing and exits 1 while anything is missing or out of date.
+- `wiki new --agent` saves the agents in the new wiki's config (`agents = [...]`).
 
 **Start a wiki**
 - A code wiki can be a folder inside the code's repository (`wiki new docs/wiki --preset
