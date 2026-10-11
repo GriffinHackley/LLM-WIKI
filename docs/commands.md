@@ -129,7 +129,7 @@ The best pages for a question: keyword and vector search, combined, then reranke
 | `--keyword-only` | Skip vector search and reranking: for exact strings such as an ID or a quote. |
 
 ```bash
-wiki search "how are jobs prioritised so none wait forever?"
+wiki search "who gave evidence at the North Mill fire inquiry?"
 ```
 
 ### `wiki nav start`
@@ -227,7 +227,7 @@ A page's relations, with each one's type and reason, without the page bodies.
 | `--limit` | At most this many. |
 
 ```bash
-wiki neighbors ada-lovelace --outgoing
+wiki neighbors edith-thorne --outgoing
 ```
 
 ### `wiki suggest`
@@ -260,7 +260,7 @@ summaries, code links. Errors fail the check; warnings don't, unless `--strict`.
 
 ```bash
 wiki check --all
-wiki check acme-annual-report-2024-03 --ingested
+wiki check ashford-courier-1887-03-10 --ingested
 ```
 
 ### `wiki pending`
@@ -319,7 +319,7 @@ offline. Points are coloured by type, cluster, age or visits; relations are line
 | `--ungrouped` | Only the pages that name no group. |
 
 ```bash
-wiki map --open --query "what do we know about the scheduler?"
+wiki map --open --query "what caused the North Mill fire?"
 ```
 
 ### `wiki vocab`

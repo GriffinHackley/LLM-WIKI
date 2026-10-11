@@ -101,10 +101,10 @@ each link matters (`- [[page]] — why`) is one the agent can navigate well.
 The same commands work without an agent:
 
 ```bash
-wiki search "how are jobs prioritised?"   # the best pages for a question
+wiki search "what caused the mill fire?"   # the best pages for a question
 wiki list --type person                   # every page of a type, with its summary
-wiki neighbors ada-lovelace               # a page's typed relations, with reasons
-wiki suggest ada-lovelace                 # pages it names but doesn't link, or resembles
+wiki neighbors edith-thorne               # a page's typed relations, with reasons
+wiki suggest edith-thorne                 # pages it names but doesn't link, or resembles
 wiki map --open                           # the whole wiki in 3D, in your browser
 ```
 
@@ -425,7 +425,7 @@ Put the file in `raw/` and ask your agent to ingest it. It follows `wiki guide i
 3. finds the pages it touches, under every name they go by, and decides what earns a
    page of its own (enough to write a summary and one more fact);
 4. updates or creates those pages, merging new facts in and citing each one:
-   `…signed in March ([[acme-report-2024]], p. 4)`;
+   `…the mill reopened in May ([[ashford-courier-1887-03-10]], p. 4)`;
 5. files contradictions in `wiki/open-questions.md`, checks, and commits.
 
 It edits at most about 15 pages per source and lists the rest as follow-ups. Then

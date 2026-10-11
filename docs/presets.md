@@ -30,7 +30,7 @@ page and works what it says into the pages it discusses.
 | `analysis` | The wiki's own synthesis, answering a question across pages | `## Key pages` -> `synthesizes` |
 
 Every page lists its sources in `sources:` (`draws-on`), and cites each fact inline:
-`…signed in March ([[acme-report-2024]], p. 4)`. The relation takes the citing
+`…the mill reopened in May ([[ashford-courier-1887-03-10]], p. 4)`. The relation takes the citing
 sentence as its reason. `wiki/open-questions.md` collects contradictions and gaps.
 `event` and `concept` are hub types: `wiki clusters` counts a group of pages most of
 which link to one as covered.

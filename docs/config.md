@@ -135,12 +135,12 @@ Open `.wiki-cli.toml` and review four things:
 
    ```markdown
    ## Works with
-   - [[charles-babbage]] — co-lead; they split hardware and software
+   - [[silas-reed]] — co-lead; they split the witnesses between them
    ```
 
-   into `works-with -> charles-babbage` with the reason "co-lead; they split hardware and
-   software". An agent reads these reasons to decide which page to open next, so list
-   items written as `[[page]] — why it matters` pay off. Rules for frontmatter fields
+   into `works-with -> silas-reed` with the reason "co-lead; they split the witnesses
+   between them". An agent reads these reasons to decide which page to open next, so
+   list items written as `[[page]] — why it matters` pay off. Rules for frontmatter fields
    (`field = "sources"`) work the same way. [`[[relations]]`](#relations-typed-links) has
    the full rule syntax.
 
@@ -301,11 +301,11 @@ the list item
 
 ```markdown
 ## Entities mentioned
-- [[charles-babbage]] — Inventor who delayed the demonstration (p. 2)
+- [[edith-thorne]] — night-shift foreman, the first witness (p. 2)
 ```
 
-becomes `mentions -> charles-babbage` with reason "Inventor who delayed the
-demonstration (p. 2)". From `charles-babbage`'s page, the same relation shows as
+becomes `mentions -> edith-thorne` with reason "night-shift foreman, the first
+witness (p. 2)". From `edith-thorne`'s page, the same relation shows as
 `mentioned-in`. A link in parentheses under a typed heading,
 such as a citation `([[report]], p. 2)`, stays a plain link: it supports the line rather
 than being its subject. Frontmatter values written as `[[links]]` count as links, as in

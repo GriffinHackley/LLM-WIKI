@@ -45,9 +45,9 @@ finds a repository: by walking up from the current folder to the nearest config.
 **Page.** One Markdown file: frontmatter (`title:`, `type:` and other fields), a
 `## Summary`, and sections. Which files are pages is up to the config's `pages` globs.
 
-**Slug.** A page's name in links: its file name without `.md`. `[[ada-lovelace]]` links
-the page `ada-lovelace.md`. When two files share a name, the link needs a path
-(`[[people/ada-lovelace]]`), and `wiki check` warns until it has one.
+**Slug.** A page's name in links: its file name without `.md`. `[[edith-thorne]]` links
+the page `edith-thorne.md`. When two files share a name, the link needs a path
+(`[[people/edith-thorne]]`), and `wiki check` warns until it has one.
 
 **Summary.** The paragraph under `## Summary` (or a frontmatter field, or the first
 paragraph). Search results and navigation show it, so it decides whether a page gets
@@ -87,11 +87,11 @@ and the text after each link becomes the reason:
 
 ```markdown
 ## Relationships
-- [[charles-babbage]] — tutored her; they corresponded for years
+- [[ruth-marsh]] — owned the mill whose night shift she ran
 ```
 
-becomes `associated-with -> charles-babbage`, reason "tutored her; they corresponded for
-years". Each relation also has an **inverse**, its name seen from the other page.
+becomes `associated-with -> ruth-marsh`, reason "owned the mill whose night shift she
+ran". Each relation also has an **inverse**, its name seen from the other page.
 Navigation shows these reasons, so the agent can choose which page to open next without
 opening them all. `wiki neighbors <slug>` lists a page's relations.
 
