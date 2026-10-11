@@ -743,7 +743,7 @@ one thing a list could not: one subject's hundred or so pages as an island well 
 the note on stderr, `fallback_reason` in JSON and the reason in the page header;
 `--method umap` exits 2. 343 tests pass.
 
-## Phase 15: `writing` preset
+## Phase 15 (done): `writing` preset
 
 A preset for story writing: the user writes ideas, scenes and chapters in Obsidian, and
 the agent builds a wiki of the stories' characters, places, plotlines and threads from
@@ -925,6 +925,21 @@ getting-started doc; the tool does not install or configure plugins.
    and the idea, revise the scene and re-ingest it, move the idea into a book; check
    `wiki pending`, `--group` and `--ungrouped`, `cross-group-link`, and that the deny
    rule stops an edit to an original.
+
+Changed while building: `wiki commit` leaves out only the originals folder, not `raw/`,
+so a research source newly saved there is committed with its ingest (the pre-commit hook
+still refuses an edited one). `wiki hook` refuses edits to an existing source but lets a
+new one be saved; every edit under the originals folder is refused.
+
+Result: on a scratch vault with two books (the-salt-road, glass-city) and a loose idea,
+`wiki pending` listed the five originals; after ingesting a chapter, a scene and the idea,
+two. A Linter-style bump of `last_updated:` left the scene ingested; changing a word put
+it back as "changed since it was ingested". Moving the idea into a book gave
+`missing-original` on its page and listed it as new; relinking it cleared both. A
+glass-city chapter linking the-salt-road's Mara gave `cross-group-link`. `wiki commit`
+committed the wiki pages and left the user's uncommitted revision and staged move in
+`originals/` untouched. The hook denied Claude Code an Edit and a Write under
+`originals/` and allowed one in `wiki/`. 482 tests pass.
 
 ## Open decisions
 

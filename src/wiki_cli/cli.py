@@ -837,8 +837,9 @@ def cmd_pending(args: argparse.Namespace, settings: Settings) -> int:
         return EXIT_OK
     where = ", ".join(f + "/" for f in folders)
     if waiting:
-        title = ("Sources not ingested yet, or changed since" if any(source.changed for source in waiting)
-                 else "Sources not ingested yet")
+        title = "Not ingested yet" if settings.originals is not None else "Sources not ingested yet"
+        if any(source.changed for source in waiting):
+            title += ", or changed since"
         print(output.heading(title, len(waiting)))
         items = [(", ".join(source.files), "changed since it was ingested" if source.changed
                   else f"same content as {source.duplicate_of}" if source.duplicate_of else "")

@@ -119,8 +119,8 @@ def _missing_original(page: Page, resolver: Resolver) -> list[Issue]:
     target = _link_value(named.strip())
     if resolver.resolve(target) or resolver.resolve_path(target) or resolver.is_other_file(target):
         return []
-    return [Issue(WARNING, "missing-original", f"original: names {target}, which is not in "
-                                                f"{settings.originals.folder}/: find where it moved and link it")]
+    return [Issue(WARNING, "missing-original", f"original: names {target}, which no longer exists: find where "
+                                                "it moved (wiki pending lists it as not ingested) and link it")]
 
 
 def _uncited_sources(page: Page, resolver: Resolver) -> list[Issue]:
