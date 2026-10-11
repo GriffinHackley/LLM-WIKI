@@ -28,7 +28,7 @@ DEFAULT_SEARCH_RESULTS = 3
 MAX_SEARCH_RESULTS = 20  # search reranks 20 passages (search.RERANK_K), so it never returns more pages
 _TOP_LEVEL = {"pages", "exclude", "raw", "embed_model", "reranker", "relations", "summary", "page_type",
               "check", "suggest", "search", "preset", "types", "guides", "code", "pending", "weekly", "records",
-              "clusters", "hooks", "groups", "agents"}
+              "clusters", "hooks", "groups", "agents", "originals"}
 _CODE_KEYS = {"repo", "origin"}
 _WEEKLY_KEYS = {"folder", "template", "sections", "group_by"}
 WEEKLY_SECTIONS = ("summary", "activity", "pages", "work", "sources", "questions", "health", "code")
@@ -44,7 +44,10 @@ _RECORDS_KEYS = {"recheck_days", "final"}
 _CLUSTERS_KEYS = {"ignore", "resolution"}
 _GUIDES_KEYS = {"dir", "parts"}
 _HOOKS_KEYS = {"pre_commit"}
-_GROUPS_KEYS = {"fields"}
+_GROUPS_KEYS = {"fields", "exclusive"}
+_ORIGINALS_KEYS = {"folder", "loose", "kinds", "fields"}
+DEFAULT_ORIGINAL_KINDS = ("idea", "scene", "chapter")
+DEFAULT_ORIGINAL_FIELDS = ("kind", "created", "last_updated")
 DEFAULT_GROUP_FIELDS = ("tags",)
 _HOOK_COMMAND_KEYS = {"run", "files"}
 DEFAULT_RECHECK_DAYS = 30
@@ -97,6 +100,30 @@ class Weekly:
 
 
 @dataclass(frozen=True)
+class Originals:
+    """`[originals]`: the user's own writing (ideas, scenes, chapters), which the agent reads
+    and never changes. The folder counts as a raw folder, but the user edits its files, so
+    the pre-commit hook lets them change. A file's book is the first folder inside it;
+    `loose` holds the pieces that belong to no book. `kinds` are the allowed values of the
+    `kind:` field, and `fields` the frontmatter every original has (the Obsidian templates
+    fill it in); the date fields among them are left out of the hash ingest records, so a
+    timestamp bump alone does not count as a change."""
+    folder: str = "originals"
+    loose: str = "loose"
+    kinds: tuple[str, ...] = DEFAULT_ORIGINAL_KINDS
+    fields: tuple[str, ...] = DEFAULT_ORIGINAL_FIELDS
+
+    def contains(self, rel: str) -> bool:
+        return rel.startswith(self.folder + "/")
+
+    def book(self, rel: str) -> str | None:
+        """The book an original belongs to: the folder under the originals folder, unless
+        it is the loose folder or the file sits at the top."""
+        parts = rel[len(self.folder) + 1:].split("/") if self.contains(rel) else []
+        return parts[0] if len(parts) > 1 and parts[0] != self.loose else None
+
+
+@dataclass(frozen=True)
 class HookCommand:
     """A command from `[hooks] pre_commit`, run from the wiki root before each commit. With
     `files`, it runs only when a staged file matches one of the globs, and is given those
@@ -138,6 +165,8 @@ class Settings:
     clusters_resolution: float = 1.0  # Louvain resolution: higher splits clusters more readily
     pre_commit: tuple[HookCommand, ...] = ()  # the wiki's own checks, run by the pre-commit hook
     group_fields: tuple[str, ...] = DEFAULT_GROUP_FIELDS  # frontmatter naming a page's groups (--group)
+    groups_exclusive: bool = False  # a page should not link pages of another group (cross-group-link)
+    originals: Originals | None = None  # the user's writing, read and never changed (the writing preset)
     redirected_from: Path | None = field(default=None, compare=False)  # a code repo that pointed here
     agents: tuple[str, ...] = ()  # agent ids working where the command started: the pointer's when redirected
     vocabulary: Vocabulary = field(default_factory=Vocabulary, compare=False)
@@ -259,13 +288,17 @@ def load_settings(
         raise ConfigError(f"{CONFIG_FILENAME}: [code] takes 'repo' (a folder path) and 'origin' (a URL)")
     code_value = os.environ.get("WIKI_CODE_REPO") or code.get("repo")
     code_repo = (resolved / Path(code_value).expanduser()).resolve() if code_value else None
+    originals = _originals(config)
+    raw = _patterns(config, "raw", DEFAULT_RAW)
+    if originals is not None and f"{originals.folder}/**/*.md" not in raw:
+        raw = (*raw, f"{originals.folder}/**/*.md")
 
     return Settings(
         root=resolved,
         cache_path=cache_path,
         pages=_patterns(config, "pages", DEFAULT_PAGES),
         exclude=_patterns(config, "exclude", ()),
-        raw=_patterns(config, "raw", DEFAULT_RAW),
+        raw=raw,
         embed_model=embed_model or os.environ.get("WIKI_EMBED_MODEL") or config.get("embed_model") or DEFAULT_EMBED_MODEL,
         reranker=reranker or os.environ.get("WIKI_RERANKER") or config.get("reranker") or DEFAULT_RERANKER,
         models_dir=models_dir,
@@ -293,6 +326,8 @@ def load_settings(
         clusters_resolution=clusters_resolution,
         pre_commit=_pre_commit(config),
         group_fields=_group_fields(config),
+        groups_exclusive=_groups_exclusive(config),
+        originals=originals,
         redirected_from=redirected_from,
         agents=agents,
         vocabulary=Vocabulary(rules),
@@ -368,6 +403,31 @@ def _group_fields(config: dict) -> tuple[str, ...]:
     if not fields:
         raise ConfigError(f"{CONFIG_FILENAME}: [groups] fields must name at least one frontmatter field")
     return fields
+
+
+def _groups_exclusive(config: dict) -> bool:
+    value = _table(config, "groups").get("exclusive", False)
+    if not isinstance(value, bool):
+        raise ConfigError(f"{CONFIG_FILENAME}: [groups] exclusive must be true or false")
+    return value
+
+
+def _originals(config: dict) -> Originals | None:
+    if "originals" not in config:
+        return None
+    table = _table(config, "originals")
+    unknown = set(table) - _ORIGINALS_KEYS
+    if unknown:
+        raise ConfigError(f"{CONFIG_FILENAME}: [originals]: unknown key(s) {', '.join(sorted(unknown))}")
+    for key in ("folder", "loose"):
+        if key in table and (not isinstance(table[key], str) or not table[key].strip("/ ")):
+            raise ConfigError(f"{CONFIG_FILENAME}: [originals] {key} must be a folder name")
+    kinds = tuple(item.strip().lower() for item in _patterns(table, "kinds", DEFAULT_ORIGINAL_KINDS,
+                                                             "[originals] kinds") if item.strip())
+    fields = tuple(item.strip() for item in _patterns(table, "fields", DEFAULT_ORIGINAL_FIELDS,
+                                                       "[originals] fields") if item.strip())
+    return Originals(folder=table.get("folder", "originals").strip("/ "), loose=table.get("loose", "loose").strip("/ "),
+                     kinds=kinds, fields=fields)
 
 
 def _records(config: dict) -> tuple[int, tuple[str, ...]]:

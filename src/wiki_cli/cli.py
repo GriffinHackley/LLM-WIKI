@@ -30,6 +30,7 @@ from wiki_cli import (
     guide,
     hook,
     init,
+    originals,
     output,
     precommit,
     records,
@@ -1286,6 +1287,7 @@ def cmd_check(args: argparse.Namespace, settings: Settings) -> int:
         issues.extend(_cache_issues(pages, settings, resolver, verify=args.verify_cache))
         issues.extend(codebase.check_pages(pages, settings))
         issues.extend(codebase.check_part_of(pages, _hub_pages(settings, files, pages), settings, resolver))
+        issues.extend(originals.check(settings, scanned))
         checked = sum(1 for page in pages if page.file.kind == "page")
     else:
         if args.verify_cache:

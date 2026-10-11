@@ -90,7 +90,8 @@ def _on(page, severity: str, code: str, message: str) -> Issue:
 
 def _uncommitted(settings: Settings) -> list[str]:
     """Changed and new pages and sources in the wiki's git repository (none when it is not
-    one). Other files, such as an editor's settings, are the user's to commit."""
+    one). Other files, such as an editor's settings, and originals (the user's writing) are
+    the user's to commit."""
     try:
         done = subprocess.run(["git", "status", "--porcelain", "--untracked-files=all", "--", "."],
                               cwd=settings.root, capture_output=True, text=True, encoding="utf-8")
@@ -100,5 +101,6 @@ def _uncommitted(settings: Settings) -> list[str]:
         return []
     folders = raw_dirs(settings)
     changed = [line[3:].strip().strip('"').split(" -> ")[-1] for line in done.stdout.splitlines() if line.strip()]
-    return [rel for rel in changed if (rel.endswith(".md") and matches(rel, settings.pages))
-            or any(rel.startswith(folder + "/") for folder in folders)]
+    return [rel for rel in changed if not (settings.originals and settings.originals.contains(rel))
+            and ((rel.endswith(".md") and matches(rel, settings.pages))
+                 or any(rel.startswith(folder + "/") for folder in folders))]

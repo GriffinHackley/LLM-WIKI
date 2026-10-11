@@ -34,10 +34,12 @@ def staged(settings: Settings, diff_filter: str) -> list[str]:
 
 def changed_sources(settings: Settings) -> list[str]:
     """Staged edits, renames and deletions of sources: files in the raw folders other than
-    README files and those `[pending] ignore` lists (a manifest updated as sources arrive)."""
+    README files, those `[pending] ignore` lists (a manifest updated as sources arrive), and
+    the originals folder, whose files the user writes and revises."""
     folders = raw_dirs(settings)
     return [rel for rel in staged(settings, "MDR")
             if any(rel.startswith(folder + "/") for folder in folders)
+            and not (settings.originals and settings.originals.contains(rel))
             and rel.rsplit("/", 1)[-1] not in ALWAYS_IGNORED
             and not matches(rel, settings.pending_ignore)]
 

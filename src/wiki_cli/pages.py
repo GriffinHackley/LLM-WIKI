@@ -132,7 +132,8 @@ def scan_vault(settings: Settings) -> tuple[list[tuple[PageFile, os.DirEntry]], 
             rel = prefix + entry.name
             if matches(rel, settings.exclude):
                 others.append(rel)
-            elif rel.lower().endswith(".md") and matches(rel, settings.pages):
+            elif (rel.lower().endswith(".md") and matches(rel, settings.pages)
+                  and not (settings.originals and settings.originals.contains(rel))):
                 found.append((rel, PAGE, entry))
             elif matches(rel, settings.raw):
                 found.append((rel, RAW, entry))
