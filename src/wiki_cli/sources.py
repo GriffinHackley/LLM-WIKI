@@ -3,6 +3,9 @@
 A source can be several files: a PDF or web page and the `.txt` extracted from it, which
 share a name and differ only in extension. A page that links any of them (by path or by
 bare name, in its body or its frontmatter) has ingested the source.
+
+An original (`[originals]`) can change after it is ingested: it is pending again, marked
+`changed`, when its page's `original_hash:` no longer matches it.
 """
 
 from __future__ import annotations
@@ -11,7 +14,7 @@ import hashlib
 import re
 from dataclasses import dataclass, field
 
-from wiki_cli import links
+from wiki_cli import links, originals
 from wiki_cli.config import Settings
 from wiki_cli.pages import PAGE, load, matches, scan_vault
 
@@ -26,9 +29,10 @@ class Source:
     key: str  # the files' shared path without extension, e.g. raw/report-2024
     files: list[str] = field(default_factory=list)
     duplicate_of: str | None = None  # a file already ingested (or listed earlier) with the same content
+    changed: bool = False  # an original revised since its page recorded its hash
 
     def to_dict(self) -> dict:
-        return {"source": self.key, "files": self.files, "duplicate_of": self.duplicate_of}
+        return {"source": self.key, "files": self.files, "duplicate_of": self.duplicate_of, "changed": self.changed}
 
 
 def raw_dirs(settings: Settings) -> list[str]:
@@ -79,14 +83,17 @@ class _RawIndex:
         """The sources (folded keys) a page links, by path or bare name, in body or frontmatter."""
         found: set[str] = set()
         for target in _targets(page):
-            folded = target.casefold().lstrip("/")
-            if folded in self.by_path:
-                found.add(self.by_path[folded])
-            elif "/" not in folded:
-                found.update(self.by_name.get(folded, ()))
-            else:
-                found.update(key for path, key in self.by_path.items() if path.endswith("/" + folded))
+            found |= self.named(target)
         return found
+
+    def named(self, target: str) -> set[str]:
+        """The sources (folded keys) one link target names."""
+        folded = target.casefold().lstrip("/")
+        if folded in self.by_path:
+            return {self.by_path[folded]}
+        if "/" not in folded:
+            return set(self.by_name.get(folded, ()))
+        return {key for path, key in self.by_path.items() if path.endswith("/" + folded)}
 
 
 def pending(settings: Settings) -> tuple[list[Source], int]:
@@ -95,9 +102,14 @@ def pending(settings: Settings) -> tuple[list[Source], int]:
     index = _RawIndex(settings, scanned, others)
     groups = index.groups
     ingested: set[str] = set()
+    recorded: dict[str, set[str]] = {}  # an original's key: the hashes its pages recorded
     for page_file, _ in scanned:
         if page_file.kind == PAGE:
-            ingested |= index.linked(load(page_file, settings))
+            page = load(page_file, settings)
+            ingested |= index.linked(page)
+            if settings.originals is not None:
+                for key, value in _recorded_hashes(page, index):
+                    recorded.setdefault(key, set()).add(value)
 
     seen: dict[str, str] = {}
     for folded in sorted(ingested):
@@ -106,6 +118,9 @@ def pending(settings: Settings) -> tuple[list[Source], int]:
     waiting = []
     for folded, source in sorted(groups.items(), key=lambda item: item[1].key.casefold()):
         if folded in ingested:
+            if folded in recorded and recorded[folded] != {originals.content_hash(settings, source.files[0])}:
+                source.changed = True
+                waiting.append(source)
             continue
         for rel in source.files:
             digest = _digest(settings, rel)
@@ -113,7 +128,18 @@ def pending(settings: Settings) -> tuple[list[Source], int]:
                 source.duplicate_of = seen[digest]
             seen.setdefault(digest, rel)
         waiting.append(source)
-    return waiting, len(ingested)
+    return waiting, len(ingested) - sum(1 for source in waiting if source.changed)
+
+
+def _recorded_hashes(page, index: _RawIndex) -> list[tuple[str, str]]:
+    """The originals a page's `original:` names, each with the `original_hash:` it records."""
+    data = page.data or {}
+    value, named = data.get(originals.HASH_FIELD), data.get(originals.ORIGINAL_FIELD)
+    if not isinstance(value, (str, int)) or not str(value).strip() or not isinstance(named, str):
+        return []
+    match = _FRONTMATTER_LINK.match(named.strip())
+    target = links.split_target(match.group(1))[0] if match else links.normalize(named.strip())
+    return [(key, str(value).strip()) for key in index.named(target)]
 
 
 def _targets(page) -> list[str]:

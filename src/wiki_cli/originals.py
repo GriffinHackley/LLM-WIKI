@@ -4,14 +4,46 @@ Each original's frontmatter is only what the user's Obsidian templates fill in (
 and its dates). `wiki check --all` reports an original missing one of those fields, or
 with a kind the config does not list: a file made outside Obsidian gets no template. It
 only reports; the files are the user's to fix.
+
+Unlike sources in `raw/`, originals change after they are ingested. Ingest records the
+original's hash on its page (`original_hash:`); `wiki pending` lists the original again
+once the hash no longer matches. The hash leaves out the date lines of the frontmatter
+(the `fields` other than `kind`), so a timestamp bump from Obsidian alone is no change.
 """
 
 from __future__ import annotations
+
+import hashlib
+import re
 
 from wiki_cli import frontmatter
 from wiki_cli.config import Settings
 from wiki_cli.model import WARNING, Issue
 from wiki_cli.pages import RAW, scan_vault
+
+
+HASH_FIELD = "original_hash"  # on an original's page: the original's content_hash when it was ingested
+ORIGINAL_FIELD = "original"  # on an original's page: the original it describes
+HASH_LENGTH = 16
+
+
+def content_hash(settings: Settings, rel: str) -> str:
+    """The original's hash without its date lines, with line endings made uniform."""
+    text, _, _ = read(settings, rel)
+    if text is None:
+        return ""
+    text = text.replace("\r\n", "\n")
+    dates = [key for key in settings.originals.fields if key != "kind"] if settings.originals else []
+    opening = frontmatter.OPENING.match(text) if dates else None
+    try:
+        parts = frontmatter.split(text) if opening else None
+    except frontmatter.FrontmatterError:
+        parts = None
+    if parts is not None:
+        yaml_text = parts[0]
+        pattern = re.compile(rf"^(?:{'|'.join(re.escape(key) for key in dates)})[ \t]*:.*\n?", re.MULTILINE)
+        text = text[:opening.end()] + pattern.sub("", yaml_text) + text[opening.end() + len(yaml_text):]
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:HASH_LENGTH]
 
 
 def files(settings: Settings, scanned=None) -> list[str]:

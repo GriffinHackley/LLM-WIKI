@@ -43,6 +43,7 @@ def check_page(page: Page, resolver: Resolver) -> list[Issue]:
     if page_type is not None:
         issues.extend(_required_parts(page, page_type))
     issues.extend(records.issues(page))
+    issues.extend(_missing_original(page, resolver))
     issues.extend(_uncited_sources(page, resolver))
     status = (page.data or {}).get("status")
     if page.page_type == "decision" and isinstance(status, str) and status.strip().lower() == "proposed":
@@ -106,6 +107,20 @@ def _required_parts(page: Page, page_type: PageType) -> list[Issue]:
             issues.append(Issue(WARNING, "bad-value", f"'{key}' is {_quoted(wrong)}; in a {page_type.name} page "
                                                       f"it is one of {', '.join(allowed)}"))
     return issues
+
+
+def _missing_original(page: Page, resolver: Resolver) -> list[Issue]:
+    """An `original:` naming a file in the originals folder that is not there (renamed
+    outside Obsidian, or deleted)."""
+    settings = page.settings
+    named = (page.data or {}).get("original")
+    if settings is None or settings.originals is None or not isinstance(named, str) or not named.strip():
+        return []
+    target = _link_value(named.strip())
+    if resolver.resolve(target) or resolver.resolve_path(target) or resolver.is_other_file(target):
+        return []
+    return [Issue(WARNING, "missing-original", f"original: names {target}, which is not in "
+                                                f"{settings.originals.folder}/: find where it moved and link it")]
 
 
 def _uncited_sources(page: Page, resolver: Resolver) -> list[Issue]:

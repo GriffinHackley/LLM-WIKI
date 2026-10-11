@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 import yaml
 
-_OPENING = re.compile(r"---[ \t]*\r?\n")
+OPENING = re.compile(r"---[ \t]*\r?\n")
 _LOADER = getattr(yaml, "CSafeLoader", yaml.SafeLoader)  # libyaml when available
 
 
@@ -26,7 +26,7 @@ def split(text: str) -> tuple[str, int] | None:
 
     Raises FrontmatterError when an opening delimiter has no closing one.
     """
-    opening = _OPENING.match(text)
+    opening = OPENING.match(text)
     if not opening:
         return None
     position = opening.end()

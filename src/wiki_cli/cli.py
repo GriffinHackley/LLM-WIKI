@@ -325,7 +325,10 @@ def build_parser() -> argparse.ArgumentParser:
     stale.set_defaults(handler=cmd_stale)
 
     pending_parser = commands.add_parser("pending", parents=[common],
-                                         help="sources in raw/ that no page links to yet")
+                                         help="sources in raw/ that no page links to yet, and originals "
+                                              "revised since they were ingested")
+    pending_parser.add_argument("--hash", metavar="ORIGINAL",
+                                help="print an original's hash, for its page's original_hash:")
     pending_parser.set_defaults(handler=cmd_pending)
 
     weekly_parser = commands.add_parser("weekly", parents=[common],
@@ -799,6 +802,8 @@ def _print_stale_code(code: dict) -> None:
 
 
 def cmd_pending(args: argparse.Namespace, settings: Settings) -> int:
+    if args.hash:
+        return _original_hash(args, settings)
     waiting, ingested = sources.pending(settings)
     folders = sources.raw_dirs(settings)
     if args.format == "json":
@@ -809,14 +814,36 @@ def cmd_pending(args: argparse.Namespace, settings: Settings) -> int:
         return EXIT_OK
     where = ", ".join(f + "/" for f in folders)
     if waiting:
-        print(output.heading("Sources not ingested yet", len(waiting)))
-        items = [(", ".join(source.files), f"same content as {source.duplicate_of}" if source.duplicate_of else "")
+        title = ("Sources not ingested yet, or changed since" if any(source.changed for source in waiting)
+                 else "Sources not ingested yet")
+        print(output.heading(title, len(waiting)))
+        items = [(", ".join(source.files), "changed since it was ingested" if source.changed
+                  else f"same content as {source.duplicate_of}" if source.duplicate_of else "")
                  for source in waiting]
         for line in output.rows(items, max_key=60, styles=(("bold",), ("yellow",))):
             print(line)
         print(output.dim(f"{len(waiting)} pending, {ingested} ingested, in {where}"))
     else:
         print(f"Nothing pending: all {output.plural(ingested, 'source')} in {where} are ingested.")
+    return EXIT_OK
+
+
+def _original_hash(args: argparse.Namespace, settings: Settings) -> int:
+    if settings.originals is None:
+        raise UsageError("--hash is for originals, and this wiki has no [originals] in its config")
+    path = Path(args.hash).expanduser()
+    path = path.resolve() if path.is_absolute() or (Path.cwd() / path).exists() else (settings.root / path).resolve()
+    try:
+        rel = path.relative_to(settings.root).as_posix()
+    except ValueError:
+        raise UsageError(f"{args.hash} is not in the wiki") from None
+    if not settings.originals.contains(rel) or not path.is_file():
+        raise UsageError(f"{args.hash} is not an original: originals are the files in {settings.originals.folder}/")
+    value = originals.content_hash(settings, rel)
+    if args.format == "json":
+        _print_json({"original": rel, "original_hash": value})
+    else:
+        print(value)
     return EXIT_OK
 
 
