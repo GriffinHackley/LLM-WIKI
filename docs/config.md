@@ -248,7 +248,7 @@ command refuses and the pre-commit hook skips it. The `code` preset turns it on.
 
 ## `[records]`: items that live elsewhere
 
-For page types marked `record = true` (see [workflows.md](workflows.md#records-tickets-and-other-items-that-live-elsewhere)).
+For page types marked `record = true` (see [guides.md](guides.md#records-tickets-and-other-items-that-live-elsewhere)).
 
 | Key | Type | Default | What it does |
 |---|---|---|---|
@@ -259,7 +259,7 @@ For page types marked `record = true` (see [workflows.md](workflows.md#records-t
 
 | Key | Type | Default | What it does |
 |---|---|---|---|
-| `dir` | string | none | A folder of the wiki's own guides, relative to the root. A file named like a built-in guide (`ingest.md`) replaces it; any other name adds a workflow. See [workflows.md](workflows.md). |
+| `dir` | string | none | A folder of the wiki's own guides, relative to the root. A file named like a built-in guide (`ingest.md`) replaces it; any other name adds a workflow. See [guides.md](guides.md). |
 | `parts` | string | `guides/parts`, or `<dir>/parts` with `dir` set | A folder of parts: `<name>.md` fills the guides' `{{part:<name>}}` slot with the wiki's own text for that step. Never indexed as pages. `wiki guide --parts` lists the slots. |
 
 ## `[hooks]`: the wiki's own pre-commit checks

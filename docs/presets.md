@@ -166,7 +166,7 @@ my-preset/
 
 Text files may use `{{name}}` (the wiki folder's name) and `{{today}}`. In the config,
 set `preset = "my-preset"` and declare `[types]` and `[[relations]]` to match the
-templates ([workflows.md](workflows.md#page-types-templates-and-relations)). For
+templates ([guides.md](guides.md#page-types-templates-and-relations)). For
 workflows of its own, include a `guides/` folder in `files/` and set `[guides] dir =
 "guides"`: its guides replace or add to the built-in ones. Then:
 

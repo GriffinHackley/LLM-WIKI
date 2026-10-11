@@ -128,8 +128,8 @@ pages used.
 unwritten links, orphans, missing summaries, contradictions between pages, uncited facts.
 
 Put your own conventions (editorial rules, citation details, naming) in the "Your rules"
-section of `AGENTS.md`; every workflow applies them. [workflows.md](workflows.md) has
-more.
+section of `AGENTS.md`; every workflow applies them. [workflows.md](workflows.md) walks
+through each workflow, and [guides.md](guides.md) says how to customise them.
 
 ## 4. Start a wiki about a codebase
 

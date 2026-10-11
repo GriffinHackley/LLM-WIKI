@@ -17,7 +17,8 @@ that can run shell commands: Claude Code, Codex, Cursor, Copilot, OpenCode and o
   needed, within a page limit.
 
 **New here? Start with [docs/getting-started.md](https://github.com/GriffinHackley/LLM-WIKI/blob/main/docs/getting-started.md).**
-[docs/workflows.md](https://github.com/GriffinHackley/LLM-WIKI/blob/main/docs/workflows.md) covers the workflows and how to customise them,
+[docs/workflows.md](https://github.com/GriffinHackley/LLM-WIKI/blob/main/docs/workflows.md) walks through what you do with a wiki, step by step;
+[docs/guides.md](https://github.com/GriffinHackley/LLM-WIKI/blob/main/docs/guides.md) covers the guides agents follow and how to customise them,
 [docs/presets.md](https://github.com/GriffinHackley/LLM-WIKI/blob/main/docs/presets.md) the presets, [docs/config.md](https://github.com/GriffinHackley/LLM-WIKI/blob/main/docs/config.md) every config
 setting. [PLAN.md](https://github.com/GriffinHackley/LLM-WIKI/blob/main/PLAN.md) is the current plan,
 [FUTURE_IDEAS.md](https://github.com/GriffinHackley/LLM-WIKI/blob/main/FUTURE_IDEAS.md) the deferred ideas.
