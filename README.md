@@ -27,7 +27,7 @@ then [docs/workflows.md](https://github.com/GriffinHackley/LLM-WIKI/blob/main/do
 step:** asking questions, finding gaps, a code task from plan to commit, researching a
 topic, a writing session.
 
-More:
+More ([all the docs](https://github.com/GriffinHackley/LLM-WIKI/tree/main/docs#readme)):
 
 - [docs/concepts.md](https://github.com/GriffinHackley/LLM-WIKI/blob/main/docs/concepts.md): how the pieces fit, and what each term means
 - [docs/presets.md](https://github.com/GriffinHackley/LLM-WIKI/blob/main/docs/presets.md): what each preset is for, and its page types
