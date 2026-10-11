@@ -24,6 +24,7 @@ from wiki_cli import (
     evaluate,
     groups,
     guide,
+    hook,
     init,
     output,
     precommit,
@@ -79,6 +80,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return cmd_new(args)
         if args.handler is cmd_guide:
             return cmd_guide(args, _optional_settings(args))
+        if args.handler is cmd_hook:
+            return cmd_hook(args)
         settings = load_settings(args.root, args.cache,
                                  getattr(args, "embed_model", None), getattr(args, "reranker", None))
         if settings.root_note:
@@ -97,8 +100,8 @@ def _print_error(message: str) -> None:
 
 
 COMMAND_ORDER = ("new", "init", "guide", "search", "nav", "list", "neighbors", "suggest", "check", "unwritten",
-                 "orphans", "clusters", "map", "pending", "stale", "weekly", "precommit", "index", "models", "vocab",
-                 "eval")
+                 "orphans", "clusters", "map", "pending", "stale", "weekly", "precommit", "hook", "index", "models",
+                 "vocab", "eval")
 
 
 GROUP_HELP = ("only this group's pages: those whose [groups] fields (default: tags) name it, and the pages they "
@@ -296,6 +299,16 @@ def build_parser() -> argparse.ArgumentParser:
         "precommit", parents=[common],
         help="what the pre-commit hook checks: raw/ unchanged, 'wiki check --all', the wiki's [hooks] commands")
     precommit_parser.set_defaults(handler=cmd_precommit)
+
+    hook_parser = commands.add_parser(
+        "hook", help="the command an agent's hooks run: reads the event the agent sends on stdin, always exits 0")
+    hook_parser.add_argument("event", help="the hook event as the agent names it (preToolUse, PostToolUse, ...)")
+    # Not argparse choices: a usage error exits 2, which Copilot reads as "deny this tool call".
+    hook_parser.add_argument("--agent", help=f"the agent whose hook file runs this command: {', '.join(hook.AGENTS)}")
+    hook_parser.add_argument("--log", action="store_true",
+                             help=f"record each call, with long text cut short, in <root>/.cache/{hook.LOG_FILE}")
+    hook_parser.add_argument("--root", help="wiki root (default: as for the other commands)")
+    hook_parser.set_defaults(handler=cmd_hook)
 
     list_parser = commands.add_parser("list", parents=[common], help="every page, with its type and summary")
     list_parser.add_argument("--type", dest="page_type", help="only pages of this type")
@@ -808,6 +821,27 @@ def cmd_precommit(args: argparse.Namespace, settings: Settings) -> int:
     if failed:
         _hook_say("fix the problems above, then commit again.")
         return EXIT_INVALID
+    return EXIT_OK
+
+
+def cmd_hook(args: argparse.Namespace) -> int:
+    """Run by an agent's hook, never by hand: whatever goes wrong, it exits 0 and prints
+    nothing, so the agent's tool call goes ahead."""
+    try:
+        stdin_text = sys.stdin.read()
+    except (OSError, UnicodeDecodeError):
+        stdin_text = ""
+
+    def find_root() -> Path | None:
+        """Only a wiki that was found: in a repo with no wiki the hook does nothing, rather
+        than treat the current folder as one (as other commands do)."""
+        try:
+            settings = load_settings(args.root)
+        except ConfigError:
+            return None
+        return settings.root if settings.root_note is None else None
+
+    hook.run(args.event, args.agent, stdin_text, log=args.log, find_root=find_root)
     return EXIT_OK
 
 

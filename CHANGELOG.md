@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+**Agent hooks**
+- `wiki hook <event> --agent <name>` is the command an agent's hook files run. For now
+  `--log` only records each call in `<wiki>/.cache/hook-log.jsonl`, with long text cut
+  short, to learn an agent's real tool names and fields. It always exits 0 and prints
+  nothing (Copilot denies a tool call when its pre-tool hook fails), and does nothing in a
+  repo with no wiki.
+
 **Start a wiki**
 - A code wiki can be a folder inside the code's repository (`wiki new docs/wiki --preset
   code --code .`), committed with the code, as well as a repository beside it. Only the
