@@ -1,0 +1,291 @@
+# Settings for the `wiki` command. Made by `wiki new` from the writing preset;
+# everything here is yours to change. See `wiki guide` for the workflows.
+preset = "writing"
+
+pages = ["wiki/**/*.md"]
+raw = ["raw/**/*.txt"]          # real-world research, as extracted text
+
+# The user's own writing: ideas, scenes and chapters, one folder per book (loose/ for
+# pieces with no book). The agent reads them and never changes them. Their frontmatter is
+# only what the Obsidian templates fill in.
+[originals]
+folder = "originals"
+loose = "loose"
+kinds = ["idea", "scene", "chapter"]
+fields = ["kind", "created", "last_updated"]
+
+# Books are groups: `wiki clusters --group <book>`, `--ungrouped` for pages in no book.
+# The books are separate stories, so a link from one book's page to another's is a warning.
+[groups]
+fields = ["book"]
+exclusive = true
+
+[summary]
+headings = ["Summary"]
+
+[check]
+summary_types = ["idea", "scene", "chapter", "character", "location", "organization", "item", "lore", "event",
+                 "plotline", "thread", "theme", "decision", "style", "source", "analysis"]
+
+[suggest]
+named_types = ["character", "location", "organization", "item", "lore", "event"]
+
+# Groups of linked pages (wiki clusters, the map). The open-questions list links pages from
+# every corner of the wiki, so it would glue unrelated groups together: leave it out.
+[clusters]
+ignore = ["wiki/open-questions.md"]
+
+# Page types. A page's type comes from its `type:` frontmatter, else from its folder.
+# `wiki check` warns when a page lacks one of its type's `sections` or frontmatter `fields`.
+
+# The pages for originals: one per idea, scene or chapter in originals/.
+[types.idea]
+description = "The wiki's page for an idea in originals/: what it is, and what it might become or became."
+folder = "wiki/ideas"
+template = "templates/idea.md"
+sections = ["Summary"]
+fields = ["title", "type", "original", "ingested", "original_hash", "created", "last_updated"]
+values = { status = ["open", "developed", "dropped"] }
+
+[types.scene]
+description = "The wiki's page for a scene in originals/: what happens, whose view, what it reveals and sets up."
+folder = "wiki/scenes"
+template = "templates/scene.md"
+sections = ["Summary", "Appears"]
+fields = ["title", "type", "original", "ingested", "original_hash", "created", "last_updated"]
+
+[types.chapter]
+description = "The wiki's page for a chapter in originals/: what happens in it, or an overview of its scenes."
+folder = "wiki/chapters"
+template = "templates/chapter.md"
+sections = ["Summary"]
+fields = ["title", "type", "original", "ingested", "original_hash", "created", "last_updated"]
+
+# The story's world.
+[types.character]
+description = "A person or being in the story: role, wants, arc, voice, appearance."
+folder = "wiki/characters"
+template = "templates/character.md"
+sections = ["Summary"]
+fields = ["title", "type", "created", "last_updated"]
+
+[types.location]
+description = "A place in the story: a world, region, city, building or room."
+folder = "wiki/locations"
+template = "templates/location.md"
+sections = ["Summary"]
+fields = ["title", "type", "created", "last_updated"]
+
+[types.organization]
+description = "A group in the story: a faction, family, nation, guild, church or crew."
+folder = "wiki/organizations"
+template = "templates/organization.md"
+sections = ["Summary"]
+fields = ["title", "type", "created", "last_updated"]
+
+[types.item]
+description = "An object that matters to the story: a weapon, an heirloom, a letter, a ship."
+folder = "wiki/items"
+template = "templates/item.md"
+sections = ["Summary"]
+fields = ["title", "type", "created", "last_updated"]
+
+[types.lore]
+description = "A rule of the world: a magic system, technology, religion, language, custom, species or history."
+folder = "wiki/lore"
+template = "templates/lore.md"
+hub = true                      # other pages gather around it (wiki clusters)
+sections = ["Summary"]
+fields = ["title", "type", "created", "last_updated"]
+
+[types.event]
+description = "Something that happens in the story's world, on the page or off it (backstory, history)."
+folder = "wiki/events"
+template = "templates/event.md"
+hub = true
+sections = ["Summary"]
+fields = ["title", "type", "created", "last_updated"]
+
+# The story's shape.
+[types.plotline]
+description = "The main plot, a subplot or a character arc, and the beats that advance it."
+folder = "wiki/plotlines"
+template = "templates/plotline.md"
+hub = true
+sections = ["Summary", "Beats"]
+fields = ["title", "type", "kind", "status", "created", "last_updated"]
+values = { kind = ["main", "subplot", "arc"], status = ["planned", "active", "resolved", "dropped"] }
+
+[types.thread]
+description = "A promise to the reader: foreshadowing, a mystery, a Chekhov's gun, and where it pays off."
+folder = "wiki/threads"
+template = "templates/thread.md"
+sections = ["Summary"]
+fields = ["title", "type", "status", "planted", "created", "last_updated"]
+values = { status = ["open", "paid", "dropped"] }
+
+[types.theme]
+description = "A theme or motif, and where it recurs."
+folder = "wiki/themes"
+template = "templates/theme.md"
+hub = true
+sections = ["Summary"]
+fields = ["title", "type", "created", "last_updated"]
+
+# The user's rulings and rules.
+[types.decision]
+description = "An authorial ruling: why something happens, a canon fix, a retcon; status proposed until the user approves."
+folder = "wiki/decisions"
+template = "templates/decision.md"
+sections = ["Summary", "Decision"]
+fields = ["title", "type", "status", "created", "last_updated"]
+values = { status = ["proposed", "accepted", "rejected", "superseded", "deprecated"] }
+
+[types.style]
+description = "Rules for the writing: point of view, tense, a character's voice, words to avoid."
+folder = "wiki/style"
+template = "templates/style.md"
+sections = ["Summary"]
+fields = ["title", "type", "created", "last_updated"]
+
+# Real-world research, and the wiki's own synthesis.
+[types.source]
+description = "One page per real-world research source ingested from raw/."
+folder = "wiki/sources"
+template = "templates/source.md"
+sections = ["Summary", "Key points", "Used for", "Original"]
+fields = ["title", "type", "date", "ingested", "created", "last_updated"]
+
+[types.analysis]
+description = "The wiki's own synthesis across pages: continuity, pacing, who knows what by when."
+folder = "wiki/analyses"
+template = "templates/analysis.md"
+sections = ["Summary", "Key pages"]
+fields = ["title", "type", "created", "last_updated"]
+
+# Typed relations: links under these headings (or in these fields) get a relation type,
+# and the rest of the list line becomes the reason. Every other link is `links-to`.
+[[relations]]
+heading = "Appears"
+page_type = ["scene", "chapter"]
+type = "features"
+inverse = "appears-in"
+
+[[relations]]
+heading = "Setting"
+page_type = ["scene", "chapter"]
+type = "set-in"
+inverse = "setting-of"
+
+[[relations]]
+heading = "Advances"
+page_type = ["scene", "chapter"]
+type = "advances"
+inverse = "advanced-by"
+
+[[relations]]
+heading = "Part of"
+page_type = ["scene", "location"]
+type = "part-of"
+inverse = "has-part"
+
+[[relations]]
+heading = "Developed into"
+page_type = "idea"
+type = "developed-into"
+inverse = "developed-from"
+
+[[relations]]
+heading = "Relationships"
+page_type = "character"
+type = "associated-with"
+inverse = "associated-with"
+
+[[relations]]
+heading = "Affiliations"
+page_type = "character"
+type = "member-of"
+inverse = "has-member"
+
+[[relations]]
+heading = "Members"
+page_type = "organization"
+type = "has-member"
+inverse = "member-of"
+
+[[relations]]
+heading = "Base"
+page_type = "organization"
+type = "located-at"
+inverse = "location-of"
+
+[[relations]]
+heading = "Owners"
+page_type = "item"
+type = "owned-by"
+inverse = "owns"
+
+[[relations]]
+heading = "Participants"
+page_type = "event"
+type = "involves"
+inverse = "involved-in"
+
+[[relations]]
+heading = "Location"
+page_type = "event"
+type = "located-at"
+inverse = "location-of"
+
+[[relations]]
+heading = "Beats"
+page_type = "plotline"
+type = "advanced-by"
+inverse = "advances"
+
+[[relations]]
+field = "planted"
+page_type = "thread"
+type = "planted-in"
+inverse = "plants"
+
+[[relations]]
+field = "paid_off"
+page_type = "thread"
+type = "paid-off-in"
+inverse = "pays-off"
+
+[[relations]]
+heading = "Appears in"
+page_type = "theme"
+type = "recurs-in"
+inverse = "carries"
+
+[[relations]]
+heading = "Affects"
+page_type = "decision"
+type = "decided-for"
+inverse = "decided-by"
+
+[[relations]]
+heading = "Used for"
+page_type = "source"
+type = "informs"
+inverse = "informed-by"
+
+[[relations]]
+heading = "Key pages"
+page_type = "analysis"
+type = "synthesizes"
+inverse = "synthesized-in"
+
+[[relations]]
+field = "original"
+type = "draws-on"
+inverse = "drawn-on-by"
+reason = "The original this page describes."
+
+[[relations]]
+field = "sources"
+type = "draws-on"
+inverse = "drawn-on-by"

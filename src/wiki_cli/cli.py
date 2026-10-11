@@ -585,6 +585,9 @@ _NEW_FILES = {
     ".githooks/pre-commit": "checks the wiki before each commit",
     "raw/.gitkeep": "sources go here",
     "wiki/open-questions.md": "contradictions and gaps to chase",
+    "originals/loose/.gitkeep": "your writing goes in originals/, a folder per book (loose/: no book)",
+    "templates/originals/": "Obsidian templates for your writing (Templater)",
+    ".github/hooks/wiki.json": "Copilot's hook: refuses edits to originals and sources",
 }
 
 
@@ -606,6 +609,8 @@ def _print_new(result: dict) -> None:
     descriptions = dict(_NEW_FILES)
     descriptions[CONFIG_FILENAME] = ("drafted from your pages: review it" if adopted else "settings: page types, "
                                      "relations, search")
+    if any(path.startswith("originals/") for path in result["created"]):
+        descriptions[".claude/settings.json"] = "lets Claude Code run wiki; blocks edits in raw/ and originals/"
     _print_files("Created", result["created"], descriptions)
     _print_files("Kept (already there)", result["kept"], {})
     if result["skipped"]:
@@ -646,6 +651,11 @@ def _print_new(result: dict) -> None:
                       "for the work loop with agent hooks, 'wiki connect <code-repo> --agent <name>'"))
         steps.append(("Ask your agent", "from the code repo, to document a module ('wiki guide ingest') and to sync "
                                         "the wiki after code changes ('wiki guide sync')"))
+    elif preset == "writing":
+        steps.append(("Open the folder in Obsidian", "as a vault, with Templater, Linter and Obsidian Git set up "
+                                                     "(the getting-started guide's Obsidian section)"))
+        steps.append(("Ask your agent", "to ingest an idea, scene or chapter you wrote, or to answer a question "
+                                        "about the story; 'wiki guide' lists the workflows"))
     else:
         steps.append(("Ask your agent", "to ingest a source you put in raw/, or to answer a question from the "
                                         "wiki; 'wiki guide' lists the workflows"))
@@ -671,7 +681,8 @@ def _print_files(heading: str, paths: list[str], descriptions: dict[str, str]) -
             kind = next((label for end, label in (("skills", "workflow skills"), ("commands", "slash commands"),
                                                   ("templates", "page templates")) if folder.endswith(end)), "")
             names = ", ".join(name.removesuffix(".md") for _, name in entries)
-            items.append((f"{folder}/", f"{kind}: {names}" if kind else names))
+            label = descriptions.get(f"{folder}/")
+            items.append((f"{folder}/", f"{label}: {names}" if label else f"{kind}: {names}" if kind else names))
         else:
             items += [(rel, descriptions.get(rel, "")) for rel, _ in entries]
     print("\n" + output.heading(heading))

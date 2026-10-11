@@ -29,7 +29,7 @@ DEFAULT_PRESET = "research"
 CODE_PRESET = "code"  # describes a code repo, which `wiki new` must be pointed at
 CLAUDE_PERMISSION = "Bash(wiki:*)"
 CODE_REPO_GUIDES = ("work",)  # run from the code repo, not the wiki: `wiki connect` adds their commands there
-CONTENT_FOLDERS = {"wiki", "templates", "raw"}  # a preset's pages and templates, not added to an established wiki
+CONTENT_FOLDERS = {"wiki", "templates", "raw", "originals"}  # a preset's pages and templates, not added to an established wiki
 
 
 class ScaffoldError(Exception):
