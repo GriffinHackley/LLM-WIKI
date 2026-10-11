@@ -98,7 +98,8 @@ def test_a_log_that_cannot_be_written_is_ignored(wiki, monkeypatch, capsys):
 # -- what the hook does for a configured agent ---------------------------------------------
 
 from test_code import code_repo, code_wiki, git, module_page, write  # noqa: E402,F401  (fixtures)
-from wiki_cli import sessions  # noqa: E402
+from wiki_cli import tasks  # noqa: E402
+from wiki_cli.config import load_settings  # noqa: E402
 
 
 @pytest.fixture
@@ -131,14 +132,6 @@ def test_session_start_points_at_the_wiki_and_lists_proposed_decisions(connected
     assert "- plain-lists: Results stay plain lists." in context
 
 
-def test_session_start_twice_notes_the_changed_files_once(connected, code_wiki, monkeypatch, capsys):
-    write(connected, "src/app/nav.py", "changed\n")
-    reply(monkeypatch, capsys, "SessionStart", "claude-code", claude("SessionStart"))
-    write(connected, "src/app/search.py", "changed too\n")
-    reply(monkeypatch, capsys, "SessionStart", "claude-code", claude("SessionStart", source="resume"))
-    assert sessions.load(code_wiki.resolve(), "s1")["changed_at_start"] == [".wiki-cli.toml", "src/app/nav.py"]
-
-
 def test_git_commit_is_denied_and_wiki_finish_asks(connected, monkeypatch, capsys):
     for command in ("git commit -m x", "cd src; git -C .. commit -am 'x'", "git.exe --no-pager commit"):
         out = reply(monkeypatch, capsys, "PreToolUse", "claude-code",
@@ -146,13 +139,18 @@ def test_git_commit_is_denied_and_wiki_finish_asks(connected, monkeypatch, capsy
         assert out["hookSpecificOutput"]["permissionDecision"] == "deny", command
     out = reply(monkeypatch, capsys, "preToolUse", "copilot",
                 {"sessionId": "c1", "timestamp": 1, "toolName": "bash", "toolArgs": {"command": "wiki finish"}})
-    assert out == {"permissionDecision": "ask", "permissionDecisionReason": hook.FINISH_ASK}
+    assert out["permissionDecision"] == "ask" and "no task is open" in out["permissionDecisionReason"]
     for command in ("git status", "git log --grep commit", "echo wiki finished"):
         assert reply(monkeypatch, capsys, "PreToolUse", "claude-code",
                      claude("PreToolUse", tool_name="Bash", tool_input={"command": command})) is None, command
 
 
+def open_task(code_repo, session):
+    return tasks.start(load_settings(code_repo), "Fix search", session)
+
+
 def test_claude_code_sees_a_files_notes_before_its_first_edit_only(connected, monkeypatch, capsys):
+    open_task(connected, "s1")
     path = str(connected / "src/app/search.py").lower()  # Claude Code sends c:\... on Windows
     edit = claude("PreToolUse", tool_name="Edit", tool_input={"file_path": path})
     context = reply(monkeypatch, capsys, "PreToolUse", "claude-code", edit)["hookSpecificOutput"]["additionalContext"]
@@ -164,12 +162,13 @@ def test_claude_code_sees_a_files_notes_before_its_first_edit_only(connected, mo
 
 
 def test_copilot_sees_notes_after_the_tool_and_edits_are_recorded(connected, code_wiki, monkeypatch, capsys):
+    open_task(connected, "c1")
     payload = {"sessionId": "c1", "timestamp": 1, "toolName": "edit", "toolArgs": {"path": "src/app/search.py"}}
     assert reply(monkeypatch, capsys, "preToolUse", "copilot", payload) is None
     assert "Wiki notes on src/app/search.py" in reply(monkeypatch, capsys, "postToolUse", "copilot",
                                                       payload)["additionalContext"]
     reply(monkeypatch, capsys, "postToolUse", "copilot", payload)
-    edited = sessions.load(code_wiki.resolve(), "c1")["edited"]
+    edited = tasks.load(load_settings(connected)).edited
     assert edited == [(connected / "src/app/search.py").resolve().as_posix()]
 
 

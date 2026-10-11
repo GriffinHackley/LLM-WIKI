@@ -17,6 +17,7 @@ from pathlib import Path, PurePosixPath
 from wiki_cli.config import CONFIG_FILENAME, Settings
 
 CODE_PREFIX = "code:"
+PENDING = "pending"  # `verified:` of a page checked in a task not committed yet (tasks.py)
 PART_OF = "part-of"  # the relation a file or nested module names its module with (code preset)
 
 
@@ -81,9 +82,30 @@ def pathspecs(globs: list[str]) -> list[str]:
 
 
 def matching_files(path: Path, globs: list[str]) -> list[str]:
-    """Tracked files in the code repo matching any of ``globs``."""
+    """Files in the code repo matching any of ``globs``: tracked ones, and new ones not
+    ignored (a task's new files, before `wiki finish` commits them)."""
     specs = pathspecs(globs)
-    return git(path, "ls-files", "--", *specs).splitlines() if specs else []
+    if not specs:
+        return []
+    return git(path, "ls-files", "--cached", "--others", "--exclude-standard", "--", *specs).splitlines()
+
+
+def changed_files(path: Path) -> set[str]:
+    """Files with changes in the working tree or the index, untracked ones included (not
+    ignored ones), relative to the repository's top; a rename gives both names."""
+    names = set()
+    entries = git(path, "status", "--porcelain=v1", "-z", "--untracked-files=all").split("\0")
+    index = 0
+    while index < len(entries):
+        entry = entries[index]
+        index += 1
+        if len(entry) < 4:
+            continue
+        names.add(entry[3:])
+        if entry[0] in "RC":  # the next entry is the name it was renamed or copied from
+            names.add(entries[index])
+            index += 1
+    return names
 
 
 def exists(path: Path, rel: str) -> bool:
@@ -108,6 +130,8 @@ def staleness(path: Path, slug: str, rel: str, covers: list[str], verified: str 
     specs = pathspecs(covers)
     if not specs:
         return result
+    if verified and verified.lower() == PENDING:
+        return result  # checked in the open task; `wiki finish` sets the commit
     if verified:
         try:
             git(path, "cat-file", "-e", f"{verified}^{{commit}}")

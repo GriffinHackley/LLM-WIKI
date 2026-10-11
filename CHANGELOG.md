@@ -40,6 +40,20 @@
   stop for approval of the work; then `wiki finish`. It is not written as a slash command
   into the wiki's own folder, since it runs from the code repo.
 - `wiki check` warns (`decision-proposed`) on a decision page still waiting for approval.
+- One task at a time on the code. `wiki task start "<title>"` opens a task, held by the
+  agent session that ran it (its hook names the session; `--session` for a person);
+  `wiki task takeover` moves it to another session, after a restart; `wiki task cancel`
+  closes it, committing nothing; `wiki task status` shows it. With no task open, or one
+  held by another session, the hooks refuse edits to files in the code repo and the wiki.
+  Starting, taking over and cancelling ask the user first.
+- `wiki finish -m "<message>"` ends the task: it commits exactly the files the task edited
+  in the code repo, sets `verified:` on each page the task checked (`"pending"`) to that
+  commit, and commits the wiki with the same message plus `Code: <commit>`. Other changes
+  in the code repo are left out and listed (`--include <path>` adds one). It refuses
+  while a page covering a changed file is unchecked, or a changed page has errors;
+  `--dry-run` shows the plan. The hook asks the user before it runs, showing the files.
+- `wiki stale` and `wiki check` accept `verified: "pending"`, and `covers:` match new files
+  not yet committed.
 
 **Start a wiki**
 - A code wiki can be a folder inside the code's repository (`wiki new docs/wiki --preset

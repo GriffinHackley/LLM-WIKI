@@ -34,6 +34,7 @@ from wiki_cli import (
     records,
     scaffold,
     sources,
+    tasks,
     vecmap,
     weekly,
 )
@@ -103,7 +104,8 @@ def _print_error(message: str) -> None:
 
 
 COMMAND_ORDER = ("new", "init", "guide", "search", "nav", "list", "neighbors", "suggest", "check", "unwritten",
-                 "orphans", "clusters", "map", "pending", "stale", "covering", "weekly", "precommit", "hook", "index",
+                 "orphans", "clusters", "map", "pending", "stale", "covering", "task", "finish", "weekly", "precommit",
+                 "hook", "index",
                  "models", "vocab", "eval")
 
 
@@ -230,6 +232,31 @@ def build_parser() -> argparse.ArgumentParser:
     check.add_argument("--summary-ok", action="store_true",
                        help="record that the page's summary still fits its body (clears summary-stale)")
     check.set_defaults(handler=cmd_check)
+
+    task_commands = commands.add_parser(
+        "task", help="the one open task on the code: start it, take it over, cancel it, or see it").add_subparsers(
+        title="task commands", metavar="<command>")
+    task_status = task_commands.add_parser("status", parents=[common], help="the open task, and what it would commit")
+    task_status.set_defaults(handler=cmd_task_status)
+    task_start = task_commands.add_parser("start", parents=[common],
+                                          help="open a task, held by the agent session that runs it")
+    task_start.add_argument("title", help="a short title for the task")
+    task_start.add_argument("--session", help="the session to hold it (default: the one whose hook asked)")
+    task_start.set_defaults(handler=cmd_task_start)
+    task_takeover = task_commands.add_parser("takeover", parents=[common], help="move the open task to this session")
+    task_takeover.add_argument("--session", help="the session to hold it (default: the one whose hook asked)")
+    task_takeover.set_defaults(handler=cmd_task_takeover)
+    task_commands.add_parser("cancel", parents=[common], help="close the open task without committing").set_defaults(
+        handler=cmd_task_cancel)
+
+    finish_parser = commands.add_parser(
+        "finish", parents=[common],
+        help="end the open task: commit the files it edited in the code repo, then the wiki pages")
+    finish_parser.add_argument("-m", "--message", required=True, help="the commit message the user approved")
+    finish_parser.add_argument("--include", action="append", default=[], metavar="path",
+                               help="also commit this changed code file the task did not edit; repeatable")
+    finish_parser.add_argument("--dry-run", action="store_true", help="show what it would commit, and stop")
+    finish_parser.set_defaults(handler=cmd_finish)
 
     index = commands.add_parser("index", help="manage the derived cache").add_subparsers(title="index commands", metavar="<command>")
     for name, handler, help_text in (
@@ -860,6 +887,84 @@ def cmd_hook(args: argparse.Namespace) -> int:
 
 def _hook_say(message: str) -> None:
     print(f"pre-commit: {message}", file=sys.stderr)
+
+
+def cmd_task_status(args: argparse.Namespace, settings: Settings) -> int:
+    task = tasks.load(settings)
+    if task is None:
+        if args.format == "json":
+            _print_json({"task": None})
+        else:
+            print("No task is open.")
+        return EXIT_OK
+    try:
+        plan = tasks.plan(settings)
+    except (tasks.TaskError, codebase.CodeRepoError) as exc:
+        raise UsageError(str(exc)) from exc
+    if args.format == "json":
+        _print_json(plan.to_dict())
+    else:
+        print(tasks.plan_text(plan))
+    return EXIT_OK
+
+
+def cmd_task_start(args: argparse.Namespace, settings: Settings) -> int:
+    try:
+        task = tasks.start(settings, args.title, args.session or tasks.handed_session(settings, "start"))
+    except (tasks.TaskError, codebase.CodeRepoError) as exc:
+        raise UsageError(str(exc)) from exc
+    return _task_said(args, task, "Started the task")
+
+
+def cmd_task_takeover(args: argparse.Namespace, settings: Settings) -> int:
+    try:
+        task = tasks.takeover(settings, args.session or tasks.handed_session(settings, "takeover"))
+    except tasks.TaskError as exc:
+        raise UsageError(str(exc)) from exc
+    return _task_said(args, task, "This session now holds the task")
+
+
+def cmd_task_cancel(args: argparse.Namespace, settings: Settings) -> int:
+    try:
+        task = tasks.cancel(settings)
+    except tasks.TaskError as exc:
+        raise UsageError(str(exc)) from exc
+    return _task_said(args, task, "Cancelled the task, committing nothing; its changes stay in the working tree:")
+
+
+def _task_said(args: argparse.Namespace, task, what: str) -> int:
+    if args.format == "json":
+        _print_json({"task": task.to_dict()})
+    else:
+        print(f"{what} {tasks.describe(task)}")
+    return EXIT_OK
+
+
+def cmd_finish(args: argparse.Namespace, settings: Settings) -> int:
+    try:
+        if args.dry_run:
+            plan = tasks.plan(settings, args.include)
+            if args.format == "json":
+                _print_json(plan.to_dict())
+            else:
+                print(tasks.plan_text(plan))
+            return EXIT_INVALID if plan.problems else EXIT_OK
+        result = tasks.finish(settings, args.message, args.include)
+    except (tasks.TaskError, codebase.CodeRepoError) as exc:
+        raise UsageError(str(exc)) from exc
+    if args.format == "json":
+        _print_json(result)
+        return EXIT_OK
+    if result["code_commit"]:
+        print(f"Committed the code: {result['code_commit'][:12]} ({output.plural(len(result['code']), 'file')})")
+    if result["verified"]:
+        print(f"Set verified: on {output.plural(len(result['verified']), 'page')}")
+    if result["wiki_commit"]:
+        print(f"Committed the wiki: {result['wiki_commit'][:12]} ({output.plural(len(result['wiki']), 'file')})")
+    if result["left_out"]:
+        print("Left out, changed but not by this task: " + ", ".join(result["left_out"]))
+    print(f"The task \"{result['task']}\" is finished.")
+    return EXIT_OK
 
 
 def cmd_covering(args: argparse.Namespace, settings: Settings) -> int:

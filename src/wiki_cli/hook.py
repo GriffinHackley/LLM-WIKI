@@ -2,20 +2,22 @@
 
 What it does, for an agent the code repo's config names in `agents`:
 
-- at session start, tells the agent where the wiki is, how to work with it, and which
-  decisions wait for the user's approval; and notes which files were already changed, so
-  the end-of-task commit can tell them from the task's own;
+- at session start, tells the agent where the wiki is, how to work with it, which task is
+  open, and which decisions wait for the user's approval;
 - shows the wiki's notes on a file the first time the session touches it (`wiki covering`):
   before an edit and after a read where the agent can show text before a tool runs, after
   either where it cannot;
-- records each file the session edits, for the end-of-task commit;
-- refuses `git commit`, and asks the user before `wiki finish`, which commits the task.
+- refuses edits to the code and the wiki unless this session holds the open task, and
+  records each file the task edits, for the end-of-task commit (tasks.py);
+- refuses `git commit`, and asks the user before `wiki task start|takeover|cancel` and
+  `wiki finish`, showing what `wiki finish` will commit.
 
 `--log` also records each call as it arrived, to learn an agent's real tool names and
 payload fields.
 
-A hook must never get in the agent's way: Copilot denies a tool call when its pre-tool hook
-exits with an error, so everything here fails quietly and the command always exits 0.
+A hook must never get in the agent's way by failing: Copilot denies a tool call when its
+pre-tool hook exits with an error, so everything here fails quietly and the command always
+exits 0. It refuses a tool call only by its reply.
 """
 
 from __future__ import annotations
@@ -27,7 +29,7 @@ import re
 from pathlib import Path
 from typing import Any, Callable
 
-from wiki_cli import agents, codebase, covering, sessions
+from wiki_cli import agents, covering, tasks
 from wiki_cli.agents import AFTER_TOOL, BEFORE_TOOL, EDIT, READ, SESSION_START, SHELL, Event, Reply
 from wiki_cli.cache import Cache
 from wiki_cli.config import Settings
@@ -38,10 +40,15 @@ MAX_TEXT = 300  # characters of each string kept in the log: enough to name a to
 _COMMAND_START = r"(?:^|[\s;&|(`{])"
 GIT_COMMIT = re.compile(_COMMAND_START + r"git(?:\.exe)?\s+(?:-[cC]\s+\S+\s+|--?[\w-]+(?:=\S+)?\s+)*commit\b")
 WIKI_FINISH = re.compile(_COMMAND_START + r"wiki(?:\.exe)?\s+finish\b")
+WIKI_TASK = re.compile(_COMMAND_START + r"wiki(?:\.exe)?\s+task\s+(start|takeover|cancel)\b")
 
 COMMIT_DENIED = ("Commits are not made during a task. When the work is done and the user has approved it, "
                  "run `wiki finish`: it commits the code, then the wiki.")
-FINISH_ASK = "`wiki finish` commits this task: the code first, then the wiki pages. Approve if the work is done."
+TASK_ASK = {
+    "start": "Opens the task, so this session may change the code and the wiki. Approve if you approved its plan.",
+    "takeover": "Moves the open task to this session, which then holds it. Approve if this session carries it on.",
+    "cancel": "Closes the open task without committing anything; its changes stay in the working tree.",
+}
 
 
 def run(event_name: str, agent_name: str | None, stdin_text: str, *, log: bool,
@@ -75,22 +82,46 @@ def run(event_name: str, agent_name: str | None, stdin_text: str, *, log: bool,
 def respond(settings: Settings, agent: agents.Agent, event: Event) -> Reply | None:
     cwd = Path(event.cwd) if event.cwd else Path.cwd()
     if event.kind == SESSION_START:
-        if event.session:
-            _note_changed_files(settings, event.session)
-        return Reply(context=session_start_text(settings, cwd))
+        return Reply(context=session_start_text(settings, cwd, event.session))
     if event.kind == BEFORE_TOOL and event.tool == SHELL and event.command:
-        if GIT_COMMIT.search(event.command):
-            return Reply(decision="deny", reason=COMMIT_DENIED)
-        if WIKI_FINISH.search(event.command):
-            return Reply(decision="ask", reason=FINISH_ASK)
-        return None
-    if event.kind == AFTER_TOOL and event.tool == EDIT and event.session:
-        _record_edits(settings, event.session, event.paths, cwd)
-    if event.tool in (READ, EDIT) and event.paths and _shows_notes(agent, event):
-        results = covering.lookup(settings, list(event.paths), cwd=cwd, session=event.session)
+        return _shell(settings, event)
+    paths = [_absolute(given, cwd) for given in event.paths]
+    if event.kind == BEFORE_TOOL and event.tool == EDIT:
+        refusals = [why for path in paths if (why := tasks.edit_refusal(settings, event.session, path))]
+        if refusals:
+            return Reply(decision="deny", reason=refusals[0])
+    if event.kind == AFTER_TOOL and event.tool == EDIT:
+        for path in paths:
+            tasks.record_edit(settings, event.session, path)
+    if event.tool in (READ, EDIT) and paths and _shows_notes(agent, event):
+        results = covering.lookup(settings, [str(path) for path in paths], cwd=cwd, session=event.session)
         notes = covering.text(results, settings.root, cwd, quiet=True)
         return Reply(context=notes) if notes else None
     return None
+
+
+def _shell(settings: Settings, event: Event) -> Reply | None:
+    command = event.command or ""
+    if GIT_COMMIT.search(command):
+        return Reply(decision="deny", reason=COMMIT_DENIED)
+    if WIKI_FINISH.search(command):
+        try:
+            text = tasks.plan_text(tasks.plan(settings))
+        except tasks.TaskError as exc:
+            text = str(exc)
+        return Reply(decision="ask", reason="`wiki finish` commits the task's files, the code then the wiki.\n"
+                                            + text)
+    match = WIKI_TASK.search(command)
+    if match:
+        if event.session and match.group(1) in ("start", "takeover"):
+            tasks.hand_off(settings, event.session, match.group(1))
+        return Reply(decision="ask", reason=TASK_ASK[match.group(1)])
+    return None
+
+
+def _absolute(given: str, cwd: Path) -> Path:
+    path = Path(given) if Path(given).is_absolute() else cwd / given
+    return path.resolve() if path.exists() else Path(os.path.normpath(path))
 
 
 def _shows_notes(agent: agents.Agent, event: Event) -> bool:
@@ -101,7 +132,7 @@ def _shows_notes(agent: agents.Agent, event: Event) -> bool:
     return event.kind == AFTER_TOOL
 
 
-def session_start_text(settings: Settings, cwd: Path) -> str:
+def session_start_text(settings: Settings, cwd: Path, session: str | None = None) -> str:
     lines = [
         f"This code has an LLM-maintained wiki at {covering.display_path(settings.root, cwd)} "
         "(`wiki` commands find it from here). Work through `wiki guide work`: it says how to "
@@ -110,6 +141,15 @@ def session_start_text(settings: Settings, cwd: Path) -> str:
         "Never run `git commit` yourself: at the end of a task, once the user approves it, "
         "`wiki finish` commits the code and then the wiki.",
     ]
+    task = tasks.load(settings)
+    if task is None:
+        lines.append("No task is open: files in the code repo and the wiki can't be changed until the user "
+                     "approves a plan and you run `wiki task start`.")
+    elif session is not None and task.session == session:
+        lines.append(f"This session holds the open task {tasks.describe(task)}.")
+    else:
+        lines.append(f"Another session holds the open task {tasks.describe(task)}: edits here are refused "
+                     "until it is finished, or this session takes it over (`wiki task takeover`).")
     proposed = proposed_decisions(settings)
     if proposed:
         lines.append("Decisions waiting for the user's approval (status: proposed):")
@@ -124,36 +164,6 @@ def proposed_decisions(settings: Settings) -> list[tuple[str, str | None]]:
             "SELECT pages.slug, pages.summary FROM page_values JOIN pages ON pages.path = page_values.path "
             "WHERE page_values.field = 'status' AND lower(page_values.value) = 'proposed' "
             "AND pages.page_type = 'decision' ORDER BY pages.slug").fetchall()
-
-
-def _note_changed_files(settings: Settings, session: str) -> None:
-    """The code repo's changed files when the session started, once: session start can
-    fire twice, and a resumed session keeps what it noted first."""
-    data = sessions.load(settings.root, session)
-    if "changed_at_start" in data:
-        return
-    try:
-        status = codebase.git(settings.code_repo, "status", "--porcelain", "--untracked-files=all")
-    except codebase.CodeRepoError:
-        return
-    data["changed_at_start"] = sorted({line[3:].strip('"') for line in status.splitlines() if len(line) > 3})
-    data.setdefault("started", datetime.datetime.now().astimezone().isoformat(timespec="seconds"))
-    sessions.save(settings.root, session, data)
-
-
-def _record_edits(settings: Settings, session: str, paths: tuple[str, ...], cwd: Path) -> None:
-    data = sessions.load(settings.root, session)
-    edited = list(data.get("edited", []))
-    known = {item.lower() for item in edited}
-    for given in paths:
-        path = Path(given) if Path(given).is_absolute() else cwd / given
-        full = (path.resolve() if path.exists() else Path(os.path.normpath(path))).as_posix()
-        if full.lower() not in known:
-            edited.append(full)
-            known.add(full.lower())
-    if edited != data.get("edited"):
-        data["edited"] = edited
-        sessions.save(settings.root, session, data)
 
 
 def _parse(stdin_text: str) -> Any:
