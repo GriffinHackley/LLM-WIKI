@@ -743,6 +743,189 @@ one thing a list could not: one subject's hundred or so pages as an island well 
 the note on stderr, `fallback_reason` in JSON and the reason in the page header;
 `--method umap` exits 2. 343 tests pass.
 
+## Phase 15: `writing` preset
+
+A preset for story writing: the user writes ideas, scenes and chapters in Obsidian, and
+the agent builds a wiki of the stories' characters, places, plotlines and threads from
+them. The user's writing is never touched by the agent; everything the agent knows about
+a piece lives in the wiki.
+
+### Layout
+
+One git repo, which is also the user's Obsidian vault:
+
+```
+my-stories/
+  originals/                       the user's writing; the agent only reads it
+    the-salt-road/                 one folder per book
+      01-arrival.md                a chapter in one file
+      02-the-crossing/
+        chapter.md                 a chapter made of scenes
+        01-departure.md
+        02-storm.md
+      ideas/
+        a-drowned-bell.md
+    loose/                         ideas and scenes not tied to a book
+  raw/                             real-world research, as in the research preset
+  wiki/                            the agent's pages
+  templates/                       wiki page templates
+  templates/originals/             Obsidian templates for originals
+```
+
+- **Originals** are the user's pages. Their frontmatter is only what the Obsidian
+  templates fill in: `kind:` (idea, scene or chapter), `created:` and `last_updated:`.
+  The agent never edits, moves or deletes them.
+- **Book** comes from the folder: `originals/<book>/…`, and `originals/loose/` means no
+  book. **Order** comes from the number at the front of a file or folder name. A folder
+  with a `chapter.md` is a chapter of scenes; the scene files in it belong to it.
+- **One repo, not a connected code repo.** `[[links]]` between wiki pages and originals
+  work in Obsidian, one Obsidian Git commits everything, and none of `wiki connect`'s
+  pointer, hooks or tasks are needed. No `wiki task`, no `wiki finish`.
+
+### Config: `[originals]`
+
+```toml
+[originals]
+folder = "originals"
+loose = "loose"                         # the folder of pieces with no book
+kinds = ["idea", "scene", "chapter"]
+fields = ["kind", "created", "last_updated"]
+```
+
+- The originals folder counts as a raw folder: `wiki pending` lists its files, a page
+  links one as `[[originals/the-salt-road/02-storm.md]]` or in frontmatter
+  (`original:`), search covers it with `--include-raw`, and `wiki new --agent claude`
+  writes the `Edit(/originals/**)` deny rule as it does for `raw/`.
+- Unlike `raw/`, the user edits originals, so the pre-commit hook does not refuse changes
+  under the originals folder.
+- `wiki check` warns on an original missing one of `fields` (`original-missing-field`) or
+  with a `kind:` not in `kinds` (`original-bad-kind`): a file made outside Obsidian gets
+  no template. It reports; the user fixes it.
+
+### Page types
+
+| Type | What it is | Link sections -> relation |
+|---|---|---|
+| `idea` | The wiki page for an idea in `originals/`: what it is, what it might become | `## Developed into` -> `developed-into` |
+| `scene` | The wiki page for a scene: summary, POV, what it reveals, what it sets up | `## Part of` -> `part-of`; `## Appears` -> `features`; `## Setting` -> `set-in`; `## Advances` -> `advances` |
+| `chapter` | The wiki page for a chapter: the same, or an overview of its scenes | `## Appears` -> `features`; `## Setting` -> `set-in`; `## Advances` -> `advances` |
+| `character` | A person or being in the story: role, wants, arc, voice, appearance | `## Relationships` -> `associated-with`; `## Affiliations` -> `member-of` |
+| `location` | A world, region, city, building or room | `## Part of` -> `part-of` |
+| `organization` | A faction, family, nation, guild, church or crew | `## Members` -> `has-member`; `## Base` -> `located-at` |
+| `item` | An object that matters | `## Owners` -> `owned-by` |
+| `lore` | A rule of the world: magic, technology, religion, language, custom, species, history (hub) | |
+| `event` | Something that happens in the story's world, on or off the page (hub) | `## Participants` -> `involves`; `## Location` -> `located-at` |
+| `plotline` | The main plot, a subplot or a character arc; `kind:` main, subplot or arc; `status:` planned, active, resolved or dropped (hub) | `## Beats` -> `advanced-by` |
+| `thread` | A promise to the reader: foreshadowing, a mystery, a Chekhov's gun; `status:` open, paid or dropped | `planted:` -> `planted-in`; `paid_off:` -> `paid-off-in` |
+| `theme` | A theme or motif, and where it recurs (hub) | `## Appears in` -> `recurs-in` |
+| `decision` | An authorial ruling: why X dies, a canon fix, a retcon; `status:` as in the code preset | `## Affects` -> `decided-for` |
+| `style` | Rules for the writing: POV, tense, each character's voice, words to avoid | |
+| `source` | Real-world research ingested from `raw/` | `## Used for` -> `informs` |
+| `analysis` | Synthesis across pages: continuity, pacing, who knows what by when | `## Key pages` -> `synthesizes` |
+
+- The pages for originals (`idea`, `scene`, `chapter`) name their file in `original:`
+  (`draws-on`), and are named `<book>-<file stem>` (`the-salt-road-02-storm`), so two
+  books' `01-arrival.md` do not collide. Other pages cite facts to them inline:
+  `…she cannot swim ([[the-salt-road-02-storm]])`. A fact that is only planned, not yet
+  written, says so (`(planned)`), so the agent never treats an outline as canon.
+- Every page has `created:` and `last_updated:`, set by the agent; `wiki check` warns
+  when either is missing.
+- Page folders stay one per type (`wiki/characters/`); the book is the `book:` field.
+  Names that clash across books get the book as a suffix (`mara-salt-road`).
+- `wiki/open-questions.md` holds continuity conflicts and gaps.
+
+### Books as groups
+
+- `[groups] fields = ["book"]`. A page names one book, several, or none (the field left
+  off, for a loose idea and what grew from it). `wiki clusters --group the-salt-road` and
+  `wiki map --group the-salt-road` show one book.
+- **`--ungrouped`** on `wiki clusters` and `wiki map`: the pages whose group fields name
+  nothing. Works in any wiki with `[groups]`.
+- **`[groups] exclusive = true`**: `wiki check` warns when a page links a page whose
+  groups share none of its own (`cross-group-link`); a page with no group may link
+  anything. The writing preset turns it on, since its books are separate stories.
+- When an idea moves into a book's folder, the next ingest sets `book:` on its page and
+  on the pages that grew from it.
+
+### Changed originals: `wiki pending`
+
+Originals change after they are ingested, which sources in `raw/` never do.
+
+- Ingest records `ingested:` and `original_hash:` on the original's page: a hash of the
+  file with the `[originals] fields` timestamp lines (`created`, `last_updated`) left out,
+  so a bump from Obsidian alone does not count as a change.
+- `wiki pending` lists an original with no page linking it (as today), and one whose
+  current hash differs from its page's `original_hash:`, marked `changed`.
+- `wiki check` warns on a page whose `original:` file no longer exists (renamed outside
+  Obsidian, or deleted).
+
+### Ingest, and `wiki commit`
+
+The ingest guide's writing variant, run when the user asks for an original (or a research
+source) to be ingested, one at a time:
+
+1. Read the original in full; its book from its folder.
+2. Write or update its page (`idea`, `scene` or `chapter`): summary, POV, who appears,
+   where, which plotlines it advances, which threads it plants or pays off, with
+   `original:`, `book:`, `ingested:` and `original_hash:` (`wiki pending --hash <file>`
+   prints it).
+3. Create or update the character, location, plotline, thread and other pages it touches,
+   citing it inline.
+4. File contradictions with earlier originals in `open-questions.md`.
+5. `wiki check` the pages it touched.
+6. **`wiki commit "ingest: the-salt-road/02-storm"`** commits every change outside the
+   raw and originals folders, so the user's writing in progress never goes into an
+   ingest commit. It waits and retries when git's index is locked (Obsidian Git
+   committing at the same moment). A generic command, usable in any wiki.
+
+Re-ingesting a changed original updates its page, then rechecks the facts that cite it.
+
+Other guides: `query` as the research preset's, citing originals; `lint` adds a
+continuity check: open threads with nothing planted after them, contradictions between
+originals, characters who stop appearing, plotlines with no recent beat, pages for
+originals that changed (`wiki pending`).
+
+### The user's side: Obsidian
+
+Shipped as `templates/originals/{idea,scene,chapter}.md` and a section of the
+getting-started doc; the tool does not install or configure plugins.
+
+- **Templater**, with folder templates on `originals/`: `kind:` from the template,
+  `created: <% tp.file.creation_date("YYYY-MM-DD") %>`.
+- **Linter**, with the YAML timestamp rule on save, for `last_updated:`. Templates fill
+  values in once and never update them; file times are reset by a clone or checkout.
+- **Obsidian Git**, auto-commit (and optionally push) every N minutes. It commits the
+  whole vault, the agent's uncommitted wiki edits included; nothing is lost if one lands
+  mid-ingest, that ingest is only split across two commits.
+- "Automatically update internal links" on, so renaming an original rewrites the wiki's
+  links to it.
+
+### Agent rules
+
+- `AGENTS.md` says the originals folder is the user's, to read and never change.
+- Claude: the `Edit(/originals/**)` deny rule. Other agents with hooks: `wiki hook`
+  refuses an edit under a raw or originals folder in any wiki whose config names the
+  agent, not only a connected code repo (today it does nothing without `[code]`).
+
+### Steps
+
+1. `[originals]` config: the folder as a raw folder, no pre-commit refusal there,
+   `original-missing-field` and `original-bad-kind`.
+2. `wiki pending`: `original_hash:`, `changed` originals, `--hash <file>`; the
+   missing-original warning.
+3. Groups: `--ungrouped` on clusters and map, `[groups] exclusive` and
+   `cross-group-link`.
+4. `wiki commit`: everything outside the raw and originals folders, retry on a locked index.
+5. `wiki hook` refuses edits under raw and originals folders without a code repo.
+6. The preset: config, `AGENTS.md`, wiki templates, Obsidian templates,
+   `open-questions.md`, `agents-section.md`.
+7. Guides: writing variants of `ingest`, `query`, `lint`.
+8. Docs (presets, config, getting-started's Obsidian section), CHANGELOG.
+9. Dry run: a scratch vault with two books and a loose idea; ingest a chapter, a scene
+   and the idea, revise the scene and re-ingest it, move the idea into a book; check
+   `wiki pending`, `--group` and `--ungrouped`, `cross-group-link`, and that the deny
+   rule stops an edit to an original.
+
 ## Open decisions
 
 - None yet.
