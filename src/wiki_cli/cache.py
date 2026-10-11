@@ -143,7 +143,11 @@ class Cache:
             conn.execute("PRAGMA journal_mode=WAL")
             conn.execute("PRAGMA synchronous=NORMAL")
         conn.execute("PRAGMA busy_timeout=30000")
-        vec.load(conn)
+        try:
+            vec.load(conn)
+        except vec.ExtensionsUnsupported as exc:
+            conn.close()
+            raise CacheUnavailable(str(exc)) from None
         return conn
 
     def _ensure_schema(self) -> None:

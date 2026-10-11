@@ -74,6 +74,11 @@ def fake_models(monkeypatch):
     monkeypatch.setenv("WIKI_RERANKER", "fake:overlap")
     for name in ("WIKI_ROOT", "WIKI_CONFIG", "WIKI_CACHE", "WIKI_MODELS_DIR"):
         monkeypatch.delenv(name, raising=False)
+    # Commits made by the tool under test need an identity; CI runners have none.
+    for name in ("GIT_AUTHOR_NAME", "GIT_COMMITTER_NAME"):
+        monkeypatch.setenv(name, "t")
+    for name in ("GIT_AUTHOR_EMAIL", "GIT_COMMITTER_EMAIL"):
+        monkeypatch.setenv(name, "t@t")
 
 
 @pytest.fixture

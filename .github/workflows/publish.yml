@@ -1,12 +1,17 @@
 name: Publish
 
-# Publishes to PyPI when a version tag (v0.2.0, ...) is pushed. Needs, once: the
+# Publishes to PyPI when a version tag (v0.3.0, ...) is pushed. Needs, once: the
 # "llm-wiki-cli" project on PyPI set up for trusted publishing from this repository's
 # "pypi" environment (no token stored here). Nothing is published unless the tests pass
 # on every OS, the tag matches the package version, and the built wheel installs and runs.
 on:
   push:
     tags: ["v*"]
+
+# uv's own Python everywhere: some system Pythons (python.org's macOS builds, the macOS
+# runner's) cannot load SQLite extensions, which search needs.
+env:
+  UV_MANAGED_PYTHON: "1"
 
 jobs:
   test:

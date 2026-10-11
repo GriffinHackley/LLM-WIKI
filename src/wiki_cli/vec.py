@@ -21,7 +21,16 @@ def _extension_path() -> str:
     return os.path.join(spec.submodule_search_locations[0], "vec0")
 
 
+class ExtensionsUnsupported(Exception):
+    """This Python's sqlite3 cannot load extensions, so sqlite-vec cannot run."""
+
+
 def load(conn: sqlite3.Connection) -> None:
+    # The python.org macOS builds (and Pythons built like them) leave extension loading out.
+    if not hasattr(conn, "enable_load_extension"):
+        raise ExtensionsUnsupported(
+            "this Python's sqlite3 cannot load extensions, which the search index needs; "
+            "reinstall with uv's own Python: uv tool install --managed-python --reinstall llm-wiki-cli")
     conn.enable_load_extension(True)
     try:
         conn.load_extension(_extension_path())

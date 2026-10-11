@@ -53,6 +53,10 @@ a release, install from git instead:
 `uv tool install git+https://github.com/GriffinHackley/LLM-WIKI`. If you installed an
 earlier version named `wiki-cli`, remove it first: `uv tool uninstall wiki-cli`.
 
+If `wiki` says this Python's sqlite3 cannot load extensions (the python.org installers for
+macOS are built that way), reinstall it on uv's own Python:
+`uv tool install --managed-python --reinstall llm-wiki-cli`.
+
 To work on the tool itself, clone the repository and run `uv tool install --editable .`
 in it: the command then follows your checkout.
 

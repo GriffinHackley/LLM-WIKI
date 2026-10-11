@@ -4,6 +4,11 @@ on:
   push:
   pull_request:
 
+# uv's own Python everywhere: some system Pythons (python.org's macOS builds, the macOS
+# runner's) cannot load SQLite extensions, which search needs.
+env:
+  UV_MANAGED_PYTHON: "1"
+
 jobs:
   test:
     strategy:

@@ -104,6 +104,24 @@ def test_incremental_refresh(graph):
     assert (stats.added, stats.changed, stats.removed, stats.moved) == (2, 1, 1, 1)
 
 
+def test_python_without_extension_loading_names_the_fix(graph, monkeypatch):
+    class NoExtensions:
+        """A connection like the python.org macOS builds give: no enable_load_extension."""
+
+        def __init__(self, conn):
+            self._conn = conn
+
+        def __getattr__(self, name):
+            if name == "enable_load_extension":
+                raise AttributeError(name)
+            return getattr(self._conn, name)
+
+    connect = sqlite3.connect
+    monkeypatch.setattr(cache_module.sqlite3, "connect", lambda *a, **k: NoExtensions(connect(*a, **k)))
+    with pytest.raises(CacheUnavailable, match="--managed-python"):
+        Cache(graph.settings())
+
+
 def test_touched_file_is_not_reparsed(graph, monkeypatch):
     with Cache(graph.settings()) as cache:
         cache.refresh()
