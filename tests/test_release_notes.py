@@ -8,6 +8,8 @@ from pathlib import Path
 import pytest
 
 SCRIPT = Path(__file__).resolve().parent.parent / ".github" / "release_notes.py"
+if not SCRIPT.is_file():  # the sdist ships the tests without .github/
+    pytest.skip(".github/ is not here", allow_module_level=True)
 spec = importlib.util.spec_from_file_location("release_notes", SCRIPT)
 release_notes = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(release_notes)

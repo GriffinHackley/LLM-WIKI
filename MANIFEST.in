@@ -1,0 +1,6 @@
+# The sdist carries everything its tests need: conftest.py and the fixtures beside the
+# tests, and the docs the docs tests check.
+include CHANGELOG.md
+graft tests
+graft docs
+global-exclude __pycache__ *.py[cod]

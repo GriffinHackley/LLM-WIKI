@@ -2,9 +2,13 @@
 
 ## Unreleased
 
+## 0.3.1 (2026-10-11)
+
 - The code preset's `epic`, `pr` and `ticket` templates and the research preset's
   `source` template now quote their placeholder titles: unquoted, the `: ` in them made
   the frontmatter invalid YAML.
+- Docs reorganised: a shorter README, and new pages for concepts, every command, and
+  troubleshooting, with a docs index. All examples are invented.
 
 ## 0.3.0 (2026-10-11): first release on PyPI
 

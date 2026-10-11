@@ -13,6 +13,8 @@ from wiki_cli.cli import build_parser
 
 ROOT = Path(__file__).resolve().parent.parent
 COMMANDS_DOC = ROOT / "docs" / "commands.md"
+if not COMMANDS_DOC.is_file():  # the sdist ships the tests without the docs
+    pytest.skip("docs/ is not here", allow_module_level=True)
 DOCS = [ROOT / "README.md", *sorted((ROOT / "docs").glob("*.md"))]
 # Documented once, under "Options most commands take".
 COMMON = {"--root", "--cache", "--format", "--embed-model", "--reranker", "-h", "--help"}
