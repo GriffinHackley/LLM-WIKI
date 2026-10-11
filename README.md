@@ -43,8 +43,9 @@ uv tool install --editable .        # 'wiki' follows the checkout
 python -m venv .venv && .venv/Scripts/python -m pip install -e ".[test]"
 ```
 
-An earlier install named `wiki-cli` also provides `wiki`: remove it first with
-`uv tool uninstall wiki-cli`.
+An install from before 0.3.0 also provides `wiki` and has another name: `wiki-cli`, or
+`llm-wiki-cli` if it came from git or a clone. `uv tool list` shows it; remove it first
+with `uv tool uninstall <name>`. Wikis, their config and downloaded models are untouched.
 
 ## Quick start
 

@@ -50,8 +50,10 @@ The package is `llm-wiki-kit`; the command it installs is `wiki`. `uv tool insta
 `wiki` on your PATH; if the shell can't find it, run `uv tool update-shell` and open a new
 terminal. To update later, run `uv tool upgrade llm-wiki-kit`. For the latest code before
 a release, install from git instead:
-`uv tool install git+https://github.com/GriffinHackley/LLM-WIKI`. If you installed an
-earlier version named `wiki-cli`, remove it first: `uv tool uninstall wiki-cli`.
+`uv tool install git+https://github.com/GriffinHackley/LLM-WIKI`. An install from
+before 0.3.0 also provides `wiki` under another name, `wiki-cli` or (from git or a clone)
+`llm-wiki-cli`; `uv tool list` shows it. Remove it first with `uv tool uninstall <name>`.
+Your wikis, their config and downloaded models are untouched.
 
 If `wiki` says this Python's sqlite3 cannot load extensions (the python.org installers for
 macOS are built that way), reinstall it on uv's own Python:

@@ -3,8 +3,8 @@
 ## 0.3.0: first release on PyPI
 
 The first release as `llm-wiki-kit` (the command is `wiki`), with everything from 0.2.0,
-which was never published. Earlier installs named `wiki-cli` also provide `wiki`:
-`uv tool uninstall wiki-cli` first.
+which was never published. Earlier installs also provide `wiki` under another name,
+`wiki-cli` or (from git or a clone) `llm-wiki-cli`: `uv tool uninstall` it first.
 
 **Install**
 - On a Python whose sqlite3 cannot load extensions (the python.org macOS builds), `wiki`
