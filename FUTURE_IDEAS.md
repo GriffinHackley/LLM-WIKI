@@ -40,8 +40,13 @@ platform and never become the only way to do something.
   agent hooks (Claude Code's `PreToolUse`, for example) would be per-platform extras.
 - **More adapters** beside Claude Code, Copilot and OpenCode (`wiki new --agent`), such as
   Cursor or Gemini CLI, as they are wanted.
-- **Packaging** the commands as a Claude Code plugin or similar, if copying them per wiki
-  becomes a chore.
+- **Plugins** as a second way to install the agent files: a Claude Code plugin, and a VS Code
+  agent plugin (`hooks.json` plus skills; in Preview as of 2026-10), shipping the `wiki hook`
+  hooks and the workflow skills. A code repo would then need only its `.wiki-cli.toml` and the
+  one-line pointer in `AGENTS.md`. Plugins are installed per person rather than committed with
+  the code, so they supplement `wiki connect` (which writes the agent files into the code repo)
+  and never replace it. `wiki hook` must do nothing in a repo with no wiki configured, since a
+  plugin's hooks run everywhere it is installed.
 - **An MCP server** exposing the commands as tools, for agents without a shell.
 
 ## Editable files in raw/
@@ -51,6 +56,14 @@ The pre-commit hook (`wiki new --git-hook`) refuses any edit, rename or deletion
 arrive, needs its own hook with an exemption. If wikis do this, let the
 config name files in `raw/` that may change (`[raw] editable = ["raw/SOURCES.md"]`) and
 have the hook read it.
+
+## Per-machine wiki location
+
+A code repo's committed `.wiki-cli.toml` names its separate wiki by a relative path
+(`wiki = "../my-wiki"`), which is right only where both repos are cloned side by side under
+those names. When a second machine or person has a different layout, let a git-ignored
+`.wiki-cli.local.toml` beside it override the path (`$WIKI_ROOT` works meanwhile, but is
+easy to forget). Deferred until a second setup actually exists.
 
 ## Several code repos per wiki
 
