@@ -10,6 +10,71 @@ types, relation rules and weekly notes to the draft.
 An unknown key, or a value of the wrong type, is an error when any command loads the
 config, naming the key. Nothing is silently ignored.
 
+## At a glance
+
+Every section, with typical values. Each is optional; the sections below give every
+key's type and default.
+
+```toml
+preset = "research"               # the preset `wiki new` used; picks guide variants
+pages = ["wiki/**/*.md"]          # default ["**/*.md"]
+exclude = ["wiki/index.md"]      # default none
+raw = ["raw/**/*.txt"]            # default; searched only with --include-raw
+embed_model = "BAAI/bge-small-en-v1.5"          # default; $WIKI_EMBED_MODEL overrides
+reranker = "jinaai/jina-reranker-v1-turbo-en"   # default, or "none"; $WIKI_RERANKER overrides
+
+[types.person]                    # page types: guides list them, `wiki check` flags others
+description = "A person."
+folder = "wiki/people"            # pages here get this type when frontmatter has none
+template = "templates/person.md"
+sections = ["Summary"]            # headings and frontmatter every page of the type has,
+fields = ["title", "type", "sources", "last_updated"]   # checked by `wiki check`
+values = { role = ["author", "subject"] }               # allowed values of a field
+hub = false                       # true: pages gather around it (see `wiki clusters`)
+record = false                    # true: each page describes a ticket or the like, kept by key, url, synced
+
+[records]                         # record types: when `wiki stale` asks for a recheck
+recheck_days = 30                 # default
+
+[summary]                         # where a page's summary comes from, in order
+fields = ["summary", "description"]            # frontmatter keys (default)
+headings = ["Summary", "Overview"]             # default ["Summary"]; else the first paragraph
+
+[page_type]
+field = "type"                    # frontmatter key holding the page type (default)
+
+[check]
+require_frontmatter = false       # default
+summary_types = ["person"]        # page types that must have a summary ("*" = all)
+
+[suggest]
+named_types = ["person", "organization"]  # pages `suggest` matches by name (default: all)
+
+[search]
+results = 3                       # default; pages from search, nav start and nav search (1-20)
+
+[pending]
+ignore = ["raw/SOURCES.md"]       # files in raw/ that are not sources (default none)
+
+[weekly]                          # weekly notes (`wiki weekly`); off without this table
+folder = "weekly"                 # default; never indexed
+group_by = "module"               # "where the work went" by module, or "type" (default)
+
+[groups]                          # --group on clusters and map: pages naming a group, and their neighbours
+fields = ["tags"]                 # default; the frontmatter fields that name a page's groups
+
+[hooks]                           # the pre-commit hook's extra checks, run from the root
+pre_commit = ["python tools/check.py", { run = "python tools/lint.py", files = ["drafts/*.md"] }]
+
+[guides]
+dir = "guides"                    # the wiki's own guides, overriding built-in ones by name
+parts = "guides/parts"            # default; <name>.md is the wiki's own text for a guide step
+
+[code]                            # code wikis only
+repo = "../my-app"                # the code repo, relative to the wiki; $WIKI_CODE_REPO overrides
+origin = "https://github.com/me/my-app.git"    # catches a pointer to the wrong checkout
+```
+
 ## Where the config is read from
 
 The wiki's root folder is, in order:
@@ -127,7 +192,32 @@ Built in, without rules: `links-to` (any other link), `embeds` (a `![[page#^bloc
 embed) and `refers-to-code` (a `[name](code:path)` link in a code wiki). When a page reaches
 one target several ways, the most specific type wins: heading-rule types in file order,
 then `embeds`, then field-only types, then `links-to`. `wiki vocab` lists the wiki's
-types. The README's [Relations](../README.md#relations) section has a worked example.
+types.
+
+**An example.** With this rule:
+
+```toml
+[[relations]]
+heading = "Entities mentioned"
+page_type = "source"
+type = "mentions"
+inverse = "mentioned-in"
+```
+
+the list item
+
+```markdown
+## Entities mentioned
+- [[charles-babbage]] — Inventor who delayed the demonstration (p. 2)
+```
+
+becomes `mentions -> charles-babbage` with reason "Inventor who delayed the
+demonstration (p. 2)". From `charles-babbage`'s page, the same relation shows as
+`mentioned-in`. A link in parentheses under a typed heading,
+such as a citation `([[report]], p. 2)`, stays a plain link: it supports the line rather
+than being its subject. Frontmatter values written as `[[links]]` count as links, as in
+Obsidian. After changing the rules, the next command re-derives every relation without
+re-embedding anything.
 
 ## `[summary]`: where a page's summary comes from
 

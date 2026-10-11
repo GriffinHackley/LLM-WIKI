@@ -411,8 +411,8 @@ Open `.wiki-cli.toml` and review four things:
    into `works-with -> charles-babbage` with the reason "co-lead; they split hardware and
    software". An agent reads these reasons to decide which page to open next, so list
    items written as `[[page]] — why it matters` pay off. Rules for frontmatter fields
-   (`field = "sources"`) work the same way. The [README](../README.md#relations) has
-   the full rule syntax.
+   (`field = "sources"`) work the same way. [config.md](config.md#relations-typed-links)
+   has the full rule syntax.
 
 One more setting you may want: how many pages a search returns. The default is 3, which
 keeps an agent's context small; raise it if your wiki's answers tend to span more pages.
