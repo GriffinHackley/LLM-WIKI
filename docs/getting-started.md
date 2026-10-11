@@ -18,7 +18,7 @@ inside the wiki, so trying it is safe.
 **The short version:**
 
 ```bash
-uv tool install llm-wiki-cli        # once per machine; the command is `wiki`
+uv tool install llm-wiki-kit        # once per machine; the command is `wiki`
 wiki models download                # once per machine, about 0.2 GB
 wiki new my-wiki --agent claude     # --agent is optional
 cd my-wiki
@@ -42,20 +42,20 @@ on Windows, macOS and Linux.
 ## 2. Install the tool (once per machine)
 
 ```bash
-uv tool install llm-wiki-cli
+uv tool install llm-wiki-kit
 wiki --version
 ```
 
-The package is `llm-wiki-cli`; the command it installs is `wiki`. `uv tool install` puts
+The package is `llm-wiki-kit`; the command it installs is `wiki`. `uv tool install` puts
 `wiki` on your PATH; if the shell can't find it, run `uv tool update-shell` and open a new
-terminal. To update later, run `uv tool upgrade llm-wiki-cli`. For the latest code before
+terminal. To update later, run `uv tool upgrade llm-wiki-kit`. For the latest code before
 a release, install from git instead:
 `uv tool install git+https://github.com/GriffinHackley/LLM-WIKI`. If you installed an
 earlier version named `wiki-cli`, remove it first: `uv tool uninstall wiki-cli`.
 
 If `wiki` says this Python's sqlite3 cannot load extensions (the python.org installers for
 macOS are built that way), reinstall it on uv's own Python:
-`uv tool install --managed-python --reinstall llm-wiki-cli`.
+`uv tool install --managed-python --reinstall llm-wiki-kit`.
 
 To work on the tool itself, clone the repository and run `uv tool install --editable .`
 in it: the command then follows your checkout.
@@ -550,7 +550,7 @@ missing commands.
   keyword index automatically before every search, so edits are findable by keyword
   immediately; vector search sees them after the next refresh.
 - **After changing `.wiki-cli.toml`,** nothing extra: the next command picks it up.
-- **Updating the tool:** `uv tool upgrade llm-wiki-cli` (or `git pull` in an editable
+- **Updating the tool:** `uv tool upgrade llm-wiki-kit` (or `git pull` in an editable
   checkout). Guides come with the command, so every wiki gets the new steps at once. If an
   update changes the cache format, the next command rebuilds the cache by itself.
 - **After an edit that doesn't change what a page is about,** `wiki check` may warn

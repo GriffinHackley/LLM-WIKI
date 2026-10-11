@@ -2,14 +2,14 @@
 
 ## 0.3.0: first release on PyPI
 
-The first release as `llm-wiki-cli` (the command is `wiki`), with everything from 0.2.0,
+The first release as `llm-wiki-kit` (the command is `wiki`), with everything from 0.2.0,
 which was never published. Earlier installs named `wiki-cli` also provide `wiki`:
 `uv tool uninstall wiki-cli` first.
 
 **Install**
 - On a Python whose sqlite3 cannot load extensions (the python.org macOS builds), `wiki`
   now says so and names the fix, `uv tool install --managed-python --reinstall
-  llm-wiki-cli`, instead of failing with an `AttributeError`.
+  llm-wiki-kit`, instead of failing with an `AttributeError`.
 
 **The `writing` preset**
 - `wiki new <folder> --preset writing`: a wiki for stories. The user writes ideas, scenes

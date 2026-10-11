@@ -282,7 +282,8 @@ Today install needs a clone plus `uv tool install --editable`.
 1. **Install from git without a clone:**
    `uv tool install git+https://github.com/GriffinHackley/LLM-WIKI`. Requires the repo
    to be public, or the user to have access.
-2. **Publish to PyPI.** `wiki-cli` and `wikicli` are taken; `llm-wiki-cli` is free. The
+2. **Publish to PyPI.** `wiki-cli` and `wikicli` are taken, and PyPI refused
+   `llm-wiki-cli` as too similar to `llmwiki-cli`; the package is `llm-wiki-kit`. The
    package name changes, the command stays `wiki`. Build and publish from a GitHub
    Actions workflow on tag. Needs a license first (now MIT, in LICENSE).
 3. **Starter files and guides as package data**, checked by installing the built wheel
@@ -293,19 +294,19 @@ Today install needs a clone plus `uv tool install --editable`.
 Done when: on a machine without the repo, installing the package, then
 `wiki models download`, then `wiki new` works end to end.
 
-Result: the package is `llm-wiki-cli` 0.2.0 (command still `wiki`). A wheel built on
+Result: the package is `llm-wiki-kit` 0.2.0 (command still `wiki`). A wheel built on
 Windows carries every guide, preset and the hook, all with LF line endings
 (`.gitattributes`), and `wiki new` and `wiki guide` run from it. `uv tool install
 git+<repo URL>` installs a working `wiki` without a clone (tried from a local git URL into
 an isolated tool folder). A missing model now names the command and the size. Added
 GitHub Actions: tests on Windows, macOS and Linux on every push, and publishing to PyPI
 on a `v*` tag. Existing installs of `wiki-cli` need `uv tool uninstall wiki-cli` before
-installing `llm-wiki-cli`, as both provide `wiki`.
+installing `llm-wiki-kit`, as both provide `wiki`.
 
 Release preparation (2026-09-30): MIT license (`LICENSE`, `license = "MIT"`); package
 metadata (author, keywords, classifiers, project URLs); one version, read from
 `wiki_cli.__version__`; README links absolute, since PyPI shows the README away from the
-repo; install docs lead with `uv tool install llm-wiki-cli`, git as the alternative;
+repo; install docs lead with `uv tool install llm-wiki-kit`, git as the alternative;
 `CHANGELOG.md`. The publish workflow now runs the tests on all three OSes, checks the tag
 matches the version, runs `twine check --strict`, and installs the built wheel and runs
 `wiki new`, `wiki guide` and `wiki check` before publishing. Rehearsed locally: the wheel
@@ -313,7 +314,7 @@ and sdist pass `twine check --strict`, and the wheel, installed into an empty to
 folder, runs `wiki new --agent claude`, `wiki guide`, `wiki check` and `wiki clusters`.
 
 **Pending, for the owner:** make the repo public (the README links and the git install
-need it); on PyPI, add a pending trusted publisher for `llm-wiki-cli` (owner
+need it); on PyPI, add a pending trusted publisher for `llm-wiki-kit` (owner
 `GriffinHackley`, repo `LLM-WIKI`, workflow `publish.yml`, environment `pypi`); create
 the `pypi` environment in the GitHub repo's settings; then `git tag v0.3.0` and push the
 tag.

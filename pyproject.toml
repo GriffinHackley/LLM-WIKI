@@ -3,7 +3,7 @@ requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "llm-wiki-cli"
+name = "llm-wiki-kit"
 dynamic = ["version"]
 description = "Start and run an LLM-maintained wiki with any agent: presets, workflow guides, search, typed relations and guided navigation."
 readme = "README.md"

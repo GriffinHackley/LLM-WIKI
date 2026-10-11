@@ -30,7 +30,7 @@ def load(conn: sqlite3.Connection) -> None:
     if not hasattr(conn, "enable_load_extension"):
         raise ExtensionsUnsupported(
             "this Python's sqlite3 cannot load extensions, which the search index needs; "
-            "reinstall with uv's own Python: uv tool install --managed-python --reinstall llm-wiki-cli")
+            "reinstall with uv's own Python: uv tool install --managed-python --reinstall llm-wiki-kit")
     conn.enable_load_extension(True)
     try:
         conn.load_extension(_extension_path())

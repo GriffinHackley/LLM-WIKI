@@ -329,7 +329,7 @@ wheels = [
 ]
 
 [[package]]
-name = "llm-wiki-cli"
+name = "llm-wiki-kit"
 source = { editable = "." }
 dependencies = [
     { name = "fastembed" },

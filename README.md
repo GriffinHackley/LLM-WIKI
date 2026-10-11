@@ -31,11 +31,11 @@ Requires [uv](https://docs.astral.sh/uv/getting-started/installation/), which in
 Python 3.13 for the tool if needed.
 
 ```bash
-uv tool install llm-wiki-cli    # once per machine; the command is `wiki`
+uv tool install llm-wiki-kit    # once per machine; the command is `wiki`
 wiki models download            # once: about 0.2 GB
 ```
 
-`uv tool upgrade llm-wiki-cli` updates it. The latest code, before a release:
+`uv tool upgrade llm-wiki-kit` updates it. The latest code, before a release:
 `uv tool install git+https://github.com/GriffinHackley/LLM-WIKI`. For development, from a clone:
 
 ```bash

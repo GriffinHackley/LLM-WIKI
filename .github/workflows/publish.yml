@@ -1,7 +1,7 @@
 name: Publish
 
 # Publishes to PyPI when a version tag (v0.3.0, ...) is pushed. Needs, once: the
-# "llm-wiki-cli" project on PyPI set up for trusted publishing from this repository's
+# "llm-wiki-kit" project on PyPI set up for trusted publishing from this repository's
 # "pypi" environment (no token stored here). Nothing is published unless the tests pass
 # on every OS, the tag matches the package version, and the built wheel installs and runs.
 on:
@@ -37,7 +37,7 @@ jobs:
       - run: uv build
       - name: Tag matches the package version
         run: |
-          version=$(ls dist/*.whl | sed -E 's/.*llm_wiki_cli-([^-]+)-.*/\1/')
+          version=$(ls dist/*.whl | sed -E 's/.*llm_wiki_kit-([^-]+)-.*/\1/')
           test "v$version" = "$GITHUB_REF_NAME" || { echo "tag $GITHUB_REF_NAME but package $version"; exit 1; }
       - name: Metadata and README render on PyPI
         run: uvx twine check --strict dist/*
