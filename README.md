@@ -26,6 +26,7 @@ More:
 - [docs/concepts.md](https://github.com/GriffinHackley/LLM-WIKI/blob/main/docs/concepts.md): how the pieces fit, and what each term means
 - [docs/presets.md](https://github.com/GriffinHackley/LLM-WIKI/blob/main/docs/presets.md): what each preset is for, and its page types
 - [docs/guides.md](https://github.com/GriffinHackley/LLM-WIKI/blob/main/docs/guides.md): the guides agents follow, and how to customise them
+- [docs/commands.md](https://github.com/GriffinHackley/LLM-WIKI/blob/main/docs/commands.md): every command and option
 - [docs/config.md](https://github.com/GriffinHackley/LLM-WIKI/blob/main/docs/config.md): every config setting
 - [PLAN.md](https://github.com/GriffinHackley/LLM-WIKI/blob/main/PLAN.md): the current plan; [FUTURE_IDEAS.md](https://github.com/GriffinHackley/LLM-WIKI/blob/main/FUTURE_IDEAS.md): the deferred ideas
 
