@@ -88,3 +88,10 @@ def test_text_output(code_wiki, code_repo, capsys):
     assert main(["connect", str(code_repo), "--agent", "claude-code", "--root", str(code_wiki)]) == 0
     out = capsys.readouterr().out
     assert "1. The wiki's files" in out and "2. Add these by hand" in out and "@WIKI.md" in out
+
+
+def test_settings_that_are_not_json_are_named_as_such(code_wiki, code_repo, capsys):
+    write(code_repo, ".claude/settings.json", '{\n  // a comment\n  "hooks": {}\n}\n')
+    code, result = connect(capsys, code_wiki, str(code_repo), "--agent", "claude-code", "--check")
+    item = next(item for item in result["by_hand"] if item["file"] == ".claude/settings.json")
+    assert code == 1 and "not valid JSON" in item["why"] and "line 2" in item["text"]

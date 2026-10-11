@@ -146,8 +146,11 @@ def _by_hand(settings: Settings, result: Connection, wiki_path: str) -> None:
     wanted = _claude_settings(settings, code_repo)
     try:
         have = json.loads(_text(code_repo / ".claude/settings.json") or "{}")
-    except ValueError:
-        have = {}
+    except ValueError as exc:
+        result.by_hand.append({"file": ".claude/settings.json", "text": f"{exc}\n",
+                               "why": "is not valid JSON, so it can't be checked, and Claude Code may not read it "
+                                      "either (JSON has no comments): fix it, then check again"})
+        return
     missing = _missing(wanted, have if isinstance(have, dict) else {})
     if missing:
         result.by_hand.append({"file": ".claude/settings.json", "text": json.dumps(missing, indent=2) + "\n",
