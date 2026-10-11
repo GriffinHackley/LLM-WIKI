@@ -111,6 +111,7 @@ COMMAND_ORDER = ("new", "init", "guide", "search", "nav", "list", "neighbors", "
                  "models", "vocab", "eval")
 
 
+UNGROUPED_HELP = "only the pages whose [groups] fields name no group"
 GROUP_HELP = ("only this group's pages: those whose [groups] fields (default: tags) name it, and the pages they "
               "link to or are linked from")
 
@@ -194,7 +195,9 @@ def build_parser() -> argparse.ArgumentParser:
                                  help=f"smallest cluster listed (default {clusters.MIN_CLUSTER})")
     clusters_parser.add_argument("--resolution", type=_positive_float,
                                  help="higher splits clusters more readily (default: [clusters] resolution, else 1.0)")
-    clusters_parser.add_argument("--group", help=GROUP_HELP)
+    clusters_where = clusters_parser.add_mutually_exclusive_group()
+    clusters_where.add_argument("--group", help=GROUP_HELP)
+    clusters_where.add_argument("--ungrouped", action="store_true", help=UNGROUPED_HELP)
     clusters_parser.set_defaults(handler=cmd_clusters)
 
     map_parser = commands.add_parser(
@@ -203,7 +206,9 @@ def build_parser() -> argparse.ArgumentParser:
     map_parser.add_argument("--method", choices=vecmap.METHODS, default="auto",
                             help="layout: auto (UMAP, else PCA with a note), umap (fail if unavailable), pca")
     map_parser.add_argument("--chunks", action="store_true", help="one point per section instead of per page")
-    map_parser.add_argument("--group", help=GROUP_HELP)
+    map_where = map_parser.add_mutually_exclusive_group()
+    map_where.add_argument("--group", help=GROUP_HELP)
+    map_where.add_argument("--ungrouped", action="store_true", help=UNGROUPED_HELP)
     map_parser.add_argument("--color-by", choices=vecmap.COLOR_BY, default="type",
                             help="initial colouring (the page can switch); visits needs --nav")
     map_parser.add_argument("--query", help="place this question in the map, with lines to its search results")
@@ -1138,19 +1143,25 @@ def cmd_orphans(args: argparse.Namespace, settings: Settings) -> int:
     return EXIT_OK
 
 
+def _group_pages(cache: Cache, args: argparse.Namespace) -> set[str] | None:
+    if args.ungrouped:
+        return groups.ungrouped(cache)
+    return groups.members(cache, args.group) if args.group else None
+
+
 def cmd_clusters(args: argparse.Namespace, settings: Settings) -> int:
     with Cache(settings) as cache:
         cache.refresh()
-        only = groups.members(cache, args.group) if args.group else None
+        only = _group_pages(cache, args)
         result = clusters.clusters(cache, min_size=args.min_size, include_covered=args.all, resolution=args.resolution,
                                    only=only)
-    if args.group:
-        result["group"] = args.group
+    if args.group or args.ungrouped:
+        result["group"] = args.group or groups.UNGROUPED
     if args.format == "json":
         _print_json(result)
         return EXIT_OK
     if result.get("too_small"):
-        where = f" in group '{args.group}'" if args.group else ""
+        where = f" in group '{args.group}'" if args.group else " in no group" if args.ungrouped else ""
         print(f"{output.plural(result['pages'], 'page')}{where}: too few for clusters to mean anything "
               f"(it takes {result['too_small']}).")
         return EXIT_OK
@@ -1170,6 +1181,9 @@ def cmd_clusters(args: argparse.Namespace, settings: Settings) -> int:
     if args.group:
         print(output.dim(output.wrap(f"Group '{args.group}': {output.plural(result['pages'], 'page')} (those that name "
                                      "it, and the pages they link to or are linked from).")))
+    elif args.ungrouped:
+        print(output.dim(f"No group: {output.plural(result['pages'], 'page')} (those whose "
+                         f"{', '.join(settings.group_fields)} name no group)."))
     if result["resolution"] != 1.0:
         print(output.dim(f"Resolution {result['resolution']:g} (1 is the default; higher splits more readily)."))
     if not result["clusters"]:
@@ -1241,10 +1255,10 @@ def cmd_map(args: argparse.Namespace, settings: Settings) -> int:
             if args.format == "text":
                 print(f"{message}...", file=sys.stderr, flush=True)
 
-        only = groups.members(cache, args.group) if args.group else None
+        only = _group_pages(cache, args)
         result = vecmap.build(cache, method=args.method, chunks=args.chunks, color_by=args.color_by,
                               query=args.query, nav=args.nav, embedder=embedder, searcher=searcher,
-                              progress=progress, group=args.group, only=only)
+                              progress=progress, group=args.group or (groups.UNGROUPED if args.ungrouped else None), only=only)
     result.payload["notes"] += notes
     for note in result.payload["notes"]:
         output.note(note)
@@ -1254,7 +1268,7 @@ def cmd_map(args: argparse.Namespace, settings: Settings) -> int:
     path = vecmap.write(result.payload, settings.cache_path)
     payload = result.payload
     method = "UMAP" if payload["method"] == "umap" else "PCA"
-    group = f" in group '{args.group}'" if args.group else ""
+    group = f" in group '{args.group}'" if args.group else " in no group" if args.ungrouped else ""
     print(f"Map of {output.plural(len(payload['points']), payload['points_kind'][:-1])}{group} ({method}): {path}")
     if args.open:
         import webbrowser
@@ -1315,6 +1329,7 @@ def cmd_check(args: argparse.Namespace, settings: Settings) -> int:
         issues.extend(codebase.check_pages(pages, settings))
         issues.extend(codebase.check_part_of(pages, _hub_pages(settings, files, pages), settings, resolver))
         issues.extend(originals.check(settings, scanned))
+        issues.extend(groups.cross_links(pages, resolver, settings))
         checked = sum(1 for page in pages if page.file.kind == "page")
     else:
         if args.verify_cache:

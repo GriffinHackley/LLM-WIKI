@@ -9,7 +9,7 @@ from wiki_cli.cache import Cache
 from wiki_cli.cli import main
 from wiki_cli.clusters import membership
 from wiki_cli.config import ConfigError, load_settings
-from wiki_cli.groups import GroupError, members
+from wiki_cli.groups import GroupError, members, ungrouped
 
 
 def page(root, slug, links=(), **front):
@@ -108,3 +108,34 @@ def test_map_of_one_group(root, capsys):
     assert "in group 'beta'" in capsys.readouterr().out
     html = (root / ".cache" / "map.html").read_text(encoding="utf-8")
     assert '"group": "beta"' in html or '"group":"beta"' in html  # the viewer's title names it
+
+
+def test_ungrouped_is_the_pages_that_name_no_group(root, capsys):
+    with Cache(load_settings(root)) as cache:
+        cache.refresh()
+        assert ungrouped(cache) == {"ada", "reading-list", "lone-a", "lone-b"}  # no neighbours taken in
+    assert main(["clusters", "--ungrouped", "--root", str(root), "--format", "json"]) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["group"] == "(ungrouped)" and result["pages"] == 4
+    assert main(["clusters", "--ungrouped", "--root", str(root)]) == 0
+    assert "4 pages in no group: too few" in capsys.readouterr().out
+    with pytest.raises(SystemExit):
+        main(["clusters", "--ungrouped", "--group", "alpha", "--root", str(root)])
+
+
+def test_exclusive_groups_warn_on_links_between_them(root, capsys):
+    page(root, "alpha-0", ["alpha-1", "beta-5", "ada"], tags="alpha")  # beta-5 crosses; ada names no group
+    page(root, "both", ["alpha-2", "beta-2"], tags=["alpha", "beta"])  # shares a group with each
+    page(root, "lone-a", ["alpha-3", "beta-3"])  # in no group: links anything
+
+    def crossing():
+        main(["check", "--all", "--root", str(root), "--format", "json"])
+        return [(issue["slug"], issue["message"].split("]]")[0]) for issue in
+                json.loads(capsys.readouterr().out)["issues"] if issue["code"] == "cross-group-link"]
+
+    assert crossing() == []  # not exclusive: no warnings
+    (root / ".wiki-cli.toml").write_text("[types.note]\n[groups]\nexclusive = true\n", encoding="utf-8")
+    assert crossing() == [("alpha-0", "links [[beta-5")]
+    (root / ".wiki-cli.toml").write_text('[types.note]\n[groups]\nexclusive = "yes"\n', encoding="utf-8")
+    with pytest.raises(ConfigError, match="exclusive must be true or false"):
+        load_settings(root)
