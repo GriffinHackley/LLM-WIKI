@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from wiki_cli import guide
+from wiki_cli import frontmatter, guide
 from wiki_cli import scaffold as scaffold_module
 from wiki_cli.cli import main
 from wiki_cli.config import ConfigError, load_settings
@@ -226,6 +226,16 @@ class TestNew:
         assert result["preset"] == "my-preset"
         assert (root / "notes/welcome.md").read_text(encoding="utf-8") == "# Welcome to kb\n"
         assert load_settings(root).types[0].name == "note"
+
+
+PRESETS = Path(scaffold_module.__file__).parent / "presets"
+# weekly.md holds {{...}} placeholders that `wiki weekly` fills in before it is parsed.
+PRESET_TEMPLATES = [p for p in sorted(PRESETS.glob("*/files/templates/**/*.md")) if p.name != "weekly.md"]
+
+
+@pytest.mark.parametrize("template", PRESET_TEMPLATES, ids=lambda p: p.relative_to(PRESETS).as_posix())
+def test_every_preset_template_has_valid_frontmatter(template):
+    frontmatter.parse(template.read_text(encoding="utf-8"))
 
 
 class TestTypes:

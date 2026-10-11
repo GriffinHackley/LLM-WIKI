@@ -1,5 +1,5 @@
 ---
-title: <KEY-123: the ticket's title>
+title: "<KEY-123: the ticket's title>"
 type: ticket
 kind: story
 key: <KEY-123>

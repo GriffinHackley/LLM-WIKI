@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- The code preset's `epic`, `pr` and `ticket` templates and the research preset's
+  `source` template now quote their placeholder titles: unquoted, the `: ` in them made
+  the frontmatter invalid YAML.
+
 ## 0.3.0: first release on PyPI
 
 The first release as `llm-wiki-kit` (the command is `wiki`), with everything from 0.2.0,

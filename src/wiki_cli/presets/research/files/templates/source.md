@@ -1,5 +1,5 @@
 ---
-title: <Short cite: author or outlet, YYYY-MM-DD>
+title: "<Short cite: author or outlet, YYYY-MM-DD>"
 type: source
 author: <author or issuer, if known>
 date: YYYY-MM-DD

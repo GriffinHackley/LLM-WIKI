@@ -1,5 +1,5 @@
 ---
-title: <KEY-100: the epic's title>
+title: "<KEY-100: the epic's title>"
 type: epic
 key: <KEY-100>
 status: <open, in progress, done>

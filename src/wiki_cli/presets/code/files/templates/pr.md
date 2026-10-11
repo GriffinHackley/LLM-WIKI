@@ -1,5 +1,5 @@
 ---
-title: <#123: the pull request's title>
+title: "<#123: the pull request's title>"
 type: pr
 number: <123>
 merge_commit: "<the commit it merged as>"
