@@ -44,6 +44,11 @@ def check_page(page: Page, resolver: Resolver) -> list[Issue]:
         issues.extend(_required_parts(page, page_type))
     issues.extend(records.issues(page))
     issues.extend(_uncited_sources(page, resolver))
+    status = (page.data or {}).get("status")
+    if page.page_type == "decision" and isinstance(status, str) and status.strip().lower() == "proposed":
+        issues.append(Issue(WARNING, "decision-proposed",
+                            "a proposed decision, waiting for the user's approval: set status: accepted once "
+                            "they approve it"))
 
     summary_types = settings.summary_types if settings is not None else ()
     if "*" in summary_types or (page.page_type and page.page_type in summary_types):

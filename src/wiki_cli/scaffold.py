@@ -28,6 +28,7 @@ HOOKS_DIR = Path(__file__).parent / "hooks"
 DEFAULT_PRESET = "research"
 CODE_PRESET = "code"  # describes a code repo, which `wiki new` must be pointed at
 CLAUDE_PERMISSION = "Bash(wiki:*)"
+CODE_REPO_GUIDES = ("work",)  # run from the code repo, not the wiki: `wiki connect` adds their commands there
 CONTENT_FOLDERS = {"wiki", "templates", "raw"}  # a preset's pages and templates, not added to an established wiki
 
 
@@ -457,12 +458,16 @@ def _copilot(target: Path, settings, result: dict, *, with_claude: bool) -> None
 def _opencode(target: Path, settings, result: dict) -> None:
     """OpenCode adapter: one command per guide, run by the build agent (which may edit files
     and run commands)."""
-    for name, title in guide.available(settings):
+    for name, title in _wiki_guides(settings):
         _write(target, f".opencode/commands/wiki-{name}.md", opencode_command(name, title), result)
 
 
+def _wiki_guides(settings) -> list[tuple[str, str]]:
+    return [(name, title) for name, title in guide.available(settings) if name not in CODE_REPO_GUIDES]
+
+
 def _write_skills(target: Path, folder: str, settings, result: dict) -> None:
-    for name, title in guide.available(settings):
+    for name, title in _wiki_guides(settings):
         _write(target, f"{folder}/wiki-{name}/SKILL.md", skill_stub(name, title), result)
 
 
@@ -485,7 +490,7 @@ COPILOT_INSTRUCTIONS = copilot_instructions()
 
 # What each workflow acts on, for the text after the slash command.
 _SUBJECTS = {"ingest": "The source to ingest", "query": "The question to answer",
-             "lint": "What to audit", "sync": "The code change to sync"}
+             "lint": "What to audit", "sync": "The code change to sync", "work": "The task"}
 
 
 def adapter_body(name: str, title: str) -> str:

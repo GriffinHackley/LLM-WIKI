@@ -33,6 +33,13 @@
   each file once per agent session. It reads only the cache, which now keeps each page's
   `covers:`, `verified:` and `status:` (an existing cache gains them on its next refresh,
   without a rebuild), so it takes well under a second.
+- `wiki guide work` (code wikis): one task on the code, from the code repo. Learn the area
+  from the wiki, plan, and stop for the user's approval; `wiki task start`; record each
+  settled choice as a decision page with `status: proposed` and stop for its approval;
+  do and test the work; bring the pages it touched up to date with `verified: "pending"`;
+  stop for approval of the work; then `wiki finish`. It is not written as a slash command
+  into the wiki's own folder, since it runs from the code repo.
+- `wiki check` warns (`decision-proposed`) on a decision page still waiting for approval.
 
 **Start a wiki**
 - A code wiki can be a folder inside the code's repository (`wiki new docs/wiki --preset

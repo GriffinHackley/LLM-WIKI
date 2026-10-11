@@ -23,6 +23,7 @@ on) pull the guide into the prompt when they run.
 | `query` | Answer from the wiki with `wiki nav`: search, read one section at a time, follow relations by their reasons, cite the pages; fall back to raw source text | The same; when the wiki can't answer, read the code, and offer to document what was learned |
 | `lint` | `wiki check --all`, `wiki unwritten`, `wiki orphans`, `wiki pending`, `wiki clusters`, then contradictions, uncited facts, settled questions, stale summaries; fix and commit | Adds `wiki stale` and coverage of the code's folders |
 | `sync` | (none) | After committing code: `wiki stale`, update each stale page and its `verified:`, recheck the records it lists and their `synced:`, check, commit the wiki |
+| `work` | (none) | One task on the code, run from the code repo: learn the area from the wiki, plan and stop for the user's approval, `wiki task start`, write each settled choice as a `proposed` decision and stop for its approval, do and test the work, update the pages it touched with `verified: "pending"`, stop for approval of the work, then `wiki finish` |
 
 Each guide fills in what depends on the wiki: its page types (from `[types]` in
 `.wiki-cli.toml`, with their folders and templates) and, for a code wiki, the code repo's

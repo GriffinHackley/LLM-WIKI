@@ -57,7 +57,7 @@ from wiki_cli.suggest import suggest
 from wiki_cli.validation import check_corpus, check_page, compare_cache
 
 EXIT_OK, EXIT_INVALID, EXIT_ERROR = 0, 1, 2
-WORKFLOWS = ("ingest", "query", "lint", "sync")  # guides an agent may mistake for commands
+WORKFLOWS = ("ingest", "query", "lint", "sync", "work")  # guides an agent may mistake for commands
 
 
 class UsageError(Exception):

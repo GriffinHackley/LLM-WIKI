@@ -94,3 +94,15 @@ def test_a_wiki_without_code_is_refused(wiki, capsys):
     wiki.page("concept", "a")
     assert main(["covering", "x.py", "--root", str(wiki.root)]) != 0
     assert "no code repo" in capsys.readouterr().err
+
+
+def test_check_names_a_decision_still_waiting_for_approval(notes_wiki, capsys):
+    code, result = run_json(capsys, "check", "plain-lists", "--root", str(notes_wiki))
+    assert "decision-proposed" in [issue["code"] for issue in result["issues"]]
+
+
+def test_the_work_guide_is_the_code_presets(notes_wiki, capsys):
+    assert main(["guide", "work", "--root", str(notes_wiki)]) == 0
+    text = capsys.readouterr().out
+    assert "wiki task start" in text and "wiki finish" in text and "verified:` to `\"pending\"" in text
+    assert main(["work"]) != 0
