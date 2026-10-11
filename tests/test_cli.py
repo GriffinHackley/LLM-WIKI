@@ -71,9 +71,9 @@ class TestCheck:
     def test_errors_and_warnings(self, wiki, run):
         wiki.write("wiki/documents/bad.md", raw='---\nheadline: "RE: x" — tail\n---\n# Bad\n')
         wiki.write("wiki/people/nofront.md", raw="# No frontmatter\n")
-        wiki.write("notebooks/a/claims.md", {"title": "A"})
-        wiki.write("notebooks/b/claims.md", {"title": "B"})
-        wiki.page("person", "linker", {"Timeline": "See [[claims]] and [[ghost-1]], [[ghost-2]]."}, summary=None)
+        wiki.write("projects/a/findings.md", {"title": "A"})
+        wiki.write("projects/b/findings.md", {"title": "B"})
+        wiki.page("person", "linker", {"Timeline": "See [[findings]] and [[ghost-1]], [[ghost-2]]."}, summary=None)
         assert self.codes(run, "bad") == (1, ["invalid-frontmatter"])
         assert self.codes(run, "nofront") == (1, ["missing-frontmatter"])
         assert self.codes(run, "linker") == (0, ["ambiguous-link", "missing-summary", "unwritten-links"])

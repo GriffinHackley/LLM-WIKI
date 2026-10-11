@@ -1,9 +1,7 @@
 # Starter Kit Plan (v3)
 
 Version 2 (search, relations and navigation, built for one existing wiki and then made
-wiki-agnostic) is complete and archived at
-[docs/archive/upgrade-plan-v2.md](docs/archive/upgrade-plan-v2.md). Deferred ideas live in
-[FUTURE_IDEAS.md](FUTURE_IDEAS.md).
+wiki-agnostic) is complete. Deferred ideas live in [FUTURE_IDEAS.md](FUTURE_IDEAS.md).
 
 ## Purpose
 
@@ -736,11 +734,11 @@ query and nav points land where `transform` puts them, empty and small wikis, HT
 contains the data, UMAP made unimportable falls back to PCA with the note and the JSON
 reason, and `--method umap` then fails), docs and CHANGELOG.
 
-Result: on the pilot wiki (414 pages, bge-small), UMAP fits in about 11 s cold
+Result: on a research wiki of about 400 pages (bge-small), UMAP fits in about 11 s cold
 (5 s of it importing umap) and a cached map, with a question and 14 nav sessions placed,
 takes 10 s, mostly imports and model loading; 3,182 sections take 21 s. The map shows
-one thing a list could not: one subject's hundred or so pages as an island well apart from the rest. umap-learn added
-334 MB to the environment. With `umap` made unimportable, the map falls back to PCA with
+one thing a list could not: one subject's hundred or so pages as an island well apart
+from the rest. umap-learn added 334 MB to the environment. With `umap` made unimportable, the map falls back to PCA with
 the note on stderr, `fallback_reason` in JSON and the reason in the page header;
 `--method umap` exits 2. 343 tests pass.
 

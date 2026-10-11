@@ -291,11 +291,11 @@ class TestGuide:
         config = root / ".wiki-cli.toml"
         config.write_text(config.read_text(encoding="utf-8") + '\n[guides]\ndir = "guides"\n', encoding="utf-8")
         write(root, "guides/query.md", "# Query: our way\n\nAsk the archivist.\n")
-        write(root, "guides/claims.md", "# Claims: update the ledger\n\nSteps.\n")
+        write(root, "guides/findings.md", "# Findings: update the log\n\nSteps.\n")
         code, query = run_json(capsys, "guide", "query", "--root", str(root))
         assert query["text"] == "# Query: our way\n\n" + guide.preamble("query") + "\nAsk the archivist.\n"
         code, listing = run_json(capsys, "guide", "--root", str(root))
-        assert {"name": "claims", "title": "Claims: update the ledger"} in listing["guides"]
+        assert {"name": "findings", "title": "Findings: update the log"} in listing["guides"]
 
 
 class TestList:

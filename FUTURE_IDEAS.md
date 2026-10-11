@@ -144,6 +144,32 @@ a Gantt chart of modules by week, or a bar chart of commits and pages per week. 
 show as raw text in a terminal or plain editor, so they would sit beside the block
 characters, not replace them, perhaps behind `[weekly] mermaid = true`.
 
+## The map in VR
+
+`wiki map` (PLAN.md, Phase 14) is already a 3D scene on a flat screen. A headset would let
+a person stand inside it: walk through clusters, see depth without orbiting, and reach
+for a page instead of hovering. The viewer's library has a VR sibling,
+[3d-force-graph-vr](https://github.com/vasturiano/3d-force-graph-vr) (A-Frame, WebXR),
+that takes the same nodes and links, so the map's JSON could feed either.
+
+- **`wiki map --vr`** writes `.cache/map-vr.html` beside the flat map, from the same
+  cached layout, colouring and overlays, with the VR library shipped in the package like
+  the current one so it works offline.
+- **Getting it onto a headset.** WebXR needs a secure context: `localhost` counts, a
+  `file://` page or a LAN address does not. A headset browser (Quest, Vision Pro) cannot
+  open the PC's file, so this likely needs `wiki map --serve`, a small local HTTPS server
+  with a self-signed certificate, or a PC-tethered headset opening `localhost`.
+- **Interaction.** Controller ray to point at a page (title and summary on a floating
+  panel), grab to move the whole map, and teleport between clusters. Search by typing is
+  awkward in VR; a list of cluster names to jump to may serve better.
+- **Overlays.** A query or nav path (`--query`, `--nav`) reads well in VR: the question as
+  a point you stand at, lines out to its results, a nav session as a path to walk.
+- **Scale.** Text labels for hundreds of points are heavy in a headset; show labels only
+  near the controller ray or the viewer, and test frame rate at a few thousand points.
+
+Worth trying only if the flat map gets real use first; it adds a second viewer to keep in
+step with the first.
+
 ## Records: asking the tracker directly
 
 `wiki stale` lists records due for a recheck by age and status, and the agent fetches
@@ -173,7 +199,7 @@ commands `wiki new --agent` writes would pass.
   ~230 MB of float32 chunk vectors at 30k pages and speed up the ~150 ms exact
   vector scan, rescoring the top candidates with full-precision vectors.
 - **Embed plain text:** send link-stripped chunk text (`[[a|B]]` -> `B`) to the embedding
-  model and reranker instead of raw Markdown. Linking claim IDs in one evaluated wiki moved
+  model and reranker instead of raw Markdown. Turning plain IDs into links in one evaluated wiki moved
   one evaluation question from rank 3 to 4, which suggests the markup is noise.
   *Tested for the reranker (2026-09-26), no effect:* on a 50-question evaluation set, plain
   text left hit@3 at 0.778 and moved MRR from 0.639 to 0.650; four questions changed rank,

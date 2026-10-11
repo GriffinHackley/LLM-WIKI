@@ -132,8 +132,8 @@ dir = "guides"
 ```
 
 A file there named like a built-in guide (`guides/ingest.md`) replaces it for this wiki;
-any other name (`guides/claims.md`) adds a workflow, listed by `wiki guide` next to the
-built-in ones. The first line (`# Claims: update the ledger`) is the title `wiki guide`
+any other name (`guides/glossary.md`) adds a workflow, listed by `wiki guide` next to the
+built-in ones. The first line (`# Glossary: add the new terms`) is the title `wiki guide`
 shows. Guides may use `{{types}}`, `{{rules}}` and `{{part:<name>}}`, which are filled in as
 for the built-in ones. A replaced guide no longer updates with the tool: that is the trade,
 so prefer a part when only one step differs.

@@ -53,12 +53,12 @@ def test_filters_and_limit(graph):
 
 
 def test_titles_included_when_different(wiki):
-    wiki.page("document", "abc-doc", title="Harbor Gazette, 2025-10-20")
+    wiki.page("document", "abc-doc", title="Ashford Courier, 1887-03-04")
     wiki.page("person", "p", {"Appearances in sources": "- [[abc-doc]] — quoted"})
     with Cache(wiki.settings()) as cache:
         cache.refresh()
         [entry] = cache.neighbors("p")
-    assert entry["title"] == "Harbor Gazette, 2025-10-20"
+    assert entry["title"] == "Ashford Courier, 1887-03-04"
 
 
 def test_writing_a_page_resolves_links_to_it(graph):
@@ -81,15 +81,15 @@ def test_deleting_a_page_unresolves_links(graph):
 
 
 def test_duplicate_name_changes_slugs(wiki):
-    wiki.write("notebooks/a/claims.md", {"title": "A claims"})
-    wiki.page("person", "p", {"Timeline": "See [[claims]]."})
+    wiki.write("projects/a/findings.md", {"title": "A findings"})
+    wiki.page("person", "p", {"Timeline": "See [[findings]]."})
     with Cache(wiki.settings()) as cache:
         cache.refresh()
         assert "unresolved" not in cache.neighbors("p")[0]
-        wiki.write("notebooks/b/claims.md", {"title": "B claims"})
+        wiki.write("projects/b/findings.md", {"title": "B findings"})
         cache.refresh()
-        assert cache.page_exists("notebooks/a/claims") and not cache.page_exists("claims")
-        assert cache.neighbors("p")[0]["unresolved"] is True  # [[claims]] is now ambiguous
+        assert cache.page_exists("projects/a/findings") and not cache.page_exists("findings")
+        assert cache.neighbors("p")[0]["unresolved"] is True  # [[findings]] is now ambiguous
 
 
 def test_incremental_refresh(graph):

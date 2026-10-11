@@ -1,12 +1,12 @@
 # The fixture wiki's conventions: typed relations for a research wiki with people, places,
-# events, documents, topics and claims. Tests use this to check the generic rule format.
+# events, documents, topics and findings. Tests use this to check the generic rule format.
 
 [summary]
-headings = ["Summary", "What this is", "What happened", "Claim", "Question this page answers", "Synthesis"]
+headings = ["Summary", "What this is", "What happened", "Finding", "Question this page answers", "Synthesis"]
 
 [check]
 require_frontmatter = true
-summary_types = ["person", "organization", "place", "event", "document", "topic", "claim"]
+summary_types = ["person", "organization", "place", "event", "document", "topic", "finding"]
 
 [suggest]
 named_types = ["person", "organization", "place", "event", "topic"]
@@ -20,25 +20,25 @@ reason = "Premise of this argument."
 
 [[relations]]
 heading = "Rests on"
-page_type = "claim"
+page_type = "finding"
 type = "rests-on"
 inverse = "premise-of"
 
 [[relations]]
-heading = "Claims supported"
+heading = "Findings supported"
 page_type = "document"
 type = "supports"
 inverse = "supported-by"
 
 [[relations]]
 heading = "Supports"
-page_type = "claim"
+page_type = "finding"
 type = "supports"
 inverse = "supported-by"
 
 [[relations]]
 heading = "Sources"
-page_type = "claim"
+page_type = "finding"
 type = "sourced-by"
 inverse = "source-for"
 

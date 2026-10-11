@@ -7,18 +7,18 @@ relation reasons instead of opening candidates to see what they contain.
 ## A session
 
 ```bash
-wiki nav start "Who attended the East Gallery meeting with Dr. Quill?" --format json
+wiki nav start "Who gave evidence at the inquiry into the North Mill fire?" --format json
 ```
 
 ```json
 {"session":"a41f0c","max_pages":6,"results":[
- {"slug":"gallery-meeting-2025-11-12","title":"East Gallery meeting with Dr. Quill",
+ {"slug":"north-mill-fire-inquiry-1887","title":"Inquiry into the North Mill fire",
   "type":"event","score":5.21,"summary":"On 9 March 1887 the town council ...","section":"... > What happened"}]}
 ```
 
 ```bash
-wiki nav read a41f0c gallery-meeting-2025-11-12 \
-  --why "Need the attendee list; the event page is the most direct source." --format json
+wiki nav read a41f0c north-mill-fire-inquiry-1887 \
+  --why "Need the witness list; the inquiry's event page is the most direct source." --format json
 ```
 
 Returns the page summary, the section that best matches the question (`content`),
@@ -35,9 +35,9 @@ wiki nav candidates a41f0c --format json
 ```
 
 ```json
-{"session":"a41f0c","from":"gallery-meeting-2025-11-12",
- "linked":[{"slug":"gazette-board-met-quill-2025-11-12","title":"Harbor Gazette, 2025-11-12 (Quill meeting)",
-            "type":"document","summary":"...","relation":"appears-in","reason":"anonymous sources"}],
+{"session":"a41f0c","from":"north-mill-fire-inquiry-1887",
+ "linked":[{"slug":"ashford-courier-1887-03-10","title":"Ashford Courier, 10 March 1887 (the inquiry)",
+            "type":"source","summary":"...","relation":"appears-in","reason":"prints each witness's evidence"}],
  "similar":[...],"earlier":[...],"pages_left":5}
 ```
 
@@ -47,8 +47,8 @@ wiki nav candidates a41f0c --format json
 - `earlier`: unvisited candidates shown earlier, for backtracking.
 
 ```bash
-wiki nav search a41f0c "Which board members were present?"   # when nothing fits
-wiki nav end a41f0c --cited gallery-meeting-2025-11-12,gazette-board-met-quill-2025-11-12
+wiki nav search a41f0c "Which mill workers were questioned?"   # when nothing fits
+wiki nav end a41f0c --cited north-mill-fire-inquiry-1887,ashford-courier-1887-03-10
 wiki nav log a41f0c                                          # review the steps and reasons
 ```
 

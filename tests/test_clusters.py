@@ -205,7 +205,7 @@ RESEARCH = """\
 [types.event]
 hub = true
 hub_through = {through}
-[types.claim]
+[types.finding]
 [types.document]
 [types.org]
 hub = true
@@ -221,7 +221,7 @@ inverse = "features"
 
 [[relations]]
 heading = "Sources"
-page_type = "claim"
+page_type = "finding"
 type = "sourced-by"
 inverse = "source-for"
 
@@ -241,20 +241,20 @@ def research_page(root, slug, page_type, sections):
 
 
 def research_wiki(root, through):
-    """An event whose relations all point outward (event -appears-in-> document), claims
-    sourced by those documents (claim -sourced-by-> document), and nothing pointing into
+    """An event whose relations all point outward (event -appears-in-> document), findings
+    sourced by those documents (finding -sourced-by-> document), and nothing pointing into
     the event; an org tied to people by a symmetric relation, stored in both directions;
     and notes to pass the size threshold."""
     root.mkdir()
     (root / ".wiki-cli.toml").write_text(RESEARCH.format(through=json.dumps(through)), encoding="utf-8")
     documents = ["doc-0", "doc-1"]
-    claims = [f"claim-{index}" for index in range(8)]
+    findings = [f"finding-{index}" for index in range(8)]
     research_page(root, "meeting", "event", {"Sources": documents})
     for slug in documents:
         research_page(root, slug, "document", {})
-    for index, slug in enumerate(claims):
-        research_page(root, slug, "claim", {"Sources": [documents[index % 2]],
-                                            "Related": [claims[(index + step) % 8] for step in (1, 2, 3)]})
+    for index, slug in enumerate(findings):
+        research_page(root, slug, "finding", {"Sources": [documents[index % 2]],
+                                            "Related": [findings[(index + step) % 8] for step in (1, 2, 3)]})
     people = [f"person-{index}" for index in range(10)]
     research_page(root, "acme", "org", {"Relationships": people[:2]})  # acme -> person-0, person-1
     for index, slug in enumerate(people[2:], start=2):
@@ -282,20 +282,20 @@ def reach_of(root):
 
 def test_an_inverse_name_lets_an_outward_hub_cover_its_cluster(tmp_path):
     root = research_wiki(tmp_path / "w", ["features", "sourced-by"])
-    assert reach_of(root)["meeting"] == {"doc-0", "doc-1"} | {f"claim-{index}" for index in range(8)}
-    cluster = cluster_of(run(root, include_covered=True), "claim-0")
+    assert reach_of(root)["meeting"] == {"doc-0", "doc-1"} | {f"finding-{index}" for index in range(8)}
+    cluster = cluster_of(run(root, include_covered=True), "finding-0")
     assert cluster["covered_by"]["slug"] == "meeting" and cluster["covered_by"]["share"] == 1.0
-    assert cluster["covered_by"]["through"] == 8  # every claim, by its document
+    assert cluster["covered_by"]["through"] == 8  # every finding, by its document
     with Cache(load_settings(root)) as cache:
         assignment, names = membership(cache)
-        assert names[assignment["claim-0"]] == "meeting"  # wiki map names the cluster after the event
+        assert names[assignment["finding-0"]] == "meeting"  # wiki map names the cluster after the event
         assert overloaded_hubs(cache) == {}
 
 
 def test_forward_names_alone_do_not_reach_an_outward_hub(tmp_path):
     root = research_wiki(tmp_path / "w", ["appears-in", "sourced-by"])
     assert "meeting" not in reach_of(root)
-    assert cluster_of(run(root, include_covered=True), "claim-0")["covered_by"] is None
+    assert cluster_of(run(root, include_covered=True), "finding-0")["covered_by"] is None
 
 
 def test_a_symmetric_relation_is_walked_both_ways_once(tmp_path):

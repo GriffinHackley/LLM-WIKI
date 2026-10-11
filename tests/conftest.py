@@ -10,18 +10,18 @@ import yaml
 from wiki_cli.config import load_settings
 
 CONFIG = """\
-pages = ["wiki/**/*.md", "notebooks/*/claims.md"]
+pages = ["wiki/**/*.md", "projects/*/findings.md"]
 exclude = ["wiki/index.md"]
 raw = ["raw/*.txt"]
 
 """ + (Path(__file__).parent / "research_rules.toml").read_text(encoding="utf-8")
 
 FOLDERS = {"person": "people", "organization": "organizations", "place": "places", "event": "events",
-           "document": "documents", "topic": "topics", "claim": "claims"}
+           "document": "documents", "topic": "topics", "finding": "findings"}
 
 
 class Wiki:
-    """A temporary Obsidian wiki with typed folders, claim pages and custom summary headings."""
+    """A temporary Obsidian wiki with typed folders, finding pages and custom summary headings."""
 
     def __init__(self, root: Path):
         self.root = root
@@ -51,7 +51,7 @@ class Wiki:
         front = {"title": meta.pop("title", slug), "type": page_type, **meta}
         parts = [f"# {front['title']}", ""]
         if summary is not None:
-            heading = {"document": "What this is", "event": "What happened", "claim": "Claim"}.get(page_type, "Summary")
+            heading = {"document": "What this is", "event": "What happened", "finding": "Finding"}.get(page_type, "Summary")
             parts += [f"## {heading}", f"About {slug}." if summary == "default" else summary, ""]
         for heading, text in (sections or {}).items():
             parts += [f"## {heading}", textwrap.dedent(text).strip(), ""]

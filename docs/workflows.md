@@ -179,7 +179,7 @@ written by the first commit of a new week.
 
 ### Work on one part of the wiki at a time
 
-When a wiki holds several things (projects, projects, a writing wiki's books), give pages
+When a wiki holds several things (projects, clients, a writing wiki's books), give pages
 a field naming their part and list it in [`[groups]`](config.md#groups-the-parts-of-a-wiki-its-pages-name):
 
 ```toml
