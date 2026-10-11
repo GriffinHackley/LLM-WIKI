@@ -3,11 +3,21 @@
 ## Unreleased
 
 **Agent hooks**
-- `wiki hook <event> --agent <name>` is the command an agent's hook files run. For now
-  `--log` only records each call in `<wiki>/.cache/hook-log.jsonl`, with long text cut
-  short, to learn an agent's real tool names and fields. It always exits 0 and prints
-  nothing (Copilot denies a tool call when its pre-tool hook fails), and does nothing in a
-  repo with no wiki.
+- `wiki hook <event> --agent <name>` is the command an agent's hook files run. For an
+  agent the code repo's `agents` names, it:
+  - at session start, tells the agent where the wiki is, to work through
+    `wiki guide work`, never to commit, and which decisions wait for approval
+    (`status: proposed`); and notes the files already changed, for the end-of-task commit;
+  - shows `wiki covering`'s notes the first time a session touches a file: Claude Code
+    before an edit and after a read, Copilot (whose pre-tool hooks cannot show text) after
+    either;
+  - records the files each session edits, in `.cache/sessions/`;
+  - denies `git commit` in the shell and asks the user before `wiki finish`.
+  It always exits 0 and prints nothing but its reply (Copilot denies a tool call when its
+  pre-tool hook fails), does nothing in a repo with no wiki, and ignores a payload in
+  another agent's format (Copilot also runs Claude Code's hook file). `--log` records each
+  call in `<wiki>/.cache/hook-log.jsonl`, with long text cut short, to learn an agent's
+  real tool names and fields.
 - `agents = [...]` in `.wiki-cli.toml` names the coding agents that work in its folder. A
   code repo's redirect may hold it beside `wiki`, for the agents working on the code; the
   wiki's own list is then not used. The tool knows each agent's hook file, event and tool

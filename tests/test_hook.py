@@ -93,3 +93,91 @@ def test_from_a_code_repo_it_follows_the_pointer_to_the_wiki(wiki, tmp_path, mon
 def test_a_log_that_cannot_be_written_is_ignored(wiki, monkeypatch, capsys):
     (wiki / ".cache").write_text("a file where the folder should be", encoding="utf-8")
     assert call(monkeypatch, capsys, ["PostToolUse", "--log", "--root", str(wiki)], "{}") == (0, "", "")
+
+
+# -- what the hook does for a configured agent ---------------------------------------------
+
+from test_code import code_repo, code_wiki, git, module_page, write  # noqa: E402,F401  (fixtures)
+from wiki_cli import sessions  # noqa: E402
+
+
+@pytest.fixture
+def connected(code_wiki, code_repo, monkeypatch):
+    """A code repo whose pointer names both agents, with one module page and a proposed decision."""
+    head = git(code_repo, "rev-parse", "HEAD")
+    module_page(code_wiki, "search", ["src/app/search.py"], head)
+    write(code_wiki, "wiki/notes/plain-lists.md", "---\ntitle: plain-lists\ntype: decision\nstatus: proposed\n"
+          "---\n# plain-lists\n\n## Summary\nResults stay plain lists.\n\n## Affects\n- [[search]] — here\n")
+    write(code_repo, ".wiki-cli.toml", 'wiki = "../app-wiki"\nagents = ["claude-code", "copilot"]\n')
+    monkeypatch.chdir(code_repo)
+    monkeypatch.delenv("WIKI_ROOT", raising=False)
+    return code_repo
+
+
+def reply(monkeypatch, capsys, event, agent, payload) -> dict | None:
+    code, out, err = call(monkeypatch, capsys, [event, "--agent", agent], json.dumps(payload))
+    assert code == 0 and not err
+    return json.loads(out) if out else None
+
+
+def claude(event, session="s1", **fields):
+    return {"session_id": session, "hook_event_name": event, **fields}
+
+
+def test_session_start_points_at_the_wiki_and_lists_proposed_decisions(connected, monkeypatch, capsys):
+    out = reply(monkeypatch, capsys, "SessionStart", "claude-code", claude("SessionStart", source="startup"))
+    context = out["hookSpecificOutput"]["additionalContext"]
+    assert "../app-wiki" in context and "wiki guide work" in context and "git commit" in context
+    assert "- plain-lists: Results stay plain lists." in context
+
+
+def test_session_start_twice_notes_the_changed_files_once(connected, code_wiki, monkeypatch, capsys):
+    write(connected, "src/app/nav.py", "changed\n")
+    reply(monkeypatch, capsys, "SessionStart", "claude-code", claude("SessionStart"))
+    write(connected, "src/app/search.py", "changed too\n")
+    reply(monkeypatch, capsys, "SessionStart", "claude-code", claude("SessionStart", source="resume"))
+    assert sessions.load(code_wiki.resolve(), "s1")["changed_at_start"] == [".wiki-cli.toml", "src/app/nav.py"]
+
+
+def test_git_commit_is_denied_and_wiki_finish_asks(connected, monkeypatch, capsys):
+    for command in ("git commit -m x", "cd src; git -C .. commit -am 'x'", "git.exe --no-pager commit"):
+        out = reply(monkeypatch, capsys, "PreToolUse", "claude-code",
+                    claude("PreToolUse", tool_name="PowerShell", tool_input={"command": command}))
+        assert out["hookSpecificOutput"]["permissionDecision"] == "deny", command
+    out = reply(monkeypatch, capsys, "preToolUse", "copilot",
+                {"sessionId": "c1", "timestamp": 1, "toolName": "bash", "toolArgs": {"command": "wiki finish"}})
+    assert out == {"permissionDecision": "ask", "permissionDecisionReason": hook.FINISH_ASK}
+    for command in ("git status", "git log --grep commit", "echo wiki finished"):
+        assert reply(monkeypatch, capsys, "PreToolUse", "claude-code",
+                     claude("PreToolUse", tool_name="Bash", tool_input={"command": command})) is None, command
+
+
+def test_claude_code_sees_a_files_notes_before_its_first_edit_only(connected, monkeypatch, capsys):
+    path = str(connected / "src/app/search.py").lower()  # Claude Code sends c:\... on Windows
+    edit = claude("PreToolUse", tool_name="Edit", tool_input={"file_path": path})
+    context = reply(monkeypatch, capsys, "PreToolUse", "claude-code", edit)["hookSpecificOutput"]["additionalContext"]
+    assert "Wiki notes on src/app/search.py" in context and "plain-lists (decision, proposed)" in context
+    assert reply(monkeypatch, capsys, "PreToolUse", "claude-code", edit) is None
+    read_after = claude("PostToolUse", session="s2", tool_name="Read", tool_input={"file_path": path})
+    assert "Wiki notes" in reply(monkeypatch, capsys, "PostToolUse", "claude-code", read_after)[
+        "hookSpecificOutput"]["additionalContext"]
+
+
+def test_copilot_sees_notes_after_the_tool_and_edits_are_recorded(connected, code_wiki, monkeypatch, capsys):
+    payload = {"sessionId": "c1", "timestamp": 1, "toolName": "edit", "toolArgs": {"path": "src/app/search.py"}}
+    assert reply(monkeypatch, capsys, "preToolUse", "copilot", payload) is None
+    assert "Wiki notes on src/app/search.py" in reply(monkeypatch, capsys, "postToolUse", "copilot",
+                                                      payload)["additionalContext"]
+    reply(monkeypatch, capsys, "postToolUse", "copilot", payload)
+    edited = sessions.load(code_wiki.resolve(), "c1")["edited"]
+    assert edited == [(connected / "src/app/search.py").resolve().as_posix()]
+
+
+def test_only_the_configured_agents_and_their_own_format_get_answers(connected, monkeypatch, capsys):
+    write(connected, ".wiki-cli.toml", 'wiki = "../app-wiki"\nagents = ["copilot"]\n')
+    assert reply(monkeypatch, capsys, "SessionStart", "claude-code", claude("SessionStart")) is None
+    write(connected, ".wiki-cli.toml", 'wiki = "../app-wiki"\nagents = ["claude-code"]\n')
+    # Copilot running the Claude Code hook file sends snake_case with a timestamp: ignored.
+    assert reply(monkeypatch, capsys, "SessionStart", "claude-code",
+                 claude("SessionStart", timestamp="2026-10-10T00:00:00Z")) is None
+    assert reply(monkeypatch, capsys, "SessionStart", "claude-code", "not an object") is None

@@ -103,8 +103,8 @@ def _print_error(message: str) -> None:
 
 
 COMMAND_ORDER = ("new", "init", "guide", "search", "nav", "list", "neighbors", "suggest", "check", "unwritten",
-                 "orphans", "clusters", "map", "pending", "stale", "covering", "weekly", "precommit", "hook", "index", "models",
-                 "vocab", "eval")
+                 "orphans", "clusters", "map", "pending", "stale", "covering", "weekly", "precommit", "hook", "index",
+                 "models", "vocab", "eval")
 
 
 GROUP_HELP = ("only this group's pages: those whose [groups] fields (default: tags) name it, and the pages they "
@@ -837,22 +837,24 @@ def cmd_precommit(args: argparse.Namespace, settings: Settings) -> int:
 
 def cmd_hook(args: argparse.Namespace) -> int:
     """Run by an agent's hook, never by hand: whatever goes wrong, it exits 0 and prints
-    nothing, so the agent's tool call goes ahead."""
+    nothing but its reply, so the agent's tool call goes ahead."""
     try:
         stdin_text = sys.stdin.read()
     except (OSError, UnicodeDecodeError):
         stdin_text = ""
 
-    def find_root() -> Path | None:
+    def load() -> Settings | None:
         """Only a wiki that was found: in a repo with no wiki the hook does nothing, rather
         than treat the current folder as one (as other commands do)."""
         try:
             settings = load_settings(args.root)
         except ConfigError:
             return None
-        return settings.root if settings.root_note is None else None
+        return settings if settings.root_note is None else None
 
-    hook.run(args.event, args.agent, stdin_text, log=args.log, find_root=find_root)
+    reply = hook.run(args.event, args.agent, stdin_text, log=args.log, load=load)
+    if reply is not None:
+        print(json.dumps(reply, ensure_ascii=False))
     return EXIT_OK
 
 
@@ -868,42 +870,10 @@ def cmd_covering(args: argparse.Namespace, settings: Settings) -> int:
     if args.format == "json":
         _print_json({"files": [result.to_dict() for result in results]})
         return EXIT_OK
-    text = covering_text(results, settings)
+    text = covering.text(results, settings.root, Path.cwd())
     if text:
         print(text)
     return EXIT_OK
-
-
-def covering_text(results: list, settings: Settings, *, quiet: bool = False) -> str:
-    """The notes as plain text, for a person or an agent. ``quiet`` leaves out the files
-    with nothing to show (what a hook wants)."""
-    blocks = []
-    for result in results:
-        if result.outside or result.shown_before or not (result.pages or result.notes):
-            if not quiet:
-                why = (result.outside or ("shown earlier in this session" if result.shown_before
-                                          else "no wiki page covers it"))
-                blocks.append(f"{result.path}: {why}.")
-            continue
-        lines = [f"Wiki notes on {result.path} (read the pages before changing it):"]
-        for entry in result.pages + result.notes:
-            label = entry["type"] or "page"
-            if entry.get("status") and entry["type"] == "decision":
-                label += f", {entry['status']}"
-            if entry.get("changed"):
-                label += ", the file changed since this page was checked"
-            lines.append(f"- {entry['slug']} ({label}): {_display_path(settings.root / entry['path'])}")
-            if entry.get("summary"):
-                lines.append(f"  {entry['summary']}")
-        blocks.append("\n".join(lines))
-    return "\n\n".join(blocks)
-
-
-def _display_path(path: Path) -> str:
-    try:
-        return Path(os.path.relpath(path)).as_posix()
-    except ValueError:  # another drive on Windows
-        return path.as_posix()
 
 
 def cmd_list(args: argparse.Namespace, settings: Settings) -> int:

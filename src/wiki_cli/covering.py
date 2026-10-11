@@ -155,3 +155,35 @@ def _mark_changed(code_repo: Path, rel: str, pages: list[dict], verified: dict[s
     for page in pages:
         if changed_since.get(verified.get(page["slug"], "")):
             page["changed"] = True
+
+
+def text(results: list[Covering], wiki_root: Path, cwd: Path, *, quiet: bool = False) -> str:
+    """The notes as plain text, for a person or an agent, with page paths relative to
+    ``cwd``. ``quiet`` leaves out the files with nothing to show (what a hook wants)."""
+    blocks = []
+    for result in results:
+        if result.outside or result.shown_before or not (result.pages or result.notes):
+            if not quiet:
+                why = (result.outside or ("shown earlier in this session" if result.shown_before
+                                          else "no wiki page covers it"))
+                blocks.append(f"{result.path}: {why}.")
+            continue
+        lines = [f"Wiki notes on {result.path} (read the pages before changing it):"]
+        for entry in result.pages + result.notes:
+            label = entry["type"] or "page"
+            if entry.get("status") and entry["type"] == "decision":
+                label += f", {entry['status']}"
+            if entry.get("changed"):
+                label += ", the file changed since this page was checked"
+            lines.append(f"- {entry['slug']} ({label}): {display_path(wiki_root / entry['path'], cwd)}")
+            if entry.get("summary"):
+                lines.append(f"  {entry['summary']}")
+        blocks.append("\n".join(lines))
+    return "\n\n".join(blocks)
+
+
+def display_path(path: Path, cwd: Path) -> str:
+    try:
+        return Path(os.path.relpath(path, cwd)).as_posix()
+    except ValueError:  # another drive on Windows
+        return path.as_posix()
