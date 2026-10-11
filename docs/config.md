@@ -22,10 +22,10 @@ The wiki's root folder is, in order:
 
 The config is `<root>/.wiki-cli.toml`, unless `$WIKI_CONFIG` names another file.
 
-**Redirect.** A `.wiki-cli.toml` holding only `wiki = "<path>"` sends every command run
+**Redirect.** A `.wiki-cli.toml` holding `wiki = "<path>"` sends every command run
 under it to the wiki at that path (relative to the file). A code repo uses this to point
-at its wiki. `wiki` must be the only key, the target must have its own
-`.wiki-cli.toml`, and that one must not redirect again.
+at its wiki. The only other key it may hold is `agents`, the agents working in the code
+repo; the target must have its own `.wiki-cli.toml`, and that one must not redirect again.
 
 ## Overrides outside the file
 
@@ -51,6 +51,7 @@ A flag beats the environment variable, which beats the config file.
 | `raw` | list of globs | `["raw/**/*.txt"]` | Source text that is indexed but searched only with `--include-raw`, and listed by `wiki pending` until a page links it. |
 | `embed_model` | string | `"BAAI/bge-small-en-v1.5"` | The embedding model for search. |
 | `reranker` | string | `"jinaai/jina-reranker-v1-turbo-en"` | The reranker for search, or `"none"` to skip reranking. See [model-selection.md](model-selection.md). |
+| `agents` | list of strings | `[]` | The coding agents that work in this config's folder: `claude-code` (also `claude`), `copilot`, `opencode`. In a redirect it names the agents working in the code repo, and a wiki's own list is not used there. |
 
 Globs are matched against paths relative to the root, with forward slashes; `**` matches
 any number of folders. Hidden files and folders (a name starting with `.`), and

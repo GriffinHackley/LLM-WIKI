@@ -15,7 +15,6 @@ import os
 from pathlib import Path
 from typing import Any, Callable
 
-AGENTS = ("claude-code", "copilot")
 LOG_FILE = "hook-log.jsonl"  # in the wiki's .cache/ folder
 MAX_TEXT = 300  # characters of each string kept in the log: enough to name a tool or a file, not a file's content
 

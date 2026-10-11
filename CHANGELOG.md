@@ -8,6 +8,13 @@
   short, to learn an agent's real tool names and fields. It always exits 0 and prints
   nothing (Copilot denies a tool call when its pre-tool hook fails), and does nothing in a
   repo with no wiki.
+- `agents = [...]` in `.wiki-cli.toml` names the coding agents that work in its folder. A
+  code repo's redirect may hold it beside `wiki`, for the agents working on the code; the
+  wiki's own list is then not used. The tool knows each agent's hook file, event and tool
+  names, and how to read its hook payloads and write replies, in one table (`agents.py`).
+- Agents are named by hook format: `claude-code` (`claude` still works), `copilot` (VS
+  Code's Copilot agent and the Copilot CLI) and `opencode`. An unknown agent in
+  `wiki new --agent` now says `no agent '<name>'`.
 
 **Start a wiki**
 - A code wiki can be a folder inside the code's repository (`wiki new docs/wiki --preset

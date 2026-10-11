@@ -18,6 +18,7 @@ from typing import Sequence
 
 from wiki_cli import (
     __version__,
+    agents,
     audit,
     clusters,
     codebase,
@@ -262,7 +263,7 @@ def build_parser() -> argparse.ArgumentParser:
     new.add_argument("folder", nargs="?", default=".", help="the wiki's folder (default: the current folder)")
     new.add_argument("--preset", default=scaffold.DEFAULT_PRESET,
                      help=f"{' or '.join(scaffold.presets())}, or a preset folder (default: {scaffold.DEFAULT_PRESET})")
-    new.add_argument("--agent", choices=scaffold.AGENTS, action="append",
+    new.add_argument("--agent", choices=agents.NAMES, action="append",
                      help="also write this agent's adapter files (slash commands for the workflows); repeatable")
     new.add_argument("--code", help="code preset: the top folder of the code's git repository (required)")
     new.add_argument("--git-hook", action="store_true",
@@ -304,7 +305,7 @@ def build_parser() -> argparse.ArgumentParser:
         "hook", help="the command an agent's hooks run: reads the event the agent sends on stdin, always exits 0")
     hook_parser.add_argument("event", help="the hook event as the agent names it (preToolUse, PostToolUse, ...)")
     # Not argparse choices: a usage error exits 2, which Copilot reads as "deny this tool call".
-    hook_parser.add_argument("--agent", help=f"the agent whose hook file runs this command: {', '.join(hook.AGENTS)}")
+    hook_parser.add_argument("--agent", help=f"the agent whose hook file runs this command: {', '.join(agents.IDS)}")
     hook_parser.add_argument("--log", action="store_true",
                              help=f"record each call, with long text cut short, in <root>/.cache/{hook.LOG_FILE}")
     hook_parser.add_argument("--root", help="wiki root (default: as for the other commands)")

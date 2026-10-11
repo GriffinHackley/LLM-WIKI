@@ -180,7 +180,7 @@ class TestNew:
 
     def test_copilot_with_claude_shares_the_claude_skills(self, capsys, tmp_path):
         root = tmp_path / "w"
-        code, result = run_json(capsys, "new", str(root), "--agent", "claude", "--agent", "copilot",
+        code, result = run_json(capsys, "new", str(root), "--agent", "claude-code", "--agent", "copilot",
                                 "--agent", "opencode")
         assert code == 0
         assert (root / ".claude/skills/wiki-ingest/SKILL.md").is_file() and not (root / ".github/skills").exists()
@@ -196,7 +196,7 @@ class TestNew:
         assert {"file": ".github/copilot-instructions.md", "text": scaffold_module.COPILOT_INSTRUCTIONS} in result["add"]
 
     def test_unknown_agent(self, tmp_path):
-        with pytest.raises(ScaffoldError, match="no adapter for 'cursor'"):
+        with pytest.raises(ScaffoldError, match="no agent 'cursor'"):
             scaffold(tmp_path / "w", agent=["claude", "cursor"])
 
     def test_claude_adapter_names_a_missing_permission(self, tmp_path):

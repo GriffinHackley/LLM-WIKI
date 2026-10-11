@@ -162,8 +162,21 @@ class TestRedirect:
         assert settings.root == code_wiki.resolve() and settings.redirected_from == code_repo.resolve()
         assert settings.cache_path.is_relative_to(code_wiki.resolve())
 
+    def test_the_agents_are_the_code_repos_not_the_wikis(self, code_wiki, code_repo):
+        """Agents named in the pointer work in the code repo; the wiki's own list is for agents
+        working in the wiki's folder."""
+        config = (code_wiki / ".wiki-cli.toml").read_text(encoding="utf-8")
+        write(code_wiki, ".wiki-cli.toml", 'agents = ["opencode"]\n' + config)
+        write(code_repo, ".wiki-cli.toml", 'wiki = "../app-wiki"\nagents = ["copilot", "claude", "claude-code"]\n')
+        assert load_settings(code_repo).agents == ("copilot", "claude-code")
+        assert load_settings(code_wiki).agents == ("opencode",)
+        write(code_repo, ".wiki-cli.toml", 'wiki = "../app-wiki"\n')
+        assert load_settings(code_repo).agents == ()
+
     @pytest.mark.parametrize("text, message", [
-        ('wiki = "../app-wiki"\npages = ["*.md"]\n', "only setting"),
+        ('wiki = "../app-wiki"\npages = ["*.md"]\n', "only other setting"),
+        ('wiki = "../app-wiki"\nagents = ["cursor"]\n', "no agent 'cursor'"),
+        ('wiki = "../app-wiki"\nagents = 3\n', "list of agent names"),
         ('wiki = "../nowhere"\n', "not a wiki"),
     ])
     def test_bad_redirects(self, code_wiki, code_repo, text, message):

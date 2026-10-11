@@ -12,6 +12,7 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from wiki_cli import agents as agents_module
 from wiki_cli.models import DEFAULT_EMBED_MODEL, DEFAULT_RERANKER
 from wiki_cli.vocabulary import RelationRule, RuleError, Vocabulary, parse_rules
 
@@ -27,12 +28,13 @@ DEFAULT_SEARCH_RESULTS = 3
 MAX_SEARCH_RESULTS = 20  # search reranks 20 passages (search.RERANK_K), so it never returns more pages
 _TOP_LEVEL = {"pages", "exclude", "raw", "embed_model", "reranker", "relations", "summary", "page_type",
               "check", "suggest", "search", "preset", "types", "guides", "code", "pending", "weekly", "records",
-              "clusters", "hooks", "groups"}
+              "clusters", "hooks", "groups", "agents"}
 _CODE_KEYS = {"repo", "origin"}
 _WEEKLY_KEYS = {"folder", "template", "sections", "group_by"}
 WEEKLY_SECTIONS = ("summary", "activity", "pages", "work", "sources", "questions", "health", "code")
 WEEKLY_GROUPS = ("type", "module")
-REDIRECT_KEY = "wiki"  # a config holding only this key says "the wiki for this folder is over there"
+REDIRECT_KEY = "wiki"  # a config holding this key says "the wiki for this folder is over there"
+AGENTS_KEY = "agents"  # the coding agents that work in the config's folder (agents.py)
 _TYPE_KEYS = {"description", "folder", "template"}
 _TYPE_LISTS = {"sections", "fields", "no_links_with", "hub_through"}
 _TYPE_VALUES = "values"
@@ -137,6 +139,7 @@ class Settings:
     pre_commit: tuple[HookCommand, ...] = ()  # the wiki's own checks, run by the pre-commit hook
     group_fields: tuple[str, ...] = DEFAULT_GROUP_FIELDS  # frontmatter naming a page's groups (--group)
     redirected_from: Path | None = field(default=None, compare=False)  # a code repo that pointed here
+    agents: tuple[str, ...] = ()  # agent ids working where the command started: the pointer's when redirected
     vocabulary: Vocabulary = field(default_factory=Vocabulary, compare=False)
     root_note: str | None = field(default=None, compare=False)  # set when no config chose the root
 
@@ -200,6 +203,7 @@ def load_settings(
 
     config = _read_config(Path(os.environ.get("WIKI_CONFIG") or resolved / CONFIG_FILENAME))
     redirected_from = None
+    agents = _agents(config)
     if REDIRECT_KEY in config:
         resolved, redirected_from, config = _follow_redirect(resolved, config), resolved, None
         config = _read_config(resolved / CONFIG_FILENAME)
@@ -290,21 +294,32 @@ def load_settings(
         pre_commit=_pre_commit(config),
         group_fields=_group_fields(config),
         redirected_from=redirected_from,
+        agents=agents,
         vocabulary=Vocabulary(rules),
         root_note=root_note,
     )
 
 
 def _follow_redirect(folder: Path, config: dict) -> Path:
-    """A code repo's `.wiki-cli.toml` holding only `wiki = "<path>"` points at its wiki."""
-    if set(config) != {REDIRECT_KEY} or not isinstance(config[REDIRECT_KEY], str):
-        raise ConfigError(f"{folder / CONFIG_FILENAME}: '{REDIRECT_KEY}' must be the only setting, "
-                          "a path to the wiki")
+    """A code repo's `.wiki-cli.toml` holding `wiki = "<path>"` points at its wiki. Besides
+    the path it may only say which agents work in the code repo."""
+    if set(config) - {REDIRECT_KEY, AGENTS_KEY} or not isinstance(config[REDIRECT_KEY], str):
+        raise ConfigError(f"{folder / CONFIG_FILENAME}: '{REDIRECT_KEY}' must be a path to the wiki, "
+                          f"and the only other setting allowed beside it is '{AGENTS_KEY}'")
     target = (folder / Path(config[REDIRECT_KEY]).expanduser()).resolve()
     if not (target / CONFIG_FILENAME).is_file():
         raise ConfigError(f"{folder / CONFIG_FILENAME} points at {target}, which is not a wiki "
                           f"(no {CONFIG_FILENAME} there)")
     return target
+
+
+def _agents(config: dict) -> tuple[str, ...]:
+    if AGENTS_KEY not in config:
+        return ()
+    try:
+        return agents_module.resolve(config[AGENTS_KEY], "it")
+    except agents_module.AgentError as exc:
+        raise ConfigError(f"{CONFIG_FILENAME}: '{AGENTS_KEY}': {exc}") from exc
 
 
 def _clusters(config: dict) -> tuple[tuple[str, ...], float]:

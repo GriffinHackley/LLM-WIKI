@@ -17,6 +17,7 @@ import tomllib
 from collections.abc import Sequence
 from pathlib import Path
 
+from wiki_cli import agents as agents_module
 from wiki_cli import codebase, guide, init
 from wiki_cli.config import CONFIG_FILENAME, ConfigError, load_settings
 from wiki_cli.models import is_downloaded
@@ -26,7 +27,6 @@ PRESETS_DIR = Path(__file__).parent / "presets"
 HOOKS_DIR = Path(__file__).parent / "hooks"
 DEFAULT_PRESET = "research"
 CODE_PRESET = "code"  # describes a code repo, which `wiki new` must be pointed at
-AGENTS = ("claude", "copilot", "opencode")  # agent platforms with adapter files
 CLAUDE_PERMISSION = "Bash(wiki:*)"
 CONTENT_FOLDERS = {"wiki", "templates", "raw"}  # a preset's pages and templates, not added to an established wiki
 
@@ -56,10 +56,10 @@ def scaffold(target: Path, preset: str = DEFAULT_PRESET, agent: str | Sequence[s
         raise ScaffoldError(f"{target} is not a wiki folder; name a folder for the wiki")
     if target.exists() and not target.is_dir():
         raise ScaffoldError(f"{target} is a file")
-    agents = (agent,) if isinstance(agent, str) else tuple(agent or ())
-    for name in agents:
-        if name not in AGENTS:
-            raise ScaffoldError(f"no adapter for '{name}': choose {', '.join(AGENTS)}")
+    try:
+        agents = agents_module.resolve(agent or ())
+    except agents_module.AgentError as exc:
+        raise ScaffoldError(str(exc)) from exc
     name, folder = preset_files(preset)
     files = folder / "files" if (folder / "files").is_dir() else folder
     if code is not None and name != CODE_PRESET:
@@ -116,11 +116,11 @@ def scaffold(target: Path, preset: str = DEFAULT_PRESET, agent: str | Sequence[s
         missing = preset_types(folder) - {page_type.name for page_type in settings.types}
         if missing:
             result["preset_types"] = sorted(missing)
-    if "claude" in agents:
+    if agents_module.CLAUDE_CODE.id in agents:
         _claude(target, settings, result, extra_dir=code_repo)
-    if "copilot" in agents:
-        _copilot(target, settings, result, with_claude="claude" in agents)
-    if "opencode" in agents:
+    if agents_module.COPILOT.id in agents:
+        _copilot(target, settings, result, with_claude=agents_module.CLAUDE_CODE.id in agents)
+    if agents_module.OPENCODE.id in agents:
         _opencode(target, settings, result)
     if code_repo is not None:
         result["code_repo"] = str(code_repo)
@@ -208,7 +208,7 @@ def _code_setup(code_repo: Path, target: Path, preset: Path, agents: tuple[str, 
                         {"wiki_path": wiki_path, **_git_layout(code_repo, target)}).decode("utf-8")
         setup.append({"file": "AGENTS.md", "text": section,
                       "why": "tells the agent working on the code to keep the wiki current"})
-    if "claude" in agents:
+    if agents_module.CLAUDE_CODE.id in agents:
         if nested:  # a folder of the project Claude Code is started in, named from its top
             deny = [f"Edit(/{wiki_path}/{raw}/**)" for raw in raw_folders]
             settings = {"permissions": {"allow": [CLAUDE_PERMISSION], "deny": deny}}
