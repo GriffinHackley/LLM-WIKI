@@ -549,3 +549,7 @@ repository without getting in each other's way:
 
 If a commit fails, `wiki commit` says why: usually a `wiki check` error for the agent to
 fix.
+
+---
+
+**Next:** [Commands](commands.md): every command and option. · [All docs](README.md)

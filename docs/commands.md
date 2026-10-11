@@ -485,3 +485,7 @@ Score search against a question file.
 ```bash
 wiki eval run --split test
 ```
+
+---
+
+**Next:** [Config](config.md): every setting in `.wiki-cli.toml`. · [All docs](README.md)

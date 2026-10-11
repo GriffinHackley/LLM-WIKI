@@ -472,3 +472,7 @@ pre_commit = [
 | `origin` | string | none | The code repo's remote URL, to catch `repo` pointing at the wrong checkout: `wiki stale` refuses to run, and `wiki check` warns instead of checking code links. |
 
 No other keys are allowed in `[code]`.
+
+---
+
+**Next:** [Presets](presets.md): what each preset declares. · [All docs](README.md)

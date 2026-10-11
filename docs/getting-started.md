@@ -340,3 +340,7 @@ Next: [workflows.md](workflows.md) for what to do with it, day to day.
   `wiki map --open`.
 - **[troubleshooting.md](troubleshooting.md)** lists the messages you may see, what
   each means, and what to do.
+
+---
+
+**Next:** [Workflows](workflows.md): what you do with a wiki, step by step. · [All docs](README.md)

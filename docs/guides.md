@@ -212,3 +212,7 @@ relation types in effect, and `wiki neighbors <slug>` shows what a page's links 
 - **Code wikis.** `wiki stale` lists pages whose covered code changed since they were
   verified; `wiki check` warns on `code:` links to files that are gone and `covers:`
   globs that match nothing.
+
+---
+
+**Next:** [Troubleshooting](troubleshooting.md): what a message means, and what to do. · [All docs](README.md)

@@ -71,3 +71,7 @@ differences are one or two questions).
   questions may be harder.
 - Rerun with `wiki eval run --split test` after large wiki changes or before switching
   models.
+
+---
+
+[All docs](README.md)

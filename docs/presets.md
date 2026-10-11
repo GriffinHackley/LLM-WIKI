@@ -189,3 +189,7 @@ To adopt a preset's page types, relation rules and weekly notes as well, `wiki i
 each type's folder under the wiki's page folder. Merge what fits, then run `wiki new .
 --preset <name>` again to add the templates the types name.
 [Getting started](getting-started.md#6-add-to-an-existing-wiki) walks through it.
+
+---
+
+**Next:** [Guides](guides.md): the steps agents follow, and how to customise them. · [All docs](README.md)

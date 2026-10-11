@@ -94,3 +94,7 @@ comparing models never re-embeds the main cache. Reported metrics:
 
 Choose the smallest model combination within a small margin of the best
 `hit_at_3` and `mrr` on `tune`, then confirm on `test`.
+
+---
+
+**Next:** [Model selection](model-selection.md): why the default models were chosen. · [All docs](README.md)

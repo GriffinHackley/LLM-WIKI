@@ -183,3 +183,7 @@ as `status: proposed`; only you accept it.
 
 Search runs on the CPU: indexing takes about 2 minutes per 500 pages the first time, and
 a fraction of a second afterwards for unchanged pages.
+
+---
+
+**Next:** [Workflows](workflows.md): what you do with a wiki, step by step. · [All docs](README.md)

@@ -86,3 +86,7 @@ session, so reads and candidates never load the embedding model; only `start` an
 - `wiki unwritten`: link targets with no page, most-linked first. The lint guide runs it.
 - `wiki orphans`: pages nothing relates to. The lint guide runs it.
 - `wiki neighbors <slug>`: a page's relations without a session.
+
+---
+
+**Next:** [Evaluating search](evaluation.md): measure search on your own wiki. · [All docs](README.md)

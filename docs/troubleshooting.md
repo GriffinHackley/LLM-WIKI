@@ -78,3 +78,7 @@ the cache is lost by rebuilding it.
 | The agent asks permission for every `wiki` command | Allow `wiki` in the agent's settings. `--agent claude` does it for Claude Code; for Copilot, add `wiki` to its terminal auto-approve list. |
 | An edit to an original or a source is refused | By design: the agent may read originals and sources, never change them. |
 | A new workflow from an upgrade has no slash command | Run `wiki new . --agent <name>` again; it adds the missing commands. |
+
+---
+
+[All docs](README.md)
