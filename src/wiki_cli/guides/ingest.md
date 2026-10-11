@@ -284,7 +284,8 @@ template.
     git commit -m "Ingest <source-slug>: created ...; updated ...; questions: ..."
     ```
 
-    There is no `wiki commit`; use git.
+    `wiki commit "<message>"` instead adds and commits every change in the wiki at once:
+    use it only when nothing else in the wiki is changed but this ingest.
 11. **Check the whole ingest.** Run `wiki check <source-slug> --ingested`. It checks what the
     steps above should have produced: the source page links its file in `raw/`{{#records}} (a
     record's page: names its record in `url:`){{/records}}, lists

@@ -67,3 +67,14 @@ def test_the_relations_read_as_the_preset_means_them(wiki, capsys):
     main(["neighbors", "the-salt-road-02-storm", "--outgoing", "--root", str(wiki), "--format", "json"])
     found = {(item["slug"], item["type"]) for item in json.loads(capsys.readouterr().out)["neighbors"]}
     assert found == {("mara", "features"), ("originals/the-salt-road/02-storm", "draws-on")}
+
+
+@pytest.mark.parametrize("name, says", [
+    ("ingest", "wiki pending --hash"),
+    ("query", "canon"),
+    ("lint", "Open threads"),
+])
+def test_the_guides_are_the_writing_variants(wiki, capsys, name, says):
+    assert main(["guide", name, "--root", str(wiki)]) == 0
+    text = capsys.readouterr().out
+    assert says in text and "{{" not in text and "originals" in text
