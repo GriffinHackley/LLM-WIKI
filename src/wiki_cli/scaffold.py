@@ -472,6 +472,9 @@ def _copilot(target: Path, settings, result: dict, *, with_claude: bool) -> None
             result["add"].append({"file": rel, "text": text})
     elif instructions is not None:
         _write(target, rel, text, result)
+    if settings is not None and settings.originals is not None:  # its hook refuses edits to originals
+        hooks = agents_module.COPILOT.hook_file
+        _write(target, hooks, json.dumps(agents_module.COPILOT.hook_entries(), indent=2) + "\n", result)
     if with_claude:
         result["notes"].append("Copilot uses the workflow skills in .claude/skills/, so none were written "
                                "to .github/skills/")

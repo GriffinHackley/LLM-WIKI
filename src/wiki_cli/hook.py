@@ -12,6 +12,10 @@ What it does, for an agent the code repo's config names in `agents`:
 - refuses `git commit`, and asks the user before `wiki task start|takeover|cancel` and
   `wiki finish`, showing what `wiki finish` will commit.
 
+In every wiki whose config names the agent, code repo or not, it refuses an edit to an
+original (the user's writing, `[originals]`) or to a source already in a raw folder. That
+is all it does in a wiki with no code repo.
+
 `--log` also records each call as it arrived, to learn an agent's real tool names and
 payload fields.
 
@@ -30,6 +34,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from wiki_cli import agents, covering, tasks
+from wiki_cli.sources import raw_dirs
 from wiki_cli.agents import AFTER_TOOL, BEFORE_TOOL, EDIT, READ, SESSION_START, SHELL, Event, Reply
 from wiki_cli.cache import Cache
 from wiki_cli.config import Settings
@@ -44,6 +49,9 @@ WIKI_TASK = re.compile(_COMMAND_START + r"wiki(?:\.exe)?\s+task\s+(start|takeove
 
 COMMIT_DENIED = ("Commits are not made during a task. When the work is done and the user has approved it, "
                  "run `wiki finish`: it commits the code, then the wiki.")
+ORIGINAL_DENIED = ("{rel} is the user's own writing: read it, never change, move or delete it. What the wiki "
+                   "knows about it goes on its wiki page.")
+SOURCE_DENIED = "{rel} is a source in a raw folder: sources are never edited. Notes about it go on its source page."
 TASK_ASK = {
     "start": "Opens the task, so this session may change the code and the wiki. Approve if you approved its plan.",
     "takeover": "Moves the open task to this session, which then holds it. Approve if this session carries it on.",
@@ -68,7 +76,7 @@ def run(event_name: str, agent_name: str | None, stdin_text: str, *, log: bool,
             agent = agents.get(agent_name or "")
         except agents.AgentError:
             return None
-        if agent.id not in settings.agents or settings.code_repo is None:
+        if agent.id not in settings.agents:
             return None
         event = agent.read(event_name, _parse(stdin_text))
         if event is None or event.kind is None:
@@ -81,6 +89,12 @@ def run(event_name: str, agent_name: str | None, stdin_text: str, *, log: bool,
 
 def respond(settings: Settings, agent: agents.Agent, event: Event) -> Reply | None:
     cwd = Path(event.cwd) if event.cwd else Path.cwd()
+    if event.kind == BEFORE_TOOL and event.tool == EDIT:
+        refusals = [why for given in event.paths if (why := raw_refusal(settings, _absolute(given, cwd)))]
+        if refusals:
+            return Reply(decision="deny", reason=refusals[0])
+    if settings.code_repo is None:
+        return None
     if event.kind == SESSION_START:
         return Reply(context=session_start_text(settings, cwd, event.session))
     if event.kind == BEFORE_TOOL and event.tool == SHELL and event.command:
@@ -97,6 +111,20 @@ def respond(settings: Settings, agent: agents.Agent, event: Event) -> Reply | No
         results = covering.lookup(settings, [str(path) for path in paths], cwd=cwd, session=event.session)
         notes = covering.text(results, settings.root, cwd, quiet=True)
         return Reply(context=notes) if notes else None
+    return None
+
+
+def raw_refusal(settings: Settings, path: Path) -> str | None:
+    """Why an edit to ``path`` is refused: it is an original, or a source already saved in
+    a raw folder. A new file in a raw folder (a source being saved) may be written."""
+    try:
+        rel = path.resolve().relative_to(settings.root.resolve()).as_posix()
+    except ValueError:
+        return None
+    if settings.originals is not None and settings.originals.contains(rel):
+        return ORIGINAL_DENIED.format(rel=rel)
+    if path.exists() and any(rel.startswith(folder + "/") for folder in raw_dirs(settings)):
+        return SOURCE_DENIED.format(rel=rel)
     return None
 
 

@@ -180,3 +180,39 @@ def test_only_the_configured_agents_and_their_own_format_get_answers(connected, 
     assert reply(monkeypatch, capsys, "SessionStart", "claude-code",
                  claude("SessionStart", timestamp="2026-10-10T00:00:00Z")) is None
     assert reply(monkeypatch, capsys, "SessionStart", "claude-code", "not an object") is None
+
+
+@pytest.fixture
+def writing(tmp_path) -> Path:
+    root = tmp_path / "stories"
+    (root / "originals" / "the-salt-road").mkdir(parents=True)
+    (root / "originals" / "the-salt-road" / "02-storm.md").write_text("The storm.\n", encoding="utf-8")
+    (root / "raw").mkdir()
+    (root / "raw" / "tides.txt").write_text("a source\n", encoding="utf-8")
+    (root / ".wiki-cli.toml").write_text('agents = ["claude-code"]\npages = ["wiki/**/*.md"]\n\n[originals]\n',
+                                         encoding="utf-8")
+    return root
+
+
+def edit(monkeypatch, capsys, root: Path, rel: str, tool: str = "Edit") -> str:
+    payload = {"hook_event_name": "PreToolUse", "tool_name": tool, "session_id": "s1", "cwd": str(root),
+               "tool_input": {"file_path": str(root / rel)}}
+    code, out, _ = call(monkeypatch, capsys, ["PreToolUse", "--agent", "claude-code", "--root", str(root)],
+                        json.dumps(payload))
+    assert code == 0
+    return out
+
+
+def test_a_wiki_without_a_code_repo_refuses_edits_to_originals_and_sources(writing, monkeypatch, capsys):
+    refused = json.loads(edit(monkeypatch, capsys, writing, "originals/the-salt-road/02-storm.md"))
+    assert refused["hookSpecificOutput"]["permissionDecision"] == "deny"
+    assert "the user's own writing" in refused["hookSpecificOutput"]["permissionDecisionReason"]
+    assert "deny" in edit(monkeypatch, capsys, writing, "originals/loose/new-idea.md", "Write")  # new ones too
+    assert "never edited" in edit(monkeypatch, capsys, writing, "raw/tides.txt")
+    assert edit(monkeypatch, capsys, writing, "raw/new-source.txt", "Write") == ""  # saving a new source
+    assert edit(monkeypatch, capsys, writing, "wiki/characters/mara.md") == ""  # no task needed
+
+
+def test_an_agent_the_config_does_not_name_gets_nothing(writing, monkeypatch, capsys):
+    (writing / ".wiki-cli.toml").write_text('pages = ["wiki/**/*.md"]\n\n[originals]\n', encoding="utf-8")
+    assert edit(monkeypatch, capsys, writing, "originals/the-salt-road/02-storm.md") == ""
