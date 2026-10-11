@@ -315,7 +315,7 @@ folder, runs `wiki new --agent claude`, `wiki guide`, `wiki check` and `wiki clu
 **Pending, for the owner:** make the repo public (the README links and the git install
 need it); on PyPI, add a pending trusted publisher for `llm-wiki-cli` (owner
 `GriffinHackley`, repo `LLM-WIKI`, workflow `publish.yml`, environment `pypi`); create
-the `pypi` environment in the GitHub repo's settings; then `git tag v0.2.0` and push the
+the `pypi` environment in the GitHub repo's settings; then `git tag v0.3.0` and push the
 tag.
 
 ## Phase 6 (done): Docs
