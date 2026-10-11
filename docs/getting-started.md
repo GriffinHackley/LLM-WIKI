@@ -579,21 +579,5 @@ questions about) and `wiki eval run`.
 
 ## Troubleshooting
 
-| Symptom | Cause and fix |
-|---|---|
-| `...is not a wiki folder; cd into the wiki, pass --root, or add a config` | You ran `wiki` from your home folder or a drive root. `cd` into the wiki first. |
-| `note: no .wiki-cli.toml found; using ... as the wiki root` | No config yet. Check the folder is the one you meant, then run `wiki new .` (or just `wiki init --write`). |
-| `vector search skipped: no embeddings yet` | Run `wiki index refresh`. |
-| `N files are not embedded yet` | Pages changed since the last refresh; run `wiki index refresh`. |
-| `embedding model ... is not downloaded` | Run `wiki models download`. |
-| Search returns files that aren't wiki pages | Narrow `pages` or add `exclude` globs in `.wiki-cli.toml`. |
-| `ambiguous-link` warnings | Two files share a name, so `[[name]]` could mean either. Link with the path (`[[people/name]]`), as Obsidian does. |
-| Every relation is `links-to` | Add `[[relations]]` rules; `wiki init` suggests them from your headings. |
-| `missing-section` or `missing-field` warning | The page lacks a heading or frontmatter key its type's `sections` or `fields` in `.wiki-cli.toml` require. Add it (the template shows it), or drop it from the config if your pages don't need it. |
-| `bad-value` warning | A frontmatter field holds a value its type's `values` in `.wiki-cli.toml` don't list. Use one of the listed values, or add yours to the list. |
-| `uncited-sources` warning | The page lists a source in `sources:` that its text never cites. Cite it where its facts are used, or remove it from the list. |
-| `summary-stale` warning | The page's body changed but its summary did not. Revise the summary, or `wiki check <slug> --summary-ok` if it still fits. |
-| `code repo ... does not exist` or `is not the top of a git repository` | A code wiki's `[code] repo` points at the wrong place on this machine. Set `WIKI_CODE_REPO` to the code's checkout, or fix the path. |
-| `code repo ... has origin ..., but this wiki describes ...` | The pointer names a different repository than the one the wiki was made for. Point it at the right checkout. |
-| `wiki` in a code repo works on the code repo, not the wiki | Add the redirect `wiki new --preset code` printed: a `.wiki-cli.toml` in the code repo holding only `wiki = "<path to the wiki>"`. |
-| The first search after a reboot takes a few seconds | The model files are read from disk the first time; later searches take about 1 second. |
+[troubleshooting.md](troubleshooting.md) lists the messages you may see, what each means,
+and what to do.

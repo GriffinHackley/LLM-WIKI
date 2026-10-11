@@ -245,7 +245,7 @@ and [model-selection.md](model-selection.md) has the results that chose the defa
 - **`wiki` can't find the wiki:** it walks up to the nearest `.wiki-cli.toml`, as git
   does. Run it from inside the wiki, or pass `--root <folder>`.
 
-[getting-started.md](getting-started.md#troubleshooting) has more.
+[troubleshooting.md](troubleshooting.md) has more.
 
 ## Code wikis
 
