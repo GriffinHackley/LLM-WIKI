@@ -176,7 +176,8 @@ a project, a project, a course. A page belongs to a group when one of these fron
 fields holds the group's name, as a single value or in a list (case and a leading `#` are
 ignored). Pages every group shares, such as a person or a place, rarely carry the field,
 so a group also takes in every page its pages link to or are linked from, one step out.
-An unknown name is an error that lists the groups the pages name.
+An unknown name is an error that lists the groups the pages name. `--ungrouped` looks at
+the pages that name no group instead, without taking in their neighbours.
 
 ```toml
 [groups]
@@ -186,6 +187,39 @@ fields = ["projects", "project"]   # source pages say projects: [a, b]; claim pa
 | Key | Type | Default | What it does |
 |---|---|---|---|
 | `fields` | list of strings | `["tags"]` | Frontmatter fields that name the groups a page belongs to. |
+| `exclusive` | true or false | `false` | The groups are separate worlds (the writing preset's books): `wiki check` warns when a page links a page whose groups share none of its own (`cross-group-link`). A page in no group may link, and be linked by, anything. |
+
+## `[originals]`: the user's own writing
+
+The writing preset's ideas, scenes and chapters: files the user writes, which the agent
+reads and never changes. The folder counts as a raw folder (`wiki pending` lists its
+files, pages link them, `wiki search --include-raw` searches them, and `wiki new --agent
+claude` writes a rule denying edits there), but the user edits its files, so the
+pre-commit hook lets them change, and `wiki commit` never commits them. An original's
+book is the first folder inside the originals folder; the `loose` folder holds pieces
+with no book.
+
+```toml
+[originals]
+folder = "originals"
+loose = "loose"
+kinds = ["idea", "scene", "chapter"]
+fields = ["kind", "created", "last_updated"]
+```
+
+| Key | Type | Default | What it does |
+|---|---|---|---|
+| `folder` | folder name | `"originals"` | Where the originals are. Its `**/*.md` is added to `raw`. |
+| `loose` | folder name | `"loose"` | The folder inside it for pieces that belong to no book. |
+| `kinds` | list of strings | `["idea", "scene", "chapter"]` | The values `kind:` may take; `wiki check --all` warns on another (`original-bad-kind`). |
+| `fields` | list of strings | `["kind", "created", "last_updated"]` | The frontmatter every original has, filled in by the user's Obsidian templates; `wiki check --all` warns on an original missing one (`original-missing-field`). The ones other than `kind` are dates: the hash ingest records leaves them out. |
+
+**Revised originals.** An original's page records `original:` (a link to it) and
+`original_hash:` (from `wiki pending --hash <original>`) when it is ingested. `wiki pending`
+lists the original again, marked changed, once its hash no longer matches. The hash leaves
+out the date lines and line-ending differences, so a timestamp bump alone is no change.
+`wiki check` warns on a page whose `original:` names a file that is gone
+(`missing-original`).
 
 ## `[search]`
 

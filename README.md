@@ -6,8 +6,9 @@ that can run shell commands: Claude Code, Codex, Cursor, Copilot, OpenCode and o
 
 - **`wiki new`** sets up a wiki from a preset: folder layout, page templates, an
   `AGENTS.md` telling the agent how to be the librarian, and a config whose relation
-  rules match the templates. Presets: `research` (sources in, pages out) and `code` (a
-  wiki in its own repo describing a code repo).
+  rules match the templates. Presets: `research` (sources in, pages out), `code` (a
+  wiki in its own repo describing a code repo) and `writing` (stories you write in
+  Obsidian, and a wiki of their characters, places and plotlines).
 - **`wiki guide`** prints the workflow an agent follows (ingest a source, answer a
   question, audit the wiki, sync after code changes), versioned with the command so the
   steps never go stale.
@@ -63,6 +64,14 @@ wiki new my-app-wiki --preset code --code ../my-app
 # add the lines it prints to the code repo, then work from there as usual
 ```
 
+A wiki for your writing: you write ideas, scenes and chapters in `originals/` in
+Obsidian, the agent never touches them, and keeps a wiki of the stories:
+
+```bash
+wiki new my-stories --preset writing --agent claude
+# open it in Obsidian (Templater, Linter, Obsidian Git), write, then ask: "ingest the storm scene"
+```
+
 An existing folder of notes (an Obsidian vault, a `docs/` folder, a wiki an agent already
 keeps):
 
@@ -73,7 +82,7 @@ wiki index refresh                  # index and embed (about 2 minutes per 500 p
 wiki search "how do I configure the exporter?"
 ```
 
-Your pages stay as they are; [getting started](https://github.com/GriffinHackley/LLM-WIKI/blob/main/docs/getting-started.md#5-add-to-an-existing-wiki)
+Your pages stay as they are; [getting started](https://github.com/GriffinHackley/LLM-WIKI/blob/main/docs/getting-started.md#6-add-to-an-existing-wiki)
 covers reviewing the drafted config and adopting a preset's page types.
 
 It also works with no configuration at all: every `*.md` file under the folder is a
@@ -193,22 +202,23 @@ re-embedding.
 
 | Command | Purpose |
 |---|---|
-| `wiki new [folder] [--preset research\|code\|<folder>] [--code <repo>] [--agent claude\|copilot\|opencode ...] [--git-hook]` | Create a wiki from a preset; in a folder that already has pages, adopt it (draft its config, add the agent files, leave the pages alone); never overwrites |
+| `wiki new [folder] [--preset research\|code\|writing\|<folder>] [--code <repo>] [--agent claude\|copilot\|opencode ...] [--git-hook]` | Create a wiki from a preset; in a folder that already has pages, adopt it (draft its config, add the agent files, leave the pages alone); never overwrites |
 | `wiki guide [<name>] [--parts]` | Print a workflow's steps for an agent; without a name, list them; `--parts` lists the steps a wiki can fill with its own text (`guides/parts/`) |
 | `wiki search "<question>" [--limit 3] [--include-raw] [--keyword-only]` | Best pages for a question: keyword + vector search, fused and reranked |
 | `wiki nav start \| read \| candidates \| search \| end \| log` | Guided traversal sessions (see [docs/navigation.md](https://github.com/GriffinHackley/LLM-WIKI/blob/main/docs/navigation.md)) |
 | `wiki list [--type T]` | Every page with its type and summary |
-| `wiki pending` | Sources in `raw/` no page links to yet, flagging copies of sources already ingested |
+| `wiki pending [--hash <original>]` | Sources in `raw/` no page links to yet, flagging copies of sources already ingested, and originals revised since they were ingested; `--hash` prints an original's hash for its page |
 | `wiki neighbors <slug> [--incoming] [--outgoing] [--relation T] [--limit N]` | A page's typed relations with reasons, no page bodies |
 | `wiki suggest <slug>` | Pages a page names but does not link, shares linked pages with, or resembles |
 | `wiki unwritten [--limit N]` | Link targets with no page, most-linked first |
 | `wiki orphans` | Pages nothing relates to |
-| `wiki clusters [--all] [--min-size 4] [--resolution 1.0] [--group G]` | Groups of pages that link each other densely (Louvain communities) with no hub page most of them link to, and no split of them into parts that each have one: leads for pages worth writing. Wikis of 30 pages or more. `--group`: only one group's pages ([groups]) |
+| `wiki clusters [--all] [--min-size 4] [--resolution 1.0] [--group G]` | Groups of pages that link each other densely (Louvain communities) with no hub page most of them link to, and no split of them into parts that each have one: leads for pages worth writing. Wikis of 30 pages or more. `--group`: only one group's pages ([groups]); `--ungrouped`: the pages in no group |
 | `wiki map [--query "<question>"] [--nav <session>\|last\|all] [--chunks] [--group G] [--method auto\|umap\|pca] [--color-by type\|cluster\|age\|visits] [--open]` | A 3D map of the pages' embeddings as one HTML page in `.cache/` (works offline): points coloured by type, link cluster or age, relations as lines; a question placed among the pages with lines to its search results; nav sessions drawn as paths to step through. UMAP by default; if UMAP cannot be used it says so and uses PCA. `--group`: only one group's pages, laid out on their own |
 | `wiki stale` | Pages whose covered code changed since they were verified, and record pages (tickets) due for a recheck |
 | `wiki covering <path>` | A code file's notes: the pages covering it, most specific first, and the gotchas and decisions affecting them (`--session` shows each file once per agent session) |
 | `wiki connect <code-repo> --agent <name>` | Set up a code repo for the work loop: write the wiki's files there (pointer, `WIKI.md`, skills, hook files) and print the lines to add by hand; `--check` reports what is missing |
 | `wiki task start\|takeover\|cancel\|status` | The one open task on the code, held by one agent session: the agent hooks refuse edits to the code and the wiki outside it |
+| `wiki commit "<message>"` | Commit the wiki's changes, everything but the originals folder, waiting while another git process (Obsidian Git) holds the index |
 | `wiki finish -m <message>` | End the open task: commit the files it edited in the code repo, set `verified:` on the pages it checked, and commit the wiki |
 | `wiki weekly [--week 2026-W40 \| current]` | With `[weekly]`: a note per finished week of work (pages added and changed, where the work went, sources, open questions, health, code) and a timeline, from git; `current` shows this week so far |
 | `wiki precommit` | What the pre-commit hook checks: sources in `raw/` unchanged, last week's note, no `wiki check --all` errors, the wiki's `[hooks] pre_commit` commands |

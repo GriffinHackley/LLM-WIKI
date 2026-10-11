@@ -17,17 +17,18 @@ on) pull the guide into the prompt when they run.
 
 ## The workflows
 
-| Guide | Research wiki | Code wiki |
-|---|---|---|
-| `ingest` | Pick a source (`wiki pending` lists those not ingested), read all of it, write its source page, decide what gets its own page, create or update those pages with inline citations, file contradictions, check, commit; one source at a time, oldest first, when ingesting several | The same for documents about the code (design docs, RFCs, postmortems); and to document a module, pull request or decision from the code itself: explain it, link the code with `code:` links, set `covers:` and `verified:`. Where a document and the code disagree about what the code does now, the code wins |
-| `query` | Answer from the wiki with `wiki nav`: search, read one section at a time, follow relations by their reasons, cite the pages; fall back to raw source text | The same; when the wiki can't answer, read the code, and offer to document what was learned |
-| `lint` | `wiki check --all`, `wiki unwritten`, `wiki orphans`, `wiki pending`, `wiki clusters`, then contradictions, uncited facts, settled questions, stale summaries; fix and commit | Adds `wiki stale` and coverage of the code's folders |
-| `sync` | (none) | After committing code: `wiki stale`, update each stale page and its `verified:`, recheck the records it lists and their `synced:`, check, commit the wiki |
-| `work` | (none) | One task on the code, run from the code repo: learn the area from the wiki, plan and stop for the user's approval, `wiki task start`, write each settled choice as a `proposed` decision and stop for its approval, do and test the work, update the pages it touched with `verified: "pending"`, stop for approval of the work, then `wiki finish` |
+| Guide | Research wiki | Code wiki | Writing wiki |
+|---|---|---|---|
+| `ingest` | Pick a source (`wiki pending` lists those not ingested), read all of it, write its source page, decide what gets its own page, create or update those pages with inline citations, file contradictions, check, commit; one source at a time, oldest first, when ingesting several | The same for documents about the code (design docs, RFCs, postmortems); and to document a module, pull request or decision from the code itself: explain it, link the code with `code:` links, set `covers:` and `verified:`. Where a document and the code disagree about what the code does now, the code wins | When the user asks: one original (an idea, scene or chapter in `originals/`), never edited; write its page with `original:` and `original_hash:`, update the story's pages citing it, keep canon, planned and characters' claims apart, file contradictions, check, `wiki commit`. A revised original (`wiki pending` marks it changed) is re-ingested and its rewritten facts taken out |
+| `query` | Answer from the wiki with `wiki nav`: search, read one section at a time, follow relations by their reasons, cite the pages; fall back to raw source text | The same; when the wiki can't answer, read the code, and offer to document what was learned | The same within one book, keeping canon, planned and claimed apart; falls back to the originals |
+| `lint` | `wiki check --all`, `wiki unwritten`, `wiki orphans`, `wiki pending`, `wiki clusters`, then contradictions, uncited facts, settled questions, stale summaries; fix and commit | Adds `wiki stale` and coverage of the code's folders | Adds continuity: contradictions in story order, what characters know when, open threads, stalled plotlines, vanished characters; each book's clusters |
+| `sync` | (none) | After committing code: `wiki stale`, update each stale page and its `verified:`, recheck the records it lists and their `synced:`, check, commit the wiki | (none) |
+| `work` | (none) | One task on the code, run from the code repo: learn the area from the wiki, plan and stop for the user's approval, `wiki task start`, write each settled choice as a `proposed` decision and stop for its approval, do and test the work, update the pages it touched with `verified: "pending"`, stop for approval of the work, then `wiki finish` | (none) |
 
 Each guide fills in what depends on the wiki: its page types (from `[types]` in
 `.wiki-cli.toml`, with their folders and templates) and, for a code wiki, the code repo's
-path and the steps that apply to code. There is one ingest guide for both kinds of wiki.
+path and the steps that apply to code. Research and code wikis share one ingest guide; a
+writing wiki has its own variant of each guide (`guides/writing/`).
 
 ## What the ingest guide asks of the agent
 
@@ -104,7 +105,7 @@ for synced:.
 ```
 
 | Part | Where it is printed | Default |
-|---|---|---|
+|---|---|---|---|
 | `fetch-record` | Ingest (a record), sync and lint (records to recheck) | Use whatever access you have to the tracker; else ask the user to paste or export it |
 | `fetch-source` | Ingest, for a source that is not a file in `raw/` (and not code) | Save a copy in `raw/` first, or ask the user to |
 | `fetch-pr` | Ingest in a code wiki, for a pull request's description and review discussion | Use the forge's CLI (`gh pr view`, `glab mr view`), API or a tool for it; else ask the user to paste it. Never copied into `raw/` |

@@ -9,6 +9,7 @@ wiki uses.
 ```bash
 wiki new <folder> --preset research                 # the default
 wiki new <folder> --preset code --code <code repo>
+wiki new <folder> --preset writing
 wiki new <folder> --preset <path to a preset folder>
 ```
 
@@ -96,6 +97,58 @@ elsewhere. `wiki new` prints, and never writes, what the code repo needs: a
 Guides: `ingest` (document code), `sync` (after code changes), `query` (falls back to
 reading the code), `lint` (adds staleness and coverage).
 
+## `writing`
+
+For stories. The user writes ideas, scenes and chapters in Obsidian, in `originals/` (a
+folder per book, `originals/loose/` for pieces in no book), and the agent keeps a wiki of
+the stories built from them. Originals are the user's: the agent reads them and never
+changes them, not even their frontmatter, which is only what the Obsidian templates fill
+in (`kind:`, `created:`, `last_updated:`). Everything the wiki knows about an original is
+on its page. One git repository is the vault; Obsidian Git commits it on a timer, and each
+ingest ends with `wiki commit`, which commits the wiki and never the originals. See
+[getting-started.md](getting-started.md#5-start-a-wiki-for-your-writing) for the Obsidian
+setup, and [config.md](config.md#originals-the-users-own-writing) for `[originals]`.
+
+| Type | What it is | Link sections |
+|---|---|---|
+| `idea` | The page for an idea in `originals/`; `status:` open, developed or dropped | `## Developed into` -> `developed-into` |
+| `scene` | The page for a scene: summary, POV, story time, what it reveals and sets up | `## Part of` -> `part-of`; `## Appears` -> `features`; `## Setting` -> `set-in`; `## Advances` -> `advances` |
+| `chapter` | The page for a chapter: the same, or an overview of its scenes | `## Appears`, `## Setting`, `## Advances`, as a scene |
+| `character` | A person or being in the story: role, wants, arc, voice, what they know and when | `## Relationships` -> `associated-with`; `## Affiliations` -> `member-of` |
+| `location` | A world, region, city, building or room | `## Part of` -> `part-of` |
+| `organization` | A faction, family, nation, guild, church or crew | `## Members` -> `has-member`; `## Base` -> `located-at` |
+| `item` | An object that matters | `## Owners` -> `owned-by` |
+| `lore` | A rule of the world: magic, technology, religion, language, custom, species, history | |
+| `event` | Something that happens in the story's world, on the page or off it | `## Participants` -> `involves`; `## Location` -> `located-at` |
+| `plotline` | The main plot, a subplot or a character arc; `kind:` main, subplot or arc; `status:` planned, active, resolved or dropped | `## Beats` -> `advanced-by` |
+| `thread` | A promise to the reader: foreshadowing, a mystery, a Chekhov's gun; `status:` open, paid or dropped | `planted:` -> `planted-in`; `paid_off:` -> `paid-off-in` |
+| `theme` | A theme or motif, and where it recurs | `## Appears in` -> `recurs-in` |
+| `decision` | An authorial ruling: why something happens, a canon fix, a retcon; `status:` proposed until the user approves | `## Affects` -> `decided-for` |
+| `style` | Rules for the writing: POV, tense, a character's voice, words to avoid | |
+| `source` | Real-world research ingested from `raw/` | `## Used for` -> `informs` |
+| `analysis` | The wiki's own synthesis: continuity, pacing, who knows what by when | `## Key pages` -> `synthesizes` |
+
+- **Pages for originals** name their file in `original:` (`draws-on`) and record
+  `ingested:` and `original_hash:`, so `wiki pending` lists the original again once the
+  user revises it. They are named `<book>-<file name>` (`the-salt-road-02-storm`), so two
+  books' `01-arrival.md` do not collide.
+- **Citations** go to the page of the original that establishes a fact:
+  `…she cannot swim ([[the-salt-road-02-storm]])`. A fact only planned, not yet written,
+  is marked `(planned)`, so an outline is never taken for canon.
+- **Books are groups:** every page names its book in `book:`, or none for a loose idea and
+  what grew from it. `[groups] exclusive` makes a link between two books' pages a
+  warning, and `wiki clusters --group <book>` / `--ungrouped` look at one book or the
+  loose pages. Page folders are one per type; a name two books share takes the book as
+  a suffix (`mara-salt-road`).
+- **Dates:** every page has `created:` and `last_updated:`.
+- `lore`, `event`, `plotline` and `theme` are hub types. `wiki/open-questions.md` holds
+  continuity conflicts for the user to settle.
+
+Guides: `ingest` (an original or a research source, when the user asks), `query`
+(keeps canon, planned and characters' claims apart), `lint` (adds continuity checks:
+contradictions in story order, what characters know when, open threads, stalled
+plotlines, vanished characters).
+
 ## Making your own preset
 
 A preset is a folder with a `files/` folder inside it:
@@ -135,4 +188,4 @@ To adopt a preset's page types, relation rules and weekly notes as well, `wiki i
 --preset <name>` prints them, leaving out what the config already declares and placing
 each type's folder under the wiki's page folder. Merge what fits, then run `wiki new .
 --preset <name>` again to add the templates the types name.
-[Getting started](getting-started.md#5-add-to-an-existing-wiki) walks through it.
+[Getting started](getting-started.md#6-add-to-an-existing-wiki) walks through it.

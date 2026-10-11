@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+**The `writing` preset**
+- `wiki new <folder> --preset writing`: a wiki for stories. The user writes ideas, scenes
+  and chapters in Obsidian in `originals/` (a folder per book, `originals/loose/` for
+  pieces in no book), and the agent keeps a wiki of the stories built from them. Sixteen
+  page types: pages for originals (`idea`, `scene`, `chapter`); the world (`character`,
+  `location`, `organization`, `item`, `lore`, `event`); the story's shape (`plotline`,
+  `thread`, `theme`); and `decision`, `style`, `source`, `analysis`. Templates for each,
+  Templater templates for originals in `templates/originals/`, and writing variants of
+  the `ingest`, `query` and `lint` guides (lint adds continuity checks). Every page has
+  `created:` and `last_updated:`.
+- `[originals]` in `.wiki-cli.toml`: the user's writing, read by the agent and never
+  changed. Its folder counts as a raw folder (`wiki pending`, links, `--include-raw`, the
+  Claude deny rule), but the pre-commit hook lets its files change. `wiki check --all`
+  warns on an original missing its template's fields (`original-missing-field`) or with an
+  unknown kind (`original-bad-kind`).
+- `wiki pending` lists originals revised since they were ingested, marked changed: an
+  original's page records `original_hash:` (`wiki pending --hash <original>` prints it),
+  and the hash leaves out the date lines, so a timestamp bump alone is no change.
+  `wiki check` warns on a page whose `original:` is gone (`missing-original`).
+- `wiki commit "<message>"` commits every change in the wiki except the originals folder,
+  waiting while another git process (Obsidian Git on a timer) holds the index lock. It
+  reports a failing pre-commit hook, and defers to `wiki finish` while a code task is open.
+- `wiki clusters --ungrouped` and `wiki map --ungrouped`: the pages that name no group.
+  `[groups] exclusive = true` makes groups separate worlds: `wiki check` warns on a link
+  between pages whose groups share none (`cross-group-link`).
+- `wiki hook` now works in any wiki whose config names the agent, code repo or not: it
+  refuses an edit to an original, or to a source already in a raw folder (a new source
+  may be saved). Without a code repo that is all it does. `wiki new --agent copilot`
+  writes Copilot's hook file for a wiki with originals.
+
 **Agent hooks**
 - `wiki hook <event> --agent <name>` is the command an agent's hook files run. For an
   agent the code repo's `agents` names, it:

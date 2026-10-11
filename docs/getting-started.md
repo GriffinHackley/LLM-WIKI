@@ -1,12 +1,14 @@
 # Getting started
 
-This guide gets an LLM-maintained wiki running with your agent, on one of three paths:
+This guide gets an LLM-maintained wiki running with your agent, on one of four paths:
 
 - **[A new research wiki](#3-start-a-new-research-wiki):** sources go in, the agent writes
   and links the pages. News, history, papers, any topic you research.
 - **[A wiki about a codebase](#4-start-a-wiki-about-a-codebase):** a wiki in its own repo,
   kept current by the agent that changes the code.
-- **[An existing folder of notes](#5-add-to-an-existing-wiki):** an Obsidian vault, a
+- **[A wiki for your writing](#5-start-a-wiki-for-your-writing):** you write stories in
+  Obsidian, the agent keeps a wiki of their characters, places and plotlines.
+- **[An existing folder of notes](#6-add-to-an-existing-wiki):** an Obsidian vault, a
   `docs/` folder, a wiki you already keep. Your pages are left alone.
 
 The `wiki` command never edits pages: the agent does, following workflow guides the
@@ -100,7 +102,7 @@ It creates:
 | `AGENTS.md` | The agent's instructions: it is the librarian; merge, don't append; cite every fact. |
 | `.wiki-cli.toml` | Page types and relation rules that match the templates, so typed relations work from the first page. |
 
-Options: `--agent claude-code|copilot|opencode` adds slash commands for that agent ([section 7](#7-connect-your-agent));
+Options: `--agent claude-code|copilot|opencode` adds slash commands for that agent ([section 8](#8-connect-your-agent));
 `--git-hook` adds a pre-commit hook that refuses edits to `raw/` and pages that fail
 `wiki check`, runs any checks of the wiki's own (`[hooks] pre_commit`), and, in a wiki with weekly notes, commits last week's note with the first
 commit of a new week. Running `wiki new` again never overwrites anything; it adds what is
@@ -179,7 +181,62 @@ code repo too: a page records the code commit it was checked against, so the pag
 describing a change are a commit after it. On a machine where the code is checked
 out somewhere else, set `WIKI_CODE_REPO` to its path.
 
-## 5. Add to an existing wiki
+## 5. Start a wiki for your writing
+
+For stories: you write ideas, scenes and chapters in Obsidian, and the agent keeps a wiki
+of the characters, places, plotlines and promises to the reader, built from what you
+wrote. Your writing is never touched by the agent.
+
+```bash
+wiki new my-stories --preset writing --agent claude
+```
+
+The folder is one git repository and one Obsidian vault:
+
+```
+originals/<book>/   your writing, a folder per book: 01-arrival.md (a chapter), or
+                    02-the-crossing/chapter.md with its scenes 01-departure.md, 02-storm.md
+originals/loose/    ideas and scenes that belong to no book yet
+wiki/               the agent's pages, one folder per type
+templates/originals/  Obsidian templates for your writing
+```
+
+A file's book is its folder; its place in the book is the number its name starts with.
+
+**Set up Obsidian.** Open the folder as a vault and install three community plugins.
+Their setting names vary a little between versions:
+
+- **Templater**, for the frontmatter every original has. Set its template folder to
+  `templates/originals`, turn on running Templater when a new file is created, and add
+  folder templates on `originals/` (or on each book's folder) so a new file gets one:
+  `scene.md` gives `kind: scene` and today's `created:`. Use `idea.md` and `chapter.md`
+  for those. `wiki check --all` lists any original that ends up without them.
+- **Linter**, for `last_updated:`. Templates fill values in once and never update them,
+  and file times are reset by a git clone or checkout, so this is what keeps the date
+  current. Turn on only its YAML timestamp rule, with the modified-date key
+  `last_updated`, the created-date key `created`, and the date format `YYYY-MM-DD`;
+  then turn on linting on save (and on file change, if you want it without saving).
+  Leave its other rules off, or it will reformat your prose.
+- **Obsidian Git**, for commits you never think about: turn on auto commit (and push, if
+  the vault has a remote) every few minutes. It commits the whole vault, the agent's
+  wiki edits included.
+
+Also turn on **Files and links → Automatically update internal links**, so renaming an
+original updates the wiki's links to it.
+
+**Day to day.** Write in `originals/`. When a piece is ready, ask your agent to ingest
+it ("ingest the storm scene"). It writes the piece's own page (`wiki/scenes/the-salt-road-02-storm.md`)
+and updates the character, location, plotline and thread pages it touches, citing your
+piece, then commits the wiki with `wiki commit`, which never commits your originals.
+`wiki pending` lists what is new and what you revised since it was ingested; ask for those
+to be ingested again. `wiki clusters --group <book>` looks at one book's pages, and
+`--ungrouped` at the loose ones. Ask your agent for a continuity check (`wiki guide lint`)
+now and then: contradictions, open threads, plotlines that stalled.
+
+The agent may not edit `originals/`: Claude Code's settings deny it (`Edit(/originals/**)`),
+Copilot's hook refuses it, and `AGENTS.md` tells every agent so.
+
+## 6. Add to an existing wiki
 
 For a folder of notes that already exists: an Obsidian vault, a `docs/` folder, a wiki
 an agent already keeps. Your pages, folders, templates and instructions stay as they are;
@@ -230,7 +287,7 @@ Next
   `.github/copilot-instructions.md`), it prints the section to paste into the first of them
   and leaves the file alone. The workflows apply your own rules over their own, so keep
   what your instructions already say.
-- **Agent files** (`--agent`) are written as for a new wiki ([section 7](#7-connect-your-agent)).
+- **Agent files** (`--agent`) are written as for a new wiki ([section 8](#8-connect-your-agent)).
 - **Not added:** the preset's templates and starter pages. Your wiki keeps its own layout,
   and the workflows follow the pages you have.
 
@@ -392,7 +449,7 @@ where it stopped. Later runs only touch files that changed and take a fraction o
 second when nothing did. [What refresh does](#what-wiki-index-refresh-does) explains the
 details.
 
-## 6. Try the commands
+## 7. Try the commands
 
 ```bash
 wiki search "how are jobs prioritised so none wait forever?"
@@ -456,7 +513,7 @@ Every command accepts `--format json` for scripts and agents. Text output wraps 
 terminal and uses a little color there; piped to another program or a file, it is plain
 and unwrapped (`NO_COLOR` turns color off everywhere).
 
-## 7. Connect your agent
+## 8. Connect your agent
 
 **Any agent.** The wiki's `AGENTS.md` is the connection: Codex, Cursor, Copilot, OpenCode
 and others read it, and it tells the agent to run `wiki guide <workflow>` and follow it.
@@ -483,7 +540,7 @@ It never edits an existing file; for one that lacks what the wiki needs, it prin
 to add. Run it again after upgrading the tool if a new workflow has appeared: it adds the
 missing commands.
 
-## 8. Day to day
+## 9. Day to day
 
 - **After editing pages, run `wiki index refresh`.** Search and navigation update their
   keyword index automatically before every search, so edits are findable by keyword
@@ -507,7 +564,7 @@ missing commands.
 4. Removes pages whose files are gone, and re-checks links that pointed at missing pages.
 5. Embeds the sections of every changed file (skip with `--no-embed`).
 
-## 9. Measure search quality (optional)
+## 10. Measure search quality (optional)
 
 To check whether search finds the right pages in *your* wiki, or to compare models,
 write a small set of questions with known answers and score them.
