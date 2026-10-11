@@ -9,6 +9,7 @@ import argparse
 import contextlib
 import io
 import json
+import os
 import re
 import shutil
 import sys
@@ -22,6 +23,7 @@ from wiki_cli import (
     audit,
     clusters,
     codebase,
+    covering,
     evaluate,
     groups,
     guide,
@@ -101,7 +103,7 @@ def _print_error(message: str) -> None:
 
 
 COMMAND_ORDER = ("new", "init", "guide", "search", "nav", "list", "neighbors", "suggest", "check", "unwritten",
-                 "orphans", "clusters", "map", "pending", "stale", "weekly", "precommit", "hook", "index", "models",
+                 "orphans", "clusters", "map", "pending", "stale", "covering", "weekly", "precommit", "hook", "index", "models",
                  "vocab", "eval")
 
 
@@ -310,6 +312,14 @@ def build_parser() -> argparse.ArgumentParser:
                              help=f"record each call, with long text cut short, in <root>/.cache/{hook.LOG_FILE}")
     hook_parser.add_argument("--root", help="wiki root (default: as for the other commands)")
     hook_parser.set_defaults(handler=cmd_hook)
+
+    covering_parser = commands.add_parser(
+        "covering", parents=[common],
+        help="the wiki's notes on code files: the pages covering them, and the gotchas and decisions affecting those")
+    covering_parser.add_argument("paths", nargs="+", metavar="path",
+                                 help="a code file, absolute or relative to the current folder")
+    covering_parser.add_argument("--session", help="an agent session's id: a file already shown in it is skipped")
+    covering_parser.set_defaults(handler=cmd_covering)
 
     list_parser = commands.add_parser("list", parents=[common], help="every page, with its type and summary")
     list_parser.add_argument("--type", dest="page_type", help="only pages of this type")
@@ -848,6 +858,52 @@ def cmd_hook(args: argparse.Namespace) -> int:
 
 def _hook_say(message: str) -> None:
     print(f"pre-commit: {message}", file=sys.stderr)
+
+
+def cmd_covering(args: argparse.Namespace, settings: Settings) -> int:
+    try:
+        results = covering.lookup(settings, args.paths, cwd=Path.cwd(), session=args.session)
+    except codebase.CodeRepoError as exc:
+        raise UsageError(str(exc)) from exc
+    if args.format == "json":
+        _print_json({"files": [result.to_dict() for result in results]})
+        return EXIT_OK
+    text = covering_text(results, settings)
+    if text:
+        print(text)
+    return EXIT_OK
+
+
+def covering_text(results: list, settings: Settings, *, quiet: bool = False) -> str:
+    """The notes as plain text, for a person or an agent. ``quiet`` leaves out the files
+    with nothing to show (what a hook wants)."""
+    blocks = []
+    for result in results:
+        if result.outside or result.shown_before or not (result.pages or result.notes):
+            if not quiet:
+                why = (result.outside or ("shown earlier in this session" if result.shown_before
+                                          else "no wiki page covers it"))
+                blocks.append(f"{result.path}: {why}.")
+            continue
+        lines = [f"Wiki notes on {result.path} (read the pages before changing it):"]
+        for entry in result.pages + result.notes:
+            label = entry["type"] or "page"
+            if entry.get("status") and entry["type"] == "decision":
+                label += f", {entry['status']}"
+            if entry.get("changed"):
+                label += ", the file changed since this page was checked"
+            lines.append(f"- {entry['slug']} ({label}): {_display_path(settings.root / entry['path'])}")
+            if entry.get("summary"):
+                lines.append(f"  {entry['summary']}")
+        blocks.append("\n".join(lines))
+    return "\n\n".join(blocks)
+
+
+def _display_path(path: Path) -> str:
+    try:
+        return Path(os.path.relpath(path)).as_posix()
+    except ValueError:  # another drive on Windows
+        return path.as_posix()
 
 
 def cmd_list(args: argparse.Namespace, settings: Settings) -> int:

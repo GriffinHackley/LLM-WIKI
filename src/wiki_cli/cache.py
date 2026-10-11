@@ -23,6 +23,21 @@ BODY_HASH_VERSION = "2"  # 2: line endings normalized; a change rehashes bodies 
 EMBED_BATCH_PAGES = 32
 LARGE_CHANGE = 500  # pages; beyond this, truncate the write-ahead log afterwards
 
+# Frontmatter values commands look up without parsing every page: the code each page covers
+# and the commit it was checked against, and its status (a decision waiting for approval).
+# Added after schema 4: an older cache gains the table, and fills it on its next refresh,
+# without a rebuild.
+VALUE_FIELDS = ("covers", "verified", "status")
+_VALUES_SCHEMA = """
+CREATE TABLE IF NOT EXISTS page_values (
+    path TEXT NOT NULL,
+    field TEXT NOT NULL,
+    value TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS page_values_by_path ON page_values(path);
+CREATE INDEX IF NOT EXISTS page_values_by_field ON page_values(field);
+"""
+
 _SCHEMA = """
 CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 
@@ -69,10 +84,10 @@ CREATE TABLE chunks (
 CREATE INDEX chunks_by_page ON chunks(page_id);
 
 CREATE VIRTUAL TABLE chunks_fts USING fts5(title, heading_path, text, tokenize = 'porter unicode61');
-"""
+""" + _VALUES_SCHEMA
 
 _TABLES = ("nav_frontier", "nav_events", "nav_sessions", "summary_vectors", "chunk_vectors", "chunks_fts", "chunks",
-           "relations", "pages", "metadata")
+           "relations", "page_values", "pages", "metadata")
 _VECTOR_TABLES = ("chunk_vectors", "summary_vectors")
 
 
@@ -143,6 +158,9 @@ class Cache:
                 self.needs_rederive = True
             if not self.readonly and self._meta("body_hash_version") != BODY_HASH_VERSION:
                 self.needs_rederive = self.needs_rehash = True
+            if not self.readonly and not self._has_table("page_values"):
+                self.conn.executescript(_VALUES_SCHEMA)
+                self.needs_rederive = True
             return
         if self.readonly:
             raise CacheUnavailable("cache is missing, from another schema version, or built with other "
@@ -169,6 +187,10 @@ class Cache:
             raise
         self.rebuilt = True
         self.needs_full_refresh = True
+
+    def _has_table(self, name: str) -> bool:
+        return self.conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+                                 (name,)).fetchone() is not None
 
     def _meta(self, key: str) -> str | None:
         try:
@@ -309,6 +331,7 @@ class Cache:
         self.conn.execute("DELETE FROM relations WHERE source_path = ?", (rel,))
         if page.text is not None:
             self._store_chunks(page_id, page, summary)
+        self._store_values(page)
         self.conn.executemany(
             """INSERT OR REPLACE INTO relations
                (source_path, source_slug, target_slug, relation_type, reason, resolved)
@@ -332,6 +355,7 @@ class Cache:
                 self.conn.execute("UPDATE pages SET body_hash = ?1, summary_body_hash = CASE WHEN "
                                   "summary_body_hash IS NULL THEN NULL ELSE ?1 END WHERE path = ?2",
                                   (page.body_hash, page_file.rel))
+            self._store_values(page)
             self.conn.execute("DELETE FROM relations WHERE source_path = ?", (page_file.rel,))
             self.conn.executemany(
                 """INSERT OR REPLACE INTO relations
@@ -378,6 +402,25 @@ class Cache:
                 self.conn.execute(
                     "UPDATE relations SET resolved = 0 WHERE source_path = ? AND target_slug = ?", (source_path, target))
 
+    def _store_values(self, page: Page) -> None:
+        self.conn.execute("DELETE FROM page_values WHERE path = ?", (page.file.rel,))
+        data = page.data or {}
+        rows = []
+        for name in VALUE_FIELDS:
+            value = data.get(name)
+            for item in value if isinstance(value, list) else [value]:
+                if isinstance(item, (str, int, float)) and not isinstance(item, bool) and str(item).strip():
+                    rows.append((page.file.rel, name, str(item).strip()))
+        self.conn.executemany("INSERT INTO page_values (path, field, value) VALUES (?, ?, ?)", rows)
+
+    def values(self, name: str) -> list[tuple[str, str, str]]:
+        """``(slug, path, value)`` for every value pages give the frontmatter field ``name``
+        (one of VALUE_FIELDS), one row per list item."""
+        return self.conn.execute(
+            "SELECT pages.slug, pages.path, page_values.value FROM page_values "
+            "JOIN pages ON pages.path = page_values.path WHERE page_values.field = ? "
+            "ORDER BY pages.path", (name,)).fetchall()
+
     def _store_chunks(self, page_id: int, page: Page, summary: str | None) -> None:
         for chunk in chunk_page(page.text, page.body_offset, summary):
             cursor = self.conn.execute(
@@ -406,6 +449,7 @@ class Cache:
         if row:
             self._delete_chunks(row[0])
         self.conn.execute("DELETE FROM relations WHERE source_path = ?", (rel,))
+        self.conn.execute("DELETE FROM page_values WHERE path = ?", (rel,))
         self.conn.execute("DELETE FROM pages WHERE path = ?", (rel,))
 
     def _hash_of(self, rel: str) -> str:

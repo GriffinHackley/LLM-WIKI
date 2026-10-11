@@ -15,6 +15,14 @@
 - Agents are named by hook format: `claude-code` (`claude` still works), `copilot` (VS
   Code's Copilot agent and the Copilot CLI) and `opencode`. An unknown agent in
   `wiki new --agent` now says `no agent '<name>'`.
+- `wiki covering <path>...` shows a code file's notes before an agent works on it: the
+  pages whose `covers:` match it, most specific first, each marked when the file changed
+  since the page was checked, and the gotchas and decisions whose `## Affects` names those
+  pages (decisions with their status; superseded, rejected and withdrawn ones left out).
+  Paths are matched without regard to case, absolute or relative. `--session <id>` shows
+  each file once per agent session. It reads only the cache, which now keeps each page's
+  `covers:`, `verified:` and `status:` (an existing cache gains them on its next refresh,
+  without a rebuild), so it takes well under a second.
 
 **Start a wiki**
 - A code wiki can be a folder inside the code's repository (`wiki new docs/wiki --preset

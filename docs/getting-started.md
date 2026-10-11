@@ -150,7 +150,8 @@ these yourself:
 Then work in the code repo as usual. To document a module or a decision, ask the agent
 (it follows `wiki guide ingest`): pages link to code with `[name](code:src/app.py)`, list
 the files they describe in `covers:`, and record the code commit they were checked
-against in `verified:`. After code changes, `wiki stale` lists the pages whose covered
+against in `verified:`. Before changing a file, `wiki covering <file>` shows the pages
+covering it and the gotchas and decisions that affect it. After code changes, `wiki stale` lists the pages whose covered
 files changed, and `wiki guide sync` brings them back in line. The code and the wiki are
 committed separately: code first, then the wiki. That holds for a wiki in a folder of the
 code repo too: a page records the code commit it was checked against, so the pages
