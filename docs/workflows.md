@@ -55,19 +55,32 @@ well, `wiki init --preset <name>` prints them to merge.
 
 ### Connect your agent
 
-Any agent that reads `AGENTS.md` (Codex, Cursor, Copilot, OpenCode and others) works with
-no extra setup, as long as it may run `wiki`. `--agent` on `wiki new` adds what makes it
-smoother:
+**Any agent.** The wiki's `AGENTS.md` is the connection: Codex, Cursor, Copilot, OpenCode
+and others read it, and it tells the agent to run `wiki guide <workflow>` and follow it.
+`wiki guide` lists the workflows. The agent only needs to be allowed to run `wiki`
+commands; how you allow that depends on the agent. If your agent reads a different file
+(some read their own, such as `GEMINI.md`), point it at `AGENTS.md` or copy the section in.
 
-| `--agent` | Adds |
-|---|---|
-| `claude` | `CLAUDE.md`, permission to run `wiki`, a rule against editing sources, skills |
-| `copilot` | Copilot's instructions file and skills |
-| `opencode` | OpenCode commands |
+**Slash commands.** `--agent` adds commands `/wiki-ingest`, `/wiki-query`, `/wiki-lint`
+(and `/wiki-sync` for a code wiki) for Claude Code, GitHub Copilot and OpenCode. Repeat it
+for several: `wiki new my-wiki --agent claude --agent copilot --agent opencode`. Each
+command is a few lines that pull in its guide when it runs (`` !`wiki guide ingest` ``),
+so the agent gets the steps as its prompt, never a copy that could go stale; text after
+the command (`/wiki-ingest raw/report.pdf`) says what to work on. An agent that doesn't
+run the embedded command is told to run it. Without adapters, `AGENTS.md` still works: the
+commands only remove a step, which matters most for smaller models.
 
-Repeat the flag for several agents. After upgrading the tool, run `wiki new . --agent
-<name>` again to pick up new workflows. For a code wiki, the code repo is connected
-separately: [set up the code repo](#set-up-the-code-repo).
+| `--agent` | Writes | Notes |
+|---|---|---|
+| `claude` | `CLAUDE.md` (`@AGENTS.md`), `.claude/settings.json` allowing `Bash(wiki:*)` and denying edits under `raw/` (`Edit(/raw/**)`), and, for a code wiki, the code repo in `additionalDirectories`; skills in `.claude/skills/` | The skills may run `wiki` without asking; Claude Code refuses to change sources |
+| `copilot` | `.github/copilot-instructions.md` pointing at `AGENTS.md`, skills in `.github/skills/` | Copilot also reads `.claude/skills/`, so with `claude` too the skills are written once. Copilot's docs describe no embedded commands, so Copilot is told to run `wiki guide` itself; allow `wiki` in its terminal auto-approve settings to skip the prompts |
+| `opencode` | Commands in `.opencode/commands/` | Run by OpenCode's build agent, which can edit files |
+
+It never edits an existing file; for one that lacks what the wiki needs, it prints what
+to add. Run it again after upgrading the tool if a new workflow has appeared: it adds the
+missing commands.
+
+For a code wiki, the code repo is connected separately: [set up the code repo](#set-up-the-code-repo).
 
 ## Day to day
 

@@ -75,6 +75,99 @@ repo = "../my-app"                # the code repo, relative to the wiki; $WIKI_C
 origin = "https://github.com/me/my-app.git"    # catches a pointer to the wrong checkout
 ```
 
+## Reviewing a drafted config
+
+`wiki new .` drafts a config when it adopts a folder of notes; `wiki init` drafts one on
+its own. A config makes results better by telling the tool which files are pages, where
+summaries live, and what your headings mean:
+
+```bash
+wiki init                  # print the draft
+wiki init --write          # save it as .wiki-cli.toml (never overwrites an existing file)
+wiki init --preset code    # also the preset's page types, relation rules and weekly notes
+```
+
+Open `.wiki-cli.toml` and review four things:
+
+1. **Which files are pages.** If most pages live in one folder, the draft proposes only
+   that folder and lists what it leaves out:
+
+   ```toml
+   # Most pages are under notes/. Indexing only that folder leaves out: README.md.
+   # Delete this line to index every *.md file instead.
+   pages = ["notes/**/*.md"]
+   ```
+
+   Keep it if the left-out files aren't wiki content (a README, contributor docs).
+   Add `exclude` globs for anything else that isn't a page. The draft already excludes a
+   `templates/` folder and agent instructions (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`).
+
+2. **Summaries.** Search results and navigation show each page's summary, taken from the
+   first of: a frontmatter field (`summary`, `description`), a heading (`## Summary`), or
+   the page's first paragraph. Adjust `[summary]` if your pages use other names, such as
+   `headings = ["Overview", "TL;DR"]`.
+
+3. **Page types.** If pages have a frontmatter field like `type: person`, the draft finds
+   it. If your types are folders instead, the draft suggests a mapping from the folders
+   pages are in (up to two deep); uncomment the lines that are types:
+
+   ```toml
+   [page_type.folders]
+   "notes/people" = "person"
+   ```
+
+4. **Relation rules.** This is the step worth a few minutes. Every link is already a
+   relation (`links-to`) whose reason is the sentence around it. A rule gives the links
+   under a heading, or in a frontmatter field, a name. The draft lists headings and
+   frontmatter fields that hold links on at least three pages, commented out (never
+   `title`, `aliases` or `tags`, which name a page rather than relate it):
+
+   ```toml
+   # Heading 'Works with': 4 links on 3 pages  # mostly on: person
+   # [[relations]]
+   # heading = "Works with"
+   # type = "works-with"
+   # inverse = "works-with-of"
+   ```
+
+   Uncomment the ones that mean something and give them good names (`inverse` is what
+   the relation is called from the other page; it can be the same word). A rule turns
+
+   ```markdown
+   ## Works with
+   - [[charles-babbage]] — co-lead; they split hardware and software
+   ```
+
+   into `works-with -> charles-babbage` with the reason "co-lead; they split hardware and
+   software". An agent reads these reasons to decide which page to open next, so list
+   items written as `[[page]] — why it matters` pay off. Rules for frontmatter fields
+   (`field = "sources"`) work the same way. [`[[relations]]`](#relations-typed-links) has
+   the full rule syntax.
+
+One more setting you may want: how many pages a search returns. The default is 3, which
+keeps an agent's context small; raise it if your wiki's answers tend to span more pages.
+
+```toml
+[search]
+results = 5     # wiki search, nav start and nav search; 1-20, and --limit overrides it
+```
+
+Every setting is optional, and you can change them at any time: the next command notices,
+and re-derives relations without re-embedding anything (summary settings trigger a full
+rebuild).
+
+**Keep the cache out of git.**
+
+`wiki new` writes a `.gitignore` holding `.cache/`, or prints the line to add to yours.
+Without `wiki new`:
+
+```bash
+echo ".cache/" >> .gitignore
+```
+
+Commit `.wiki-cli.toml`, so everyone working on the wiki, and every agent, uses the same
+settings.
+
 ## Where the config is read from
 
 The wiki's root folder is, in order:

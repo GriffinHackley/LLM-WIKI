@@ -433,8 +433,15 @@ input and replies in that agent's format; it always exits 0. You don't run it yo
 
 ### `wiki index refresh`
 
-Index new, changed, moved and deleted files, then embed the changed sections. Unchanged
-files are skipped without being read.
+Index new, changed, moved and deleted files, then embed the changed sections. In order,
+it:
+
+1. Checks the cache still fits the settings (rebuilding it or re-deriving relations if not).
+2. Walks the folder and skips files whose modified time and size are unchanged, without
+   reading them.
+3. Re-parses changed files: title, type, summary, sections for search, and relations.
+4. Removes pages whose files are gone, and re-checks links that pointed at missing pages.
+5. Embeds the sections of every changed file (skip with `--no-embed`).
 
 | Option | What it does |
 |---|---|
