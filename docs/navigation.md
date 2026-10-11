@@ -81,8 +81,8 @@ session, so reads and candidates never load the embedding model; only `start` an
 ## Other commands
 
 - `wiki suggest <slug>`: pages the page (or its raw text) names but does not link,
-  pages sharing several of its linked pages, and pages with similar summaries. For
-  `/ingest`.
-- `wiki unwritten`: link targets with no page, most-linked first. For `/lint`.
-- `wiki orphans`: pages nothing relates to. For `/lint`.
+  pages sharing several of its linked pages, and pages with similar summaries. The
+  ingest guide runs it on each new page.
+- `wiki unwritten`: link targets with no page, most-linked first. The lint guide runs it.
+- `wiki orphans`: pages nothing relates to. The lint guide runs it.
 - `wiki neighbors <slug>`: a page's relations without a session.

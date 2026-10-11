@@ -1,8 +1,8 @@
-# Model Selection (Phase 4)
+# Model selection
 
 **Chosen:** `BAAI/bge-small-en-v1.5` embeddings + `jinaai/jina-reranker-v1-turbo-en`
 reranker, reranking the top 20 fused passages at 1,200 characters each. These are the
-defaults in `models.py` and `search.py`.
+defaults.
 
 ## Setup
 

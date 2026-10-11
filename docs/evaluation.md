@@ -52,7 +52,8 @@ Format:
   split: test
 ```
 
-Page content is sent to Claude for this step. Embeddings and search stay local.
+The agent reads the sampled pages, so their content goes wherever your agent sends it.
+Embeddings and search stay on your machine.
 
 ## 3. Download candidate models
 

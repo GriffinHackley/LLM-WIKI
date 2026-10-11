@@ -236,7 +236,8 @@ out the date lines and line-ending differences, so a timestamp bump alone is no 
 ## `[weekly]`: weekly notes
 
 With this table, `wiki weekly` writes a note for each finished week of work on the wiki,
-and a timeline across the weeks, from the git history (see the README). Without it, the
+and a timeline across the weeks, from the git history
+([workflows.md](workflows.md#weekly-review)). Without it, the
 command refuses and the pre-commit hook skips it. The `code` preset turns it on.
 
 | Key | Type | Default | What it does |
