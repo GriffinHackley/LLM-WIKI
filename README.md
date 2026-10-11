@@ -23,6 +23,7 @@ topic, a writing session.
 
 More:
 
+- [docs/concepts.md](https://github.com/GriffinHackley/LLM-WIKI/blob/main/docs/concepts.md): how the pieces fit, and what each term means
 - [docs/presets.md](https://github.com/GriffinHackley/LLM-WIKI/blob/main/docs/presets.md): what each preset is for, and its page types
 - [docs/guides.md](https://github.com/GriffinHackley/LLM-WIKI/blob/main/docs/guides.md): the guides agents follow, and how to customise them
 - [docs/config.md](https://github.com/GriffinHackley/LLM-WIKI/blob/main/docs/config.md): every config setting
