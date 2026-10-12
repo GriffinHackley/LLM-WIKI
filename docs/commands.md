@@ -336,11 +336,12 @@ included), pages never verified, and record pages due for a recheck.
 ### `wiki covering`
 
 The wiki's notes on code files: the pages covering each, most specific first, and the
-gotchas and decisions affecting them.
+gotchas and decisions affecting them. For a wiki page, the gotchas and decisions that
+affect the page itself.
 
 | Option | What it does |
 |---|---|
-| `path` | One or more code files, absolute or relative to the current folder. |
+| `path` | One or more code files or wiki pages, absolute or relative to the current folder, or pages' slugs. |
 | `--session` | An agent session's id: files already shown in that session are skipped. Used by the agent hooks. |
 
 ```bash

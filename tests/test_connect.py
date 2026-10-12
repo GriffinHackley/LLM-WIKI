@@ -24,6 +24,7 @@ def test_claude_code_gets_the_wikis_files_and_the_lines_to_add(code_wiki, code_r
     assert code == 0 and result["agents"] == ["claude-code"]
     written = files(result)
     assert written[".wiki-cli.toml"] == written["WIKI.md"] == written[".claude/skills/wiki-work/SKILL.md"] == "created"
+    assert written[".claude/skills/wiki-plan/SKILL.md"] == "created"
     assert ".github/hooks/wiki.json" not in written
     assert load_settings(code_repo).agents == ("claude-code",)  # the pointer works, and names the agent
     assert "wiki guide work" in (code_repo / "WIKI.md").read_text(encoding="utf-8")

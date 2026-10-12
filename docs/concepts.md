@@ -164,7 +164,7 @@ pages whose covered files changed since.
 **Task.** One piece of work on the code, run with `wiki guide work`: planned, approved,
 done, and finished with `wiki finish`, which commits the code and then the wiki. With the
 code repo connected, edits are refused outside a task, and from any session but the one
-running it.
+running it. `wiki guide plan` does only the planning, up to the approved plan.
 
 **Decision.** A page recording why something is the way it is. The agent writes each one
 as `status: proposed`; only you accept it.

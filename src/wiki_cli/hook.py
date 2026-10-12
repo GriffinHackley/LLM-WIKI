@@ -4,7 +4,8 @@ What it does, for an agent the code repo's config names in `agents`:
 
 - at session start, tells the agent where the wiki is, how to work with it, which task is
   open, and which decisions wait for the user's approval;
-- shows the wiki's notes on a file the first time the session touches it (`wiki covering`):
+- shows the wiki's notes on a file, or the gotchas and decisions affecting a wiki page, the
+  first time the session touches it (`wiki covering`):
   before an edit and after a read where the agent can show text before a tool runs, after
   either where it cannot;
 - refuses edits to the code and the wiki unless this session holds the open task, and

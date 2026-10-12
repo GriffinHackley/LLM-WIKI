@@ -33,7 +33,7 @@ _PART = re.compile(r"^([ \t]*)\{\{part:([a-z][a-z0-9-]*)\}\}[ \t]*\n|\{\{part:([
 _PART_NAME = re.compile(r"\{\{part:([a-z][a-z0-9-]*)\}\}")
 
 RULES = ("Throughout, apply this wiki's own rules: the \"Your rules\" section of `AGENTS.md`, and any "
-         "other instructions the wiki gives you. Where they conflict with this guide, they win.")
+         "other instructions the wiki gives you. Where those rules conflict with this guide, the rules win.")
 
 
 class GuideError(Exception):
@@ -150,7 +150,8 @@ def preamble(name: str) -> str:
     return (f"> **You carry out these steps yourself.** `wiki guide {name}` only prints them; no `wiki`\n"
             f"> command does this workflow for you (there is no `wiki {name}`). Use your own tools to\n"
             "> read files, write files and run commands, and run a `wiki` command only where a step\n"
-            "> names one. You now have the whole guide: don't run `wiki guide` again. Start at step 1.\n")
+            f"> names one. You now have the whole guide: don't run `wiki guide {name}` again. Start at\n"
+            "> step 1.\n")
 
 
 def types_text(settings: Settings | None) -> str:

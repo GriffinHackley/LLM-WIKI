@@ -28,7 +28,7 @@ HOOKS_DIR = Path(__file__).parent / "hooks"
 DEFAULT_PRESET = "research"
 CODE_PRESET = "code"  # describes a code repo, which `wiki new` must be pointed at
 CLAUDE_PERMISSION = "Bash(wiki:*)"
-CODE_REPO_GUIDES = ("work",)  # run from the code repo, not the wiki: `wiki connect` adds their commands there
+CODE_REPO_GUIDES = ("plan", "work")  # run from the code repo, not the wiki: `wiki connect` adds their commands there
 CONTENT_FOLDERS = {"wiki", "templates", "raw", "originals"}  # a preset's pages and templates, not added to an established wiki
 
 
@@ -517,7 +517,8 @@ COPILOT_INSTRUCTIONS = copilot_instructions()
 
 # What each workflow acts on, for the text after the slash command.
 _SUBJECTS = {"ingest": "The source to ingest", "query": "The question to answer",
-             "lint": "What to audit", "sync": "The code change to sync", "work": "The task"}
+             "lint": "What to audit", "sync": "The code change to sync", "plan": "The task to plan",
+             "work": "The task"}
 
 
 def adapter_body(name: str, title: str) -> str:

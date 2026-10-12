@@ -9,14 +9,16 @@ learned the hard way. Run `wiki` commands from here: they find the wiki.
 - **A task on the code** (a fix, a feature, a refactor): run `wiki guide work` and follow
   it. It starts from the wiki, stops for the user's approval of the plan and of each
   decision, and ends with `wiki finish`, which commits the code and then the wiki. Never
-  run `git commit` yourself.
+  run `git commit` yourself. To plan a task without doing it yet, `wiki guide plan`: it
+  stops at the approved plan, and `wiki guide work` carries it out from there.
 - **A question about how the code works or why:** `wiki guide query`, before reading code
   at random.
 - **Code that changed outside a task** (someone else's commits): `wiki guide sync`.
 - **Documenting something new** (a module, a design doc saved in the wiki's `raw/`):
   `wiki guide ingest`.
 
-The agent hooks show you the wiki's notes on a file the first time you open it (or run
+The agent hooks show you the wiki's notes on a file the first time you open it, and the
+gotchas and decisions that affect a wiki page the first time you read it (or run
 `wiki covering <file>`), and refuse changes to the code and the wiki until the user has
 approved a plan and a task is open (`wiki task start`).
 

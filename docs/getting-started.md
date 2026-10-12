@@ -168,7 +168,8 @@ files need, which you add by hand: one line in `AGENTS.md` sending agents to `WI
 - a session starts by learning where the wiki is, the open task, and the decisions
   waiting for your approval;
 - the first time the agent opens a file, it sees the wiki's pages on it and the gotchas
-  and decisions that affect it (`wiki covering <file>`);
+  and decisions that affect it (`wiki covering <file>`); the first time it reads a wiki
+  page, the gotchas and decisions that affect that page;
 - `wiki guide work` runs each task: a plan you approve, then `wiki task start` (you
   confirm), each settled choice written as a decision you approve, the work, the wiki
   pages brought up to date, and your approval of the result;

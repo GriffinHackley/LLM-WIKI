@@ -258,8 +258,8 @@ class TestStale:
 class TestGuides:
     def test_code_guides_name_the_code_repo(self, code_wiki, code_repo, capsys):
         code, listing = run_json(capsys, "guide", "--root", str(code_wiki))
-        assert {item["name"] for item in listing["guides"]} == {"ingest", "lint", "query", "sync", "work"}
-        for name in ("ingest", "sync", "lint", "query", "work"):
+        assert {item["name"] for item in listing["guides"]} == {"ingest", "lint", "plan", "query", "sync", "work"}
+        for name in ("ingest", "sync", "lint", "query", "plan", "work"):
             code, guide = run_json(capsys, "guide", name, "--root", str(code_wiki))
             assert code_repo.resolve().as_posix() in guide["text"] and "{{" not in guide["text"]
 

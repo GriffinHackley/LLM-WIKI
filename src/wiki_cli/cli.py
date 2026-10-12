@@ -61,7 +61,7 @@ from wiki_cli.suggest import suggest
 from wiki_cli.validation import check_corpus, check_page, compare_cache
 
 EXIT_OK, EXIT_INVALID, EXIT_ERROR = 0, 1, 2
-WORKFLOWS = ("ingest", "query", "lint", "sync", "work")  # guides an agent may mistake for commands
+WORKFLOWS = ("ingest", "query", "lint", "sync", "plan", "work")  # guides an agent may mistake for commands
 
 
 class UsageError(Exception):
@@ -371,7 +371,7 @@ def build_parser() -> argparse.ArgumentParser:
         "covering", parents=[common],
         help="the wiki's notes on code files: the pages covering them, and the gotchas and decisions affecting those")
     covering_parser.add_argument("paths", nargs="+", metavar="path",
-                                 help="a code file, absolute or relative to the current folder")
+                                 help="a code file or wiki page, absolute or relative to the current folder, or a page's slug")
     covering_parser.add_argument("--session", help="an agent session's id: a file already shown in it is skipped")
     covering_parser.set_defaults(handler=cmd_covering)
 

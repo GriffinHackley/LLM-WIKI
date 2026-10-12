@@ -270,11 +270,17 @@ repo, with you approving each step. It needs the code repo
 
 Ask your agent to do the task. It follows `wiki guide work`:
 
-1. **It learns the area** from the wiki: the module pages, and the gotchas and
-   decisions linked from them.
-2. **It plans, and stops.** What it will change and where, how it will test it, and its
-   recommendation for each choice with more than one answer. You approve it, or ask for
-   changes until you do.
+1. **It learns the area** from the wiki. It splits the task into parts (each feature,
+   behavior or kind of data it changes or relies on) and finds the pages on each with
+   `wiki search`, and along relations with `wiki neighbors`. It looks in the code only
+   for a file or function the task names. For a part with no page, it stops and asks
+   whether to look in the code for it, and recommends documenting the files it finds.
+   Then it reads the pages, and every open gotcha and decision that affects them or the
+   files it will change.
+2. **It plans, and stops.** The parts of the task and the pages on each, what it will
+   change and where, how it will test it, the files it will document, its
+   recommendation for each choice with more than one answer, and how the plan respects
+   each gotcha and decision. You approve it, or ask for changes until you do.
 3. **`wiki task start "<title>"`** opens the task, and you confirm. Until then, edits to
    the code and the wiki are refused, as they are from any other session while a task is
    open.
@@ -290,6 +296,11 @@ Ask your agent to do the task. It follows `wiki guide work`:
 8. **`wiki finish -m "<message>"`** shows you the files and asks to confirm, then
    commits exactly the files the task edited in the code repo, sets the pending pages'
    `verified:` to that commit, and commits the wiki.
+
+Steps 1 and 2 are `wiki guide plan`, which `wiki guide work` runs first. To get a plan
+and decide later, ask for `wiki guide plan` (`/wiki-plan`) on its own: it stops at the
+approved plan, changing nothing. Then `wiki guide work` (`/wiki-work`) in the same
+session uses that plan and goes on from step 3.
 
 The agent never runs `git commit` itself: it is refused. Between steps:
 

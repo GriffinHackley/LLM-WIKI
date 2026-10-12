@@ -55,8 +55,26 @@ def test_files_with_nothing_to_look_up(notes_wiki, code_repo, tmp_path):
     settings = load_settings(notes_wiki)
     results = lookup(settings, [str(tmp_path / "elsewhere.py"), str(notes_wiki / "wiki/modules/app.md"),
                                 str(code_repo / "README.md")], cwd=code_repo)
-    assert [result.outside for result in results] == ["outside the code repo", "a wiki page", None]
+    assert [result.outside for result in results] == ["outside the code repo", None, None]
+    assert results[1].page == "app" and not results[1].notes  # a wiki page no note affects
     assert not results[2].pages
+    assert lookup(settings, [str(notes_wiki / "AGENTS.md")], cwd=code_repo)[0].outside == "in the wiki, but not a page"
+
+
+def test_a_wiki_page_gets_the_open_notes_that_affect_it_once_a_session(notes_wiki, code_repo, capsys, monkeypatch):
+    monkeypatch.chdir(code_repo)
+    found = lookup(load_settings(notes_wiki), [str(notes_wiki / "wiki/modules/search.md")], cwd=code_repo)[0]
+    assert found.page == "search" and not found.pages
+    assert slugs(found.notes) == ["plain-lists", "empty-results"]  # superseded left out
+    args = ["covering", str(notes_wiki / "wiki/modules/search.md"), "--root", str(notes_wiki), "--session", "s1"]
+    assert main(args) == 0
+    out = capsys.readouterr().out
+    assert "Gotchas and decisions that affect the wiki page search" in out and "empty-results (gotcha)" in out
+    assert main(args) == 0
+    assert "shown earlier in this session" in capsys.readouterr().out
+    for name in ("search", "[[search]]"):  # a page named by its slug
+        assert slugs(lookup(load_settings(notes_wiki), [name], cwd=code_repo)[0].notes) == ["plain-lists",
+                                                                                         "empty-results"]
 
 
 def test_a_session_sees_each_file_once(notes_wiki, code_repo, capsys, monkeypatch):
@@ -105,4 +123,13 @@ def test_the_work_guide_is_the_code_presets(notes_wiki, capsys):
     assert main(["guide", "work", "--root", str(notes_wiki)]) == 0
     text = capsys.readouterr().out
     assert "wiki task start" in text and "wiki finish" in text and "verified:` to `\"pending\"" in text
+    assert "Run `wiki guide plan`" in text and "wiki search" not in text  # the planning steps live in one guide
     assert main(["work"]) != 0
+
+
+def test_the_plan_guide_stops_at_the_approved_plan(notes_wiki, capsys):
+    assert main(["guide", "plan", "--root", str(notes_wiki)]) == 0
+    text = capsys.readouterr().out
+    assert "Split the task into parts" in text and "ask about the parts with no page" in text
+    assert "get the plan approved" in text and "don't run `wiki task start`" in text and "wiki finish" not in text
+    assert main(["plan"]) != 0

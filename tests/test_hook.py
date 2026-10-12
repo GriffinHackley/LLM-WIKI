@@ -161,6 +161,12 @@ def test_claude_code_sees_a_files_notes_before_its_first_edit_only(connected, mo
         "hookSpecificOutput"]["additionalContext"]
 
 
+def test_reading_a_wiki_page_shows_the_notes_that_affect_it(connected, code_wiki, monkeypatch, capsys):
+    read = claude("PostToolUse", tool_name="Read", tool_input={"file_path": str(code_wiki / "wiki/modules/search.md")})
+    context = reply(monkeypatch, capsys, "PostToolUse", "claude-code", read)["hookSpecificOutput"]["additionalContext"]
+    assert "affect the wiki page search" in context and "Results stay plain lists." in context
+
+
 def test_copilot_sees_notes_after_the_tool_and_edits_are_recorded(connected, code_wiki, monkeypatch, capsys):
     open_task(connected, "c1")
     payload = {"sessionId": "c1", "timestamp": 1, "toolName": "edit", "toolArgs": {"path": "src/app/search.py"}}
