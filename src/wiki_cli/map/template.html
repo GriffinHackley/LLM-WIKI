@@ -104,7 +104,8 @@ const big = points.length > 4000;
 const scope = DATA.group ? ` (group: ${DATA.group})` : "";
 document.title = `Wiki map: ${DATA.root}${scope}`;
 $("title").textContent = `Map of ${DATA.root}${scope}`;
-const method = DATA.method === "umap" ? "UMAP" : DATA.fallback_reason ? `PCA (UMAP unavailable: ${DATA.fallback_reason})` : "PCA";
+const LABELS = {tsne: "t-SNE", umap: "UMAP", pca: "PCA"};
+const method = DATA.fallback_reason ? `PCA (${LABELS[DATA.fallback_from]} unavailable: ${DATA.fallback_reason})` : LABELS[DATA.method];
 $("meta").innerHTML = `${points.length} ${DATA.points_kind} &middot; ${esc(method)}<br>${esc(DATA.embed_model || "")} &middot; ${esc(DATA.generated)}`;
 $("notes").innerHTML = DATA.notes.map((note) => `<div class="note">${esc(note)}</div>`).join("");
 $("toggle").onclick = () => {

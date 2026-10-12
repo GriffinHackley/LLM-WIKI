@@ -2,9 +2,17 @@
 
 ## Unreleased
 
+- `wiki map` lays pages out with t-SNE (scikit-learn) instead of UMAP. It keeps pages'
+  neighbourhoods as well, and on a 527-page wiki a changed map takes about 2 seconds
+  instead of 11, and placing a question about 1 instead of 11. Its settings are tuned so
+  small wikis aren't scrambled. Chunk maps (`--chunks`) keep UMAP, which scales to
+  thousands of points. `--method` takes `tsne` as well as `umap` and `pca`. A question on
+  a page map is placed at the average of its nearest pages, since t-SNE cannot place new
+  points; search is unaffected. The first map after upgrading is redrawn once, and looks
+  different.
 - `wiki map` on an unchanged wiki takes well under a second instead of several: it no
   longer imports UMAP (seconds of numba compiling) to draw a cached layout, only to fit
-  a new one or place a question. The first map after upgrading refits once.
+  a new one or place a question.
 
 ## 0.4.0 (2026-10-12): plan before the work
 

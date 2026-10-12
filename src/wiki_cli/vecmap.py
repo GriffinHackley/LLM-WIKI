@@ -1,11 +1,15 @@
 """`wiki map`: the cache's embeddings laid out in three dimensions, as one HTML page.
 
-Pages (or chunks) are placed by UMAP over their vectors (cosine, fixed seed), or by PCA
-when asked or when UMAP cannot be used, which is always reported. The fitted layout is
-kept beside the cache, keyed by what was embedded, so an unchanged wiki reopens
-instantly: without importing UMAP (seconds of numba compiling), which only a refit or
-placing a question needs. A question (`--query`) and navigation sessions (`--nav`) are placed into the
-same layout with the fitted model, so they show where a question lands among the pages.
+Pages are placed by t-SNE over their vectors and chunks by UMAP (both cosine, fixed seed),
+or by PCA when asked or when the method cannot be used, which is always reported. t-SNE
+(scikit-learn, compiled ahead of time) keeps pages' neighbourhoods as well as UMAP and
+fits in a second; UMAP scales to thousands of chunks, where t-SNE in 3D is slow. The
+fitted layout is kept beside the cache, keyed by what was embedded, so an unchanged wiki
+reopens instantly: without importing UMAP (seconds of numba compiling), which only a refit
+or placing a question needs. A question (`--query`) and navigation sessions (`--nav`) are
+placed into the same layout, by the fitted UMAP or, for t-SNE (which cannot place new
+points), at the average of the question's nearest points, so they show where a question
+lands among the pages.
 
 Any projection to three dimensions distorts; the map is for exploring, not proof.
 """
@@ -29,10 +33,19 @@ from wiki_cli import clusters
 from wiki_cli.cache import Cache
 from wiki_cli.models import Embedder
 
-METHODS = ("auto", "umap", "pca")
+METHODS = ("auto", "tsne", "umap", "pca")
+LABELS = {"tsne": "t-SNE", "umap": "UMAP", "pca": "PCA"}
+# What each fitted method needs: the distribution whose version keys the cached layout, and
+# the module to import. Imported only on a refit: a cached layout is drawn without them.
+LIBRARIES = {"tsne": ("scikit-learn", "sklearn.manifold"), "umap": ("umap-learn", "umap")}
 COLOR_BY = ("type", "cluster", "age", "visits")
 SEED = 0
 NEIGHBORS = 15
+# t-SNE settings, chosen on a 527-page wiki and samples of 30 to 250 of its pages: scikit-learn's
+# defaults (perplexity 30, early exaggeration 12) suit large datasets and scramble small wikis.
+PERPLEXITY_SHARE = 20  # perplexity, about how many neighbours a page is placed among: pages / 20...
+PERPLEXITY_RANGE = (5.0, 30.0)  # ...kept within this
+EXAGGERATION = 2.0
 NEAREST = 10  # a search hit's rank among the question's nearest points is shown up to this
 RADIUS = 100.0  # coordinates are scaled so most points fit a sphere of this radius
 SPREAD_PERCENTILE = 95  # ...this share of them, so one outlying island does not shrink the rest
@@ -61,6 +74,7 @@ class Layout:
     coords: np.ndarray
     model: object = None  # fitted UMAP, or (mean, components) for PCA
     fallback_reason: str | None = None
+    fallback_from: str | None = None  # the method that could not be used
     cached: bool = False
     saved_model: bytes | None = None  # a cached UMAP, unpickled (importing umap) only when needed
 
@@ -75,15 +89,16 @@ class Layout:
         if self.method == "pca":
             mean, components = self.model
             return _pad((vectors - mean) @ components.T)
-        try:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                placed = np.asarray(self.fitted().transform(vectors), dtype=np.float64)
-            if np.all(np.isfinite(placed)):
-                return placed
-        except Exception:  # noqa: BLE001 - a failed transform falls back to the neighbours below
-            pass
-        return _nearest_average(vectors, points.vectors, self.coords)
+        if self.method == "umap":
+            try:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    placed = np.asarray(self.fitted().transform(vectors), dtype=np.float64)
+                if np.all(np.isfinite(placed)):
+                    return placed
+            except Exception:  # noqa: BLE001 - a failed transform falls back to the neighbours below
+                pass
+        return _nearest_average(vectors, points.vectors, self.coords)  # t-SNE cannot place new points
 
 
 @dataclass
@@ -137,52 +152,73 @@ def load_points(cache: Cache, *, chunks: bool = False, only: set[str] | None = N
 
 def fit(points: Points, method: str, *, store: Path | None = None, embed_model: str | None = None,
         progress: Callable[[str], None] | None = None) -> Layout:
-    """Lay ``points`` out in 3D. ``auto`` uses UMAP and falls back to PCA with a reason;
-    an explicit ``umap`` fails instead."""
+    """Lay ``points`` out in 3D. ``auto`` uses t-SNE for pages and UMAP for chunks, and
+    falls back to PCA with a reason; an explicit ``tsne`` or ``umap`` fails instead."""
     if method not in METHODS:
         raise MapError(f"unknown method '{method}'; choose one of {', '.join(METHODS)}")
-    if method in ("auto", "umap"):
-        version = _umap_installed()
-        key = _key(points, "umap", embed_model, version) if version else None
-        layout = _load(store, key) if key else None
-        if layout is not None:
-            return layout
-        reason = _umap_import_error()
-        if reason is None:
-            try:
-                if progress:
-                    progress(f"Fitting UMAP on {len(points)} {points.kind}")
-                layout = _fit_umap(points.vectors)
-            except Exception as exc:  # noqa: BLE001 - any failure is reported, then PCA is used
-                reason = f"fitting failed: {type(exc).__name__}: {exc}"
-            else:
-                _save(store, key, layout)
-                return layout
-        if method == "umap":
-            raise MapError(f"UMAP cannot be used ({reason}); run without --method umap to use PCA instead")
-        layout = _fit_pca(points.vectors)
-        layout.fallback_reason = reason
+    if method == "pca":
+        return _fit_pca(points.vectors)
+    wanted = method if method != "auto" else ("umap" if points.kind == "chunks" else "tsne")
+    distribution, module = LIBRARIES[wanted]
+    version = _installed(distribution)
+    key = _key(points, wanted, embed_model, version) if version else None
+    layout = _load(store, key) if key else None
+    if layout is not None:
         return layout
-    return _fit_pca(points.vectors)
+    reason = _import_error(module)
+    if reason is None:
+        try:
+            if progress:
+                progress(f"Fitting {LABELS[wanted]} on {len(points)} {points.kind}")
+            layout = {"tsne": _fit_tsne, "umap": _fit_umap}[wanted](points.vectors)
+        except Exception as exc:  # noqa: BLE001 - any failure is reported, then PCA is used
+            reason = f"fitting failed: {type(exc).__name__}: {exc}"
+        else:
+            _save(store, key, layout)
+            return layout
+    if method != "auto":
+        raise MapError(f"{LABELS[wanted]} cannot be used ({reason}); run without --method {method} to use PCA "
+                       "instead")
+    layout = _fit_pca(points.vectors)
+    layout.fallback_reason, layout.fallback_from = reason, wanted
+    return layout
 
 
-def _umap_installed() -> str | None:
-    """umap-learn's installed version, read without importing it, or None."""
+def _installed(distribution: str) -> str | None:
+    """A distribution's installed version, read without importing it, or None."""
     try:
-        return importlib.metadata.version("umap-learn")
+        return importlib.metadata.version(distribution)
     except importlib.metadata.PackageNotFoundError:
         return None
 
 
-def _umap_import_error() -> str | None:
-    """Why umap can't be imported ('cannot import umap: <why>'), or None when it can."""
+def _import_error(module: str) -> str | None:
+    """Why ``module`` can't be imported ('cannot import <module>: <why>'), or None when it can."""
     try:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            import umap  # noqa: F401 - heavy (numba compiles for seconds): only a refit or a question needs it
+            importlib.import_module(module)  # umap is heavy (numba compiles for seconds): only a refit needs it
     except Exception as exc:  # noqa: BLE001 - ImportError, or a broken numba/llvmlite install
-        return f"cannot import umap: {type(exc).__name__}: {exc}"
+        return f"cannot import {module}: {type(exc).__name__}: {exc}"
     return None
+
+
+def _fit_tsne(vectors: np.ndarray) -> Layout:
+    from sklearn.manifold import TSNE
+
+    count = len(vectors)
+    if count < 4:
+        raise ValueError(f"{count} points are too few for t-SNE (it takes 4)")
+    low, high = PERPLEXITY_RANGE
+    perplexity = min(max(low, min(high, count / PERPLEXITY_SHARE)), (count - 1) / 3)  # below the point count
+    model = TSNE(n_components=3, metric="cosine", init="pca", random_state=SEED, perplexity=perplexity,
+                 early_exaggeration=EXAGGERATION)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        coords = np.asarray(model.fit_transform(vectors), dtype=np.float64)
+    if not np.all(np.isfinite(coords)):
+        raise ValueError("t-SNE produced non-finite coordinates")
+    return Layout("tsne", coords)
 
 
 def _fit_umap(vectors: np.ndarray) -> Layout:
@@ -231,7 +267,7 @@ def _load(store: Path | None, key: str) -> Layout | None:
             saved = pickle.load(handle)  # written by _save below, beside the cache
         if saved.get("key") != key:
             return None
-        return Layout("umap", saved["coords"], cached=True, saved_model=saved["model"])
+        return Layout(saved.get("method", "umap"), saved["coords"], cached=True, saved_model=saved["model"])
     except Exception:  # noqa: BLE001 - an unreadable layout is refitted
         return None
 
@@ -243,7 +279,8 @@ def _save(store: Path | None, key: str, layout: Layout) -> None:
         store.parent.mkdir(parents=True, exist_ok=True)
         temporary = store.with_suffix(".tmp")
         with temporary.open("wb") as handle:
-            pickle.dump({"key": key, "coords": layout.coords, "model": pickle.dumps(layout.model)}, handle)
+            pickle.dump({"key": key, "method": layout.method, "coords": layout.coords,
+                         "model": pickle.dumps(layout.model)}, handle)
         temporary.replace(store)
     except Exception:  # noqa: BLE001 - the layout is only a speed-up
         pass
@@ -278,7 +315,7 @@ def build(cache: Cache, *, method: str = "auto", chunks: bool = False, color_by:
     store = cache.settings.cache_path.parent / f"map-{points.kind}{suffix}.pickle"  # one layout per group
     layout = fit(points, method, store=store, embed_model=cache.embed_model, progress=progress)
     if layout.fallback_reason:
-        notes.insert(0, f"UMAP unavailable ({layout.fallback_reason}); used PCA instead")
+        notes.insert(0, f"{LABELS[layout.fallback_from]} unavailable ({layout.fallback_reason}); used PCA instead")
 
     community, cluster_names = clusters.membership(cache, only=only)
     by_page: dict[str, list[int]] = {}
@@ -351,6 +388,7 @@ def build(cache: Cache, *, method: str = "auto", chunks: bool = False, color_by:
         "embed_model": cache.embed_model,
         "method": layout.method,
         "fallback_reason": layout.fallback_reason,
+        "fallback_from": layout.fallback_from,
         "points_kind": points.kind,
         "color_by": color_by,
         "points": points.rows,

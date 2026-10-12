@@ -205,7 +205,8 @@ def build_parser() -> argparse.ArgumentParser:
         "map", parents=[common, models],
         help="a 3D map of the pages' embeddings, as an HTML page (with a question or nav sessions placed in it)")
     map_parser.add_argument("--method", choices=vecmap.METHODS, default="auto",
-                            help="layout: auto (UMAP, else PCA with a note), umap (fail if unavailable), pca")
+                            help="layout: auto (t-SNE for pages, UMAP for --chunks, else PCA with a note), tsne or umap "
+                                 "(fail if unavailable), pca")
     map_parser.add_argument("--chunks", action="store_true", help="one point per section instead of per page")
     map_where = map_parser.add_mutually_exclusive_group()
     map_where.add_argument("--group", help=GROUP_HELP)
@@ -1304,7 +1305,7 @@ def cmd_map(args: argparse.Namespace, settings: Settings) -> int:
         return EXIT_OK
     path = vecmap.write(result.payload, settings.cache_path)
     payload = result.payload
-    method = "UMAP" if payload["method"] == "umap" else "PCA"
+    method = vecmap.LABELS[payload["method"]]
     group = f" in group '{args.group}'" if args.group else " in no group" if args.ungrouped else ""
     print(f"Map of {output.plural(len(payload['points']), payload['points_kind'][:-1])}{group} ({method}): {path}")
     if args.open:

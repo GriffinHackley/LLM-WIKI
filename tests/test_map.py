@@ -55,6 +55,10 @@ def no_umap(monkeypatch):
     monkeypatch.setitem(sys.modules, "umap", None)  # import umap now raises ImportError
 
 
+def no_sklearn(monkeypatch):
+    monkeypatch.setitem(sys.modules, "sklearn.manifold", None)
+
+
 def test_pca_map_points_edges_and_metadata(root, capsys):
     code, result, err = run_json(root, capsys, "--method", "pca")
     assert code == 0 and err == ""
@@ -76,55 +80,86 @@ def test_pca_is_deterministic_and_separates_topics(root, capsys):
     assert np.linalg.norm(centers["river"] - centers["orbit"]) > 30
 
 
-def test_umap_is_default_deterministic_and_cached(root, capsys):
+def test_pages_default_to_tsne_deterministic_and_cached(root, capsys):
     code, first, err = run_json(root, capsys)
-    assert code == 0 and first["method"] == "umap" and first["fallback_reason"] is None
-    assert "UMAP" not in err
+    assert code == 0 and first["method"] == "tsne" and first["fallback_reason"] is None
+    assert "unavailable" not in err
     store = root / ".cache" / "map-pages.pickle"
     assert store.is_file()
     _, cached, _ = run_json(root, capsys)
     store.unlink()
     _, refitted, _ = run_json(root, capsys)
     assert first["points"] == cached["points"] == refitted["points"]
+    positions = np.array([p["pos"] for p in first["points"]])
+    topics = [p["slug"].split("-")[0] for p in first["points"]]
+    same = [np.mean([topics[other] == topics[index]
+                     for other in np.argsort(np.linalg.norm(positions - position, axis=1))[1:6]])
+            for index, position in enumerate(positions)]
+    assert np.mean(same) >= 0.85  # t-SNE keeps neighbourhoods: a page's nearest are mostly its topic's
+    code, placed, _ = run_json(root, capsys, "--query", "rocket launch to the moon")
+    assert code == 0 and len(placed["query"]["pos"]) == 3  # at the average of its nearest pages
+
+
+def test_chunks_default_to_umap_deterministic_and_cached(root, capsys):
+    code, first, err = run_json(root, capsys, "--chunks")
+    assert code == 0 and first["method"] == "umap" and first["fallback_reason"] is None
+    assert "unavailable" not in err
+    store = root / ".cache" / "map-chunks.pickle"
+    assert store.is_file()
+    _, cached, _ = run_json(root, capsys, "--chunks")
+    store.unlink()
+    _, refitted, _ = run_json(root, capsys, "--chunks")
+    assert first["points"] == cached["points"] == refitted["points"]
 
 
 def test_a_cached_layout_is_drawn_without_importing_umap(root, capsys, monkeypatch):
-    _, first, _ = run_json(root, capsys)
+    _, first, _ = run_json(root, capsys, "--chunks")
     no_umap(monkeypatch)  # importing umap now fails: a cached layout must not need it
-    code, cached, _ = run_json(root, capsys)
+    code, cached, _ = run_json(root, capsys, "--chunks")
     assert code == 0 and cached["method"] == "umap" and cached["points"] == first["points"]
-    code, placed, _ = run_json(root, capsys, "--query", "rocket launch to the moon")
-    assert code == 0 and len(placed["query"]["pos"]) == 3  # placed by its nearest pages instead
+    code, placed, _ = run_json(root, capsys, "--chunks", "--query", "rocket launch to the moon")
+    assert code == 0 and len(placed["query"]["pos"]) == 3  # placed by its nearest chunks instead
 
 
 def test_umap_unavailable_falls_back_to_pca_and_says_so(root, capsys, monkeypatch):
     no_umap(monkeypatch)
-    code, result, err = run_json(root, capsys)
+    code, result, err = run_json(root, capsys, "--chunks")
     assert code == 0 and result["method"] == "pca"
-    assert result["fallback_reason"].startswith("cannot import umap")
+    assert result["fallback_reason"].startswith("cannot import umap") and result["fallback_from"] == "umap"
     assert "UMAP unavailable" in err and "used PCA instead" in err
     assert result["notes"][0].startswith("UMAP unavailable")
 
-    code, out, err = run(root, capsys)
+    code, out, err = run(root, capsys, "--chunks")
     assert code == 0 and "(PCA)" in out and "used PCA instead" in err
     html = (root / ".cache" / "map.html").read_text(encoding="utf-8")
     assert "cannot import umap" in html and "UMAP unavailable" in html
 
 
-def test_explicit_umap_fails_instead_of_falling_back(root, capsys, monkeypatch):
+def test_tsne_unavailable_falls_back_to_pca_and_says_so(root, capsys, monkeypatch):
+    no_sklearn(monkeypatch)
+    code, result, err = run_json(root, capsys)
+    assert code == 0 and result["method"] == "pca" and result["fallback_from"] == "tsne"
+    assert result["fallback_reason"].startswith("cannot import sklearn.manifold")
+    assert "t-SNE unavailable" in err and "used PCA instead" in err
+
+
+def test_explicit_method_fails_instead_of_falling_back(root, capsys, monkeypatch):
     no_umap(monkeypatch)
     code, out, err = run(root, capsys, "--method", "umap")
     assert code == 2 and out == ""
     assert "UMAP cannot be used" in err and "cannot import umap" in err
+    no_sklearn(monkeypatch)
+    code, out, err = run(root, capsys, "--method", "tsne")
+    assert code == 2 and "t-SNE cannot be used" in err
 
 
-def test_umap_fit_failure_falls_back(root, capsys, monkeypatch):
+def test_a_fit_failure_falls_back(root, capsys, monkeypatch):
     def broken(vectors):
-        raise RuntimeError("no spectral layout")
-    monkeypatch.setattr(vecmap, "_fit_umap", broken)
+        raise RuntimeError("no layout")
+    monkeypatch.setattr(vecmap, "_fit_tsne", broken)
     code, result, err = run_json(root, capsys)
     assert code == 0 and result["method"] == "pca"
-    assert result["fallback_reason"] == "fitting failed: RuntimeError: no spectral layout"
+    assert result["fallback_reason"] == "fitting failed: RuntimeError: no layout"
     assert "used PCA instead" in err
 
 

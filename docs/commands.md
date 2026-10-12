@@ -314,7 +314,7 @@ offline. Points are coloured by type, cluster, age or visits; relations are line
 | `--nav` | Draw a navigation session as a path: a session id, `last`, or `all`. |
 | `--color-by` | The first colouring: `type`, `cluster`, `age`, or `visits` (needs `--nav`). The page can switch. |
 | `--chunks` | One point per section instead of per page. |
-| `--method` | The layout: `auto` (UMAP, else PCA with a note), `umap` (fail if it can't), `pca`. |
+| `--method` | The layout: `auto` (t-SNE for pages, UMAP for `--chunks`, else PCA with a note), `tsne` or `umap` (fail if it can't), `pca`. |
 | `--group` | Only this group's pages, laid out on their own. |
 | `--ungrouped` | Only the pages that name no group. |
 
