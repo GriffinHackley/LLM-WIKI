@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- `wiki map` on an unchanged wiki takes well under a second instead of several: it no
+  longer imports UMAP (seconds of numba compiling) to draw a cached layout, only to fit
+  a new one or place a question. The first map after upgrading refits once.
+
 ## 0.4.0 (2026-10-12): plan before the work
 
 - `wiki guide plan` (code wikis, `/wiki-plan` after `wiki connect`): plan a task without

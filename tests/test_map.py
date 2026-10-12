@@ -88,6 +88,15 @@ def test_umap_is_default_deterministic_and_cached(root, capsys):
     assert first["points"] == cached["points"] == refitted["points"]
 
 
+def test_a_cached_layout_is_drawn_without_importing_umap(root, capsys, monkeypatch):
+    _, first, _ = run_json(root, capsys)
+    no_umap(monkeypatch)  # importing umap now fails: a cached layout must not need it
+    code, cached, _ = run_json(root, capsys)
+    assert code == 0 and cached["method"] == "umap" and cached["points"] == first["points"]
+    code, placed, _ = run_json(root, capsys, "--query", "rocket launch to the moon")
+    assert code == 0 and len(placed["query"]["pos"]) == 3  # placed by its nearest pages instead
+
+
 def test_umap_unavailable_falls_back_to_pca_and_says_so(root, capsys, monkeypatch):
     no_umap(monkeypatch)
     code, result, err = run_json(root, capsys)

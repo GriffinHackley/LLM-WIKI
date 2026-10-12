@@ -3,7 +3,8 @@
 Pages (or chunks) are placed by UMAP over their vectors (cosine, fixed seed), or by PCA
 when asked or when UMAP cannot be used, which is always reported. The fitted layout is
 kept beside the cache, keyed by what was embedded, so an unchanged wiki reopens
-instantly. A question (`--query`) and navigation sessions (`--nav`) are placed into the
+instantly: without importing UMAP (seconds of numba compiling), which only a refit or
+placing a question needs. A question (`--query`) and navigation sessions (`--nav`) are placed into the
 same layout with the fitted model, so they show where a question lands among the pages.
 
 Any projection to three dimensions distorts; the map is for exploring, not proof.
@@ -12,6 +13,7 @@ Any projection to three dimensions distorts; the map is for exploring, not proof
 from __future__ import annotations
 
 import hashlib
+import importlib.metadata
 import json
 import pickle
 import time
@@ -34,7 +36,7 @@ NEIGHBORS = 15
 NEAREST = 10  # a search hit's rank among the question's nearest points is shown up to this
 RADIUS = 100.0  # coordinates are scaled so most points fit a sphere of this radius
 SPREAD_PERCENTILE = 95  # ...this share of them, so one outlying island does not shrink the rest
-LAYOUT_VERSION = "1"
+LAYOUT_VERSION = "2"  # 2: the model saved as its own pickle, loaded only to place a question
 HTML_NAME = "map.html"
 
 
@@ -60,6 +62,12 @@ class Layout:
     model: object = None  # fitted UMAP, or (mean, components) for PCA
     fallback_reason: str | None = None
     cached: bool = False
+    saved_model: bytes | None = None  # a cached UMAP, unpickled (importing umap) only when needed
+
+    def fitted(self) -> object:
+        if self.model is None and self.saved_model is not None:
+            self.model = pickle.loads(self.saved_model)  # written by _save below, beside the cache
+        return self.model
 
     def place(self, vectors: np.ndarray, points: Points) -> np.ndarray:
         """Coordinates for new vectors (questions) in this layout."""
@@ -70,7 +78,7 @@ class Layout:
         try:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                placed = np.asarray(self.model.transform(vectors), dtype=np.float64)
+                placed = np.asarray(self.fitted().transform(vectors), dtype=np.float64)
             if np.all(np.isfinite(placed)):
                 return placed
         except Exception:  # noqa: BLE001 - a failed transform falls back to the neighbours below
@@ -134,13 +142,13 @@ def fit(points: Points, method: str, *, store: Path | None = None, embed_model: 
     if method not in METHODS:
         raise MapError(f"unknown method '{method}'; choose one of {', '.join(METHODS)}")
     if method in ("auto", "umap"):
-        version = _umap_version()
-        reason = version if version.startswith("cannot import") else None
+        version = _umap_installed()
+        key = _key(points, "umap", embed_model, version) if version else None
+        layout = _load(store, key) if key else None
+        if layout is not None:
+            return layout
+        reason = _umap_import_error()
         if reason is None:
-            key = _key(points, "umap", embed_model, version)
-            layout = _load(store, key)
-            if layout is not None:
-                return layout
             try:
                 if progress:
                     progress(f"Fitting UMAP on {len(points)} {points.kind}")
@@ -158,15 +166,23 @@ def fit(points: Points, method: str, *, store: Path | None = None, embed_model: 
     return _fit_pca(points.vectors)
 
 
-def _umap_version() -> str:
-    """umap-learn's version, or 'cannot import umap: <why>'."""
+def _umap_installed() -> str | None:
+    """umap-learn's installed version, read without importing it, or None."""
+    try:
+        return importlib.metadata.version("umap-learn")
+    except importlib.metadata.PackageNotFoundError:
+        return None
+
+
+def _umap_import_error() -> str | None:
+    """Why umap can't be imported ('cannot import umap: <why>'), or None when it can."""
     try:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            import umap  # noqa: F401 - heavy (numba); only this command imports it
+            import umap  # noqa: F401 - heavy (numba compiles for seconds): only a refit or a question needs it
     except Exception as exc:  # noqa: BLE001 - ImportError, or a broken numba/llvmlite install
         return f"cannot import umap: {type(exc).__name__}: {exc}"
-    return str(getattr(umap, "__version__", "unknown"))
+    return None
 
 
 def _fit_umap(vectors: np.ndarray) -> Layout:
@@ -215,7 +231,7 @@ def _load(store: Path | None, key: str) -> Layout | None:
             saved = pickle.load(handle)  # written by _save below, beside the cache
         if saved.get("key") != key:
             return None
-        return Layout("umap", saved["coords"], saved["model"], cached=True)
+        return Layout("umap", saved["coords"], cached=True, saved_model=saved["model"])
     except Exception:  # noqa: BLE001 - an unreadable layout is refitted
         return None
 
@@ -227,7 +243,7 @@ def _save(store: Path | None, key: str, layout: Layout) -> None:
         store.parent.mkdir(parents=True, exist_ok=True)
         temporary = store.with_suffix(".tmp")
         with temporary.open("wb") as handle:
-            pickle.dump({"key": key, "coords": layout.coords, "model": layout.model}, handle)
+            pickle.dump({"key": key, "coords": layout.coords, "model": pickle.dumps(layout.model)}, handle)
         temporary.replace(store)
     except Exception:  # noqa: BLE001 - the layout is only a speed-up
         pass
