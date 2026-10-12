@@ -2,23 +2,26 @@
 
 ## Unreleased
 
-- `wiki guide plan` (code wikis, `/wiki-plan` after `wiki connect`): the agent learns
-  the area from the wiki, writes a plan, gets it approved, and stops without opening a
-  task or changing anything. `wiki guide work` now runs it as its first step, and in the
-  same session uses a plan already approved this way.
+## 0.4.0 (2026-10-12): plan before the work
+
+- `wiki guide plan` (code wikis, `/wiki-plan` after `wiki connect`): plan a task without
+  doing it. The agent splits the task into parts and finds the pages on each with the
+  wiki's search and the pages' relations, looking in the code only for a file or
+  function the task names. For a part with no page it asks before looking in the code,
+  and recommends documenting the files it finds as part of the task. It runs
+  `wiki covering` on the pages and files the task touches, so every open gotcha and
+  decision affecting them is read before the plan is written. The plan starts with the
+  parts and their pages, and says how it respects each gotcha and decision. Then it
+  stops, without opening a task or changing anything. Re-run `wiki connect` to add the
+  command to a connected code repo.
+- `wiki guide work` now runs `wiki guide plan` as its first step, and in the same session
+  uses a plan already approved that way.
 - The agent hooks in a connected code repo now show the gotchas and decisions that affect
   a wiki page the first time the agent reads it, as they already did for a code file.
   `wiki covering <wiki page>` prints the same, and takes a page's slug as well as its path.
-- `wiki guide plan` splits the task into parts and finds the pages on each with the
-  wiki's search and the pages' relations, looking in the code only for a file or
-  function the task names. For a part with no page it asks before looking in the code,
-  and recommends documenting the files it finds as part of the task. The plan starts
-  with the parts and their pages. It runs `wiki covering` on the pages and files the
-  task touches, so every open gotcha and decision affecting them is read before the plan
-  is written.
-- Guides: the line on the wiki's own rules now says plainly that the rules win over the
-  guide where they conflict. Re-run `wiki connect` to add the
-  command to a connected code repo.
+- Guides: the opening note now forbids only re-running the same guide (a guide may name
+  another), and the line on the wiki's own rules says plainly that the rules win over the
+  guide where they conflict.
 
 ## 0.3.1 (2026-10-11)
 
