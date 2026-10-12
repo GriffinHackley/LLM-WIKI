@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.5.0 (2026-10-12): a faster map
+
 - `wiki map` lays pages out with t-SNE (scikit-learn) instead of UMAP. It keeps pages'
   neighbourhoods as well, and on a 527-page wiki a changed map takes about 2 seconds
   instead of 11, and placing a question about 1 instead of 11. Its settings are tuned so
