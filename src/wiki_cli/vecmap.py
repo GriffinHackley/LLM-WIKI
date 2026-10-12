@@ -7,9 +7,11 @@ fits in a second; UMAP scales to thousands of chunks, where t-SNE in 3D is slow.
 fitted layout is kept beside the cache, keyed by what was embedded, so an unchanged wiki
 reopens instantly: without importing UMAP (seconds of numba compiling), which only a refit
 or placing a question needs. A question (`--query`) and navigation sessions (`--nav`) are
-placed into the same layout, by the fitted UMAP or, for t-SNE (which cannot place new
-points), at the average of the question's nearest points, so they show where a question
-lands among the pages.
+placed at the average of the question's nearest points, so they show where a question
+lands among the pages: t-SNE cannot place new points, and UMAP is fitted on exact
+neighbours computed here (which skips its own approximate search and the seconds of
+compiling it costs), which keep no model to place them with. Only past EXACT_LIMIT points
+does UMAP search for neighbours itself, and then its model places questions.
 
 Any projection to three dimensions distorts; the map is for exploring, not proof.
 """
@@ -41,6 +43,8 @@ LIBRARIES = {"tsne": ("scikit-learn", "sklearn.manifold"), "umap": ("umap-learn"
 COLOR_BY = ("type", "cluster", "age", "visits")
 SEED = 0
 NEIGHBORS = 15
+EXACT_LIMIT = 20_000  # up to this many points, UMAP gets exact neighbours (time grows with the square)
+EXACT_BLOCK = 512  # rows of similarities computed at once: memory stays at this many rows of the points
 # t-SNE settings, chosen on a 527-page wiki and samples of 30 to 250 of its pages: scikit-learn's
 # defaults (perplexity 30, early exaggeration 12) suit large datasets and scramble small wikis.
 PERPLEXITY_SHARE = 20  # perplexity, about how many neighbours a page is placed among: pages / 20...
@@ -89,16 +93,17 @@ class Layout:
         if self.method == "pca":
             mean, components = self.model
             return _pad((vectors - mean) @ components.T)
-        if self.method == "umap":
+        model = self.fitted() if self.method == "umap" else None  # none for t-SNE, or UMAP on exact neighbours
+        if model is not None:
             try:
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
-                    placed = np.asarray(self.fitted().transform(vectors), dtype=np.float64)
+                    placed = np.asarray(model.transform(vectors), dtype=np.float64)
                 if np.all(np.isfinite(placed)):
                     return placed
             except Exception:  # noqa: BLE001 - a failed transform falls back to the neighbours below
                 pass
-        return _nearest_average(vectors, points.vectors, self.coords)  # t-SNE cannot place new points
+        return _nearest_average(vectors, points.vectors, self.coords)
 
 
 @dataclass
@@ -227,14 +232,35 @@ def _fit_umap(vectors: np.ndarray) -> Layout:
     count = len(vectors)
     if count < 4:
         raise ValueError(f"{count} points are too few for UMAP (it takes 4)")
-    model = umap.UMAP(n_components=3, metric="cosine", n_neighbors=min(NEIGHBORS, count - 1),
-                      random_state=SEED, init="spectral" if count > 10 else "random")
+    neighbors = min(NEIGHBORS, count - 1)
+    exact = count <= EXACT_LIMIT
+    model = umap.UMAP(n_components=3, metric="cosine", n_neighbors=neighbors, random_state=SEED,
+                      init="spectral" if count > 10 else "random",
+                      precomputed_knn=(*exact_neighbors(vectors, neighbors), None) if exact else (None, None, None))
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")  # n_jobs is forced to 1 by the seed; small graphs warn on init
         coords = np.asarray(model.fit_transform(vectors), dtype=np.float64)
     if not np.all(np.isfinite(coords)):
         raise ValueError("UMAP produced non-finite coordinates")
-    return Layout("umap", coords, model)
+    return Layout("umap", coords, None if exact else model)  # without its own search, the model can't place
+
+
+def exact_neighbors(vectors: np.ndarray, k: int) -> tuple[np.ndarray, np.ndarray]:
+    """Each unit vector's ``k`` nearest by cosine, itself first, as UMAP's search returns
+    them: ``(indexes, distances)``, nearest first. Computed EXACT_BLOCK rows at a time."""
+    count = len(vectors)
+    indexes = np.empty((count, k), dtype=np.int64)
+    distances = np.empty((count, k), dtype=np.float32)
+    for start in range(0, count, EXACT_BLOCK):
+        similarity = vectors[start:start + EXACT_BLOCK] @ vectors.T
+        rows = np.arange(len(similarity))
+        similarity[rows, start + rows] = np.inf  # each point is its own nearest, even beside a duplicate
+        nearest = np.argpartition(-similarity, k - 1, axis=1)[:, :k]
+        order = np.argsort(-np.take_along_axis(similarity, nearest, axis=1), axis=1, kind="stable")
+        nearest = np.take_along_axis(nearest, order, axis=1)
+        indexes[start:start + EXACT_BLOCK] = nearest
+        distances[start:start + EXACT_BLOCK] = np.clip(1 - np.take_along_axis(similarity, nearest, axis=1), 0, None)
+    return indexes, distances
 
 
 def _fit_pca(vectors: np.ndarray) -> Layout:

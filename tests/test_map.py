@@ -121,6 +121,30 @@ def test_a_cached_layout_is_drawn_without_importing_umap(root, capsys, monkeypat
     assert code == 0 and len(placed["query"]["pos"]) == 3  # placed by its nearest chunks instead
 
 
+def test_exact_neighbours_match_a_full_search(monkeypatch):
+    monkeypatch.setattr(vecmap, "EXACT_BLOCK", 7)  # several blocks, the last one short
+    vectors = vecmap._unit(np.random.default_rng(1).normal(size=(30, 8)).astype(np.float32))
+    vectors[5] = vectors[4]  # a duplicate still comes after the point itself
+    indexes, distances = vecmap.exact_neighbors(vectors, 4)
+    similarity = vectors @ vectors.T
+    for row in range(30):
+        assert indexes[row, 0] == row and distances[row, 0] == 0
+        others = [index for index in np.argsort(-similarity[row], kind="stable") if index != row][:3]
+        assert set(indexes[row, 1:]) == set(others)
+        assert list(distances[row]) == sorted(distances[row])
+    assert distances[4, 1] == pytest.approx(0, abs=1e-6) and indexes[4, 1] == 5
+
+
+def test_past_the_exact_limit_umap_searches_itself_and_places_questions(root, capsys, monkeypatch):
+    monkeypatch.setattr(vecmap, "EXACT_LIMIT", 10)
+    code, result, _ = run_json(root, capsys, "--chunks", "--query", "rocket launch to the moon")
+    assert code == 0 and result["method"] == "umap" and len(result["query"]["pos"]) == 3
+    with Cache(load_settings(root)) as cache:
+        layout = vecmap.fit(vecmap.load_points(cache, chunks=True), "umap",
+                            store=root / ".cache" / "map-chunks.pickle", embed_model=cache.embed_model)
+    assert layout.cached and layout.fitted() is not None  # its model is kept, to place questions with
+
+
 def test_umap_unavailable_falls_back_to_pca_and_says_so(root, capsys, monkeypatch):
     no_umap(monkeypatch)
     code, result, err = run_json(root, capsys, "--chunks")

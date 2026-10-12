@@ -10,6 +10,10 @@
   a page map is placed at the average of its nearest pages, since t-SNE cannot place new
   points; search is unaffected. The first map after upgrading is redrawn once, and looks
   different.
+- `wiki map --chunks` computes each chunk's exact nearest neighbours for UMAP, up to 20,000
+  chunks, instead of UMAP's approximate search, whose compiling took most of a refit: on
+  4,161 chunks a changed map takes about 12 seconds instead of 21, and placing a question
+  on a drawn map about 1 instead of 11, at the average of its nearest chunks.
 - `wiki map` on an unchanged wiki takes well under a second instead of several: it no
   longer imports UMAP (seconds of numba compiling) to draw a cached layout, only to fit
   a new one or place a question.
