@@ -1,4 +1,6 @@
 import json
+import subprocess
+import sys
 
 import pytest
 
@@ -155,3 +157,10 @@ def test_no_config_refuses_home_folder(tmp_path, capsys, monkeypatch):
     assert "is not a wiki folder" in capsys.readouterr().err
     assert not (tmp_path / ".cache").exists()
     assert main(["index", "status", "--root", str(tmp_path)]) == 0  # explicit --root still works
+
+
+def test_cli_does_not_import_numpy():
+    # Every command and agent hook call loads the CLI; numpy (over 100 ms) is for wiki map only.
+    check = "import sys, wiki_cli.cli; assert 'numpy' not in sys.modules, 'wiki_cli.cli imports numpy'"
+    done = subprocess.run([sys.executable, "-c", check], capture_output=True, text=True)
+    assert done.returncode == 0, done.stderr

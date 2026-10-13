@@ -33,14 +33,12 @@ import numpy as np
 
 from wiki_cli import clusters
 from wiki_cli.cache import Cache
+from wiki_cli.mapspec import COLOR_BY, LABELS, METHODS, MapError
 from wiki_cli.models import Embedder
 
-METHODS = ("auto", "tsne", "umap", "pca")
-LABELS = {"tsne": "t-SNE", "umap": "UMAP", "pca": "PCA"}
 # What each fitted method needs: the distribution whose version keys the cached layout, and
 # the module to import. Imported only on a refit: a cached layout is drawn without them.
 LIBRARIES = {"tsne": ("scikit-learn", "sklearn.manifold"), "umap": ("umap-learn", "umap")}
-COLOR_BY = ("type", "cluster", "age", "visits")
 SEED = 0
 NEIGHBORS = 15
 EXACT_LIMIT = 20_000  # up to this many points, UMAP gets exact neighbours (time grows with the square)
@@ -55,10 +53,6 @@ RADIUS = 100.0  # coordinates are scaled so most points fit a sphere of this rad
 SPREAD_PERCENTILE = 95  # ...this share of them, so one outlying island does not shrink the rest
 LAYOUT_VERSION = "2"  # 2: the model saved as its own pickle, loaded only to place a question
 HTML_NAME = "map.html"
-
-
-class MapError(Exception):
-    pass
 
 
 @dataclass
