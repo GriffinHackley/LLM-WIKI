@@ -236,6 +236,12 @@ function linkWidth(link) {
 }
 
 // -- graph ----------------------------------------------------------------
+// The links' ids become node objects here, not in the library: it does that in its link force, which is
+// removed below to keep points where the layout put them. One tick then positions the lines; with ids
+// left in, or no tick, every line stays a stub at the origin.
+const allNodes = [...nodes, ...extra], byId = new Map(allNodes.map((node) => [node.id, node]));
+const allLinks = [...edgeLinks, ...queryLinks, ...navLinks]
+  .map((link) => Object.assign(link, {source: byId.get(link.source), target: byId.get(link.target)}));
 const Graph = ForceGraph3D()($("graph"))
   .backgroundColor(css("--canvas"))
   .showNavInfo(false)
@@ -243,10 +249,10 @@ const Graph = ForceGraph3D()($("graph"))
   .nodeRelSize(1)
   .nodeResolution(big ? 4 : 10)
   .nodeOpacity(0.92)
-  .cooldownTicks(0)
+  .cooldownTicks(1)
   .warmupTicks(0)
   .enableNodeDrag(false)
-  .graphData({nodes: [...nodes, ...extra], links: [...edgeLinks, ...queryLinks, ...navLinks]})
+  .graphData({nodes: allNodes, links: allLinks})
   .nodeLabel(nodeLabel)
   .linkLabel((link) => link.kind === "edge" ? esc(link.relation) : link.kind === "hit" ? `result ${link.hit.rank}` : "")
   .linkDirectionalArrowLength((link) => link.kind === "nav" && link.session === navSession ? 3 : 0)
