@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.6.0 (2026-10-16): clusters on the map
+
 - `wiki map` can open a link cluster. The panel lists the clusters, with how many of
   their pages sit away from the rest and how many links leave them; clicking one turns
   the camera to look across the cluster's main group of pages, dims other clusters' points
@@ -13,6 +15,11 @@
   at the top of the panel, and clicking the question flies to it. Clusters come from
   links and positions from embeddings, so a cluster can be spread across the map; the
   points never move.
+- `wiki map` draws its lines: relations, the lines from a question to its search
+  results, and navigation paths. Since the map's first release every line was drawn as a
+  stub at the middle of the scene, with one tooltip there that never moved.
+- Every `wiki` command, and every agent hook call, starts faster: numpy is loaded only by
+  `wiki map`, not by every command (about 180 ms instead of 300 to start).
 
 ## 0.5.0 (2026-10-12): a faster map
 
