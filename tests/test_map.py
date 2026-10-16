@@ -299,6 +299,50 @@ def test_no_vectors_says_to_index(tmp_path, capsys):
     assert code == 2 and "wiki index refresh" in err
 
 
+def test_cluster_shapes_find_the_core_and_points_away_from_it():
+    rng = np.random.default_rng(0)
+    flat = rng.normal(size=(8, 3)) * [6.0, 3.0, 0.2] + [40, 0, 0]  # thin along z
+    far = np.array([[-40.0, 0.5, 0.0]])  # one page of the first cluster, among the second's
+    other = np.array([[2, 0, 0], [-2, 0, 0], [0, 2, 0], [0, -2, 0], [0, 0, 2], [0, 0, -2]]) + [-40.0, 0, 0]
+    loose = np.array([[0.0, 30.0, 0.0], [0.0, -30.0, 0.0]])
+    coords = np.vstack([flat, far, other, loose])
+    rows = [{"cluster": 0}] * 9 + [{"cluster": 1}] * 6 + [{"cluster": None}] * 2
+    first, second, unclustered = vecmap._shapes(coords, rows)
+    assert first["cluster"] == 0 and first["core"] == list(range(8))
+    assert first["away"] == [{"point": 8, "near": 1}]
+    assert np.allclose(first["center"], flat.mean(axis=0), atol=1e-3)
+    axes = np.array(first["axes"])
+    assert np.allclose(axes @ axes.T, np.eye(3), atol=1e-3)
+    assert abs(axes[2][2]) > 0.99  # the camera looks along the thinnest axis
+    assert first["depth"] < 1 < first["radius"]
+    assert second["away"] == [] and second["core"] == list(range(9, 15))
+    assert unclustered["cluster"] is None and unclustered["away"] == []  # pages in no cluster are never "away"
+    assert unclustered["radius"] >= vecmap.MIN_SHAPE_RADIUS
+    assert vecmap._shapes(coords, [{"cluster": None}] * len(coords)) == []
+
+
+def test_every_point_is_in_one_shape_and_shapes_are_deterministic(root, capsys):
+    _, first, _ = run_json(root, capsys, "--method", "pca")
+    _, second, _ = run_json(root, capsys, "--method", "pca")
+    assert first["shapes"] and first["shapes"] == second["shapes"]
+    placed = [i for shape in first["shapes"] for i in shape["core"] + [a["point"] for a in shape["away"]]]
+    assert sorted(placed) == list(range(len(first["points"])))
+    for shape in first["shapes"]:
+        for i in shape["core"]:
+            assert first["points"][i]["cluster"] == shape["cluster"]
+
+
+def test_a_wiki_without_clusters_has_no_shapes(tmp_path, capsys):
+    root = tmp_path / "small"
+    root.mkdir()
+    for index in range(5):
+        page(root, f"p-{index}", f"river water part {index}")
+    assert main(["index", "refresh", "--root", str(root), "--format", "json"]) == 0
+    capsys.readouterr()
+    _, result, _ = run_json(root, capsys, "--method", "pca")
+    assert result["shapes"] == []
+
+
 def test_clusters_are_named_by_shared_terms(root, capsys):
     _, result, _ = run_json(root, capsys, "--method", "pca")
     names = result["clusters"]

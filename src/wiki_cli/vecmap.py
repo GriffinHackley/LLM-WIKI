@@ -54,6 +54,11 @@ NEAREST = 10  # a search hit's rank among the question's nearest points is shown
 RADIUS = 100.0  # coordinates are scaled so most points fit a sphere of this radius
 SPREAD_PERCENTILE = 95  # ...this share of them, so one outlying island does not shrink the rest
 LAYOUT_VERSION = "2"  # 2: the model saved as its own pickle, loaded only to place a question
+# A cluster's point is "away from the rest" past this many times the median distance from the
+# cluster's median point; clusters of fewer points than AWAY_MIN_POINTS have none.
+AWAY_FACTOR = 2.2
+AWAY_MIN_POINTS = 5
+MIN_SHAPE_RADIUS = 5.0  # in map units (RADIUS 100): a one-point cluster is still framed from a distance
 HTML_NAME = "map.html"
 
 
@@ -420,6 +425,7 @@ def build(cache: Cache, *, method: str = "auto", chunks: bool = False, color_by:
         "points": points.rows,
         "clusters": cluster_names,
         "edges": edges,
+        "shapes": _shapes(layout.coords, points.rows),
         "query": query_part,
         "nav": nav_part,
         "notes": notes,
@@ -503,6 +509,57 @@ def _scale(coords: np.ndarray, query_part: dict | None, nav_part: list[dict]) ->
         for step in session["steps"]:
             if "pos" in step:
                 step["pos"] = move(step["pos"])
+
+
+def _shapes(coords: np.ndarray, rows: list[dict]) -> list[dict]:
+    """What the page needs to focus on each link cluster: its core and the points away from
+    it, the core's centre and principal axes (widest first; the camera looks along the
+    last), how far the core reaches across the first two axes and along the last, and for
+    each away point the cluster whose core centre is nearest. Clusters come from links and
+    positions from embeddings, so a cluster can be spread through others. Pages in no
+    cluster get an entry of their own (cluster None, never with away points), but only when
+    there are clusters at all."""
+    members: dict[int | None, list[int]] = {}
+    for index, row in enumerate(rows):
+        members.setdefault(row.get("cluster"), []).append(index)
+    if not any(key is not None for key in members):
+        return []
+    order = sorted((key for key in members if key is not None)) + ([None] if None in members else [])
+    cores: dict[int | None, list[int]] = {}
+    away: dict[int | None, list[int]] = {}
+    for key in order:
+        indexes = members[key]
+        points = coords[indexes]
+        distance = np.linalg.norm(points - np.median(points, axis=0), axis=1)
+        typical = float(np.median(distance))
+        far = (distance > AWAY_FACTOR * typical) if key is not None and len(indexes) >= AWAY_MIN_POINTS and typical > 0 \
+            else np.zeros(len(indexes), dtype=bool)
+        cores[key] = [i for i, out in zip(indexes, far) if not out]
+        away[key] = [i for i, out in zip(indexes, far) if out]
+    centres = {key: coords[cores[key]].mean(axis=0) for key in order}
+
+    shapes = []
+    for key in order:
+        core = coords[cores[key]]
+        centre = centres[key]
+        offsets = core - centre
+        _, vectors = np.linalg.eigh(offsets.T @ offsets / len(core))
+        axes = vectors[:, ::-1].T  # widest first
+        axes *= np.where(axes[np.arange(3), np.abs(axes).argmax(axis=1)] < 0, -1.0, 1.0)[:, None]  # fixed signs
+        across = float(np.linalg.norm(offsets @ axes[:2].T, axis=1).max())
+        depth = float(np.abs(offsets @ axes[2]).max())
+        others = [other for other in order if other != key and other is not None]
+        shapes.append({
+            "cluster": key,
+            "core": cores[key],
+            "away": [{"point": i, "near": min(others, key=lambda other: float(np.linalg.norm(coords[i] - centres[other])))
+                      if others else None} for i in away[key]],
+            "center": [round(float(value), 3) for value in centre],
+            "axes": [[round(float(value), 4) for value in axis] for axis in axes],
+            "radius": round(max(across, MIN_SHAPE_RADIUS), 3),
+            "depth": round(depth, 3),
+        })
+    return shapes
 
 
 def _unit(vectors: np.ndarray) -> np.ndarray:

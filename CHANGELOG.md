@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- `wiki map` can open a link cluster. The panel lists the clusters, with how many of
+  their pages sit away from the rest and how many links leave them; clicking one turns
+  the camera to look across the cluster's main group of pages, dims other clusters' points
+  (or hides them and the links that leave the cluster), labels the most-linked pages,
+  outlines the group, and points to its far-off pages from the edge of the screen. The
+  panel then shows the cluster's pages (most linked first), its far-off pages and the
+  clusters it links to, with a picker to switch clusters. Closing it keeps the camera
+  where it is; Reset view goes back to the whole map. The selected page's details stay
+  at the top of the panel, and clicking the question flies to it. Clusters come from
+  links and positions from embeddings, so a cluster can be spread across the map; the
+  points never move.
+
 ## 0.5.0 (2026-10-12): a faster map
 
 - `wiki map` lays pages out with t-SNE (scikit-learn) instead of UMAP. It keeps pages'

@@ -306,6 +306,12 @@ wiki clusters --group the-salt-road
 A 3D map of the pages by what they are about, as one HTML file in `.cache/` that works
 offline. Points are coloured by type, cluster, age or visits; relations are lines.
 
+The panel lists the wiki's link clusters. Clicking one opens it: the camera turns to show
+the cluster's pages spread out, other clusters are dimmed (or hidden), and the panel
+lists the cluster's pages, the pages that sit away from the rest of it (in another
+cluster's part of the map), and the clusters it links to. Closing it leaves the camera
+where it is; Reset view goes back to the whole map.
+
 | Option | What it does |
 |---|---|
 | `--open` | Open the map in your browser. |

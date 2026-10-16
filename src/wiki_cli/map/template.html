@@ -6,33 +6,36 @@
 <title>Wiki map</title>
 <style>
 :root {
-  --bg: #f6f6f4; --panel: #ffffffee; --text: #1d1d1b; --dim: #6b6b66; --line: #d9d9d4;
+  --bg: #f6f6f4; --panel: #ffffffee; --solid: #ffffff; --raised: #f0f0ec; --text: #1d1d1b; --dim: #6b6b66; --line: #d9d9d4;
   --accent: #2f6fdb; --query: #c2410c; --path: #7c3aed; --canvas: #f6f6f4;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #121316; --panel: #1b1d22ee; --text: #e8e8e3; --dim: #9a9a94; --line: #30323a;
+    --bg: #121316; --panel: #1b1d22ee; --solid: #1b1d22; --raised: #23262c; --text: #e8e8e3; --dim: #9a9a94; --line: #30323a;
     --accent: #6ea0ff; --query: #fb923c; --path: #a78bfa; --canvas: #0e0f12;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #121316; --panel: #1b1d22ee; --text: #e8e8e3; --dim: #9a9a94; --line: #30323a;
+  --bg: #121316; --panel: #1b1d22ee; --solid: #1b1d22; --raised: #23262c; --text: #e8e8e3; --dim: #9a9a94; --line: #30323a;
   --accent: #6ea0ff; --query: #fb923c; --path: #a78bfa; --canvas: #0e0f12;
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body { margin: 0; height: 100%; overflow: hidden; }
 body { background: var(--bg); color: var(--text); font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+button { font: inherit; color: inherit; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 #graph { position: fixed; inset: 0; }
 #panel {
   position: fixed; top: 12px; left: 12px; bottom: 12px; width: 320px; overflow-y: auto;
   background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px;
-  backdrop-filter: blur(6px); z-index: 2;
+  backdrop-filter: blur(6px); z-index: 3;
 }
 #panel.collapsed > :not(#toggle) { display: none; }
 #panel.collapsed { bottom: auto; width: auto; padding: 6px 10px; }
 #toggle { float: right; background: none; border: 0; color: var(--dim); cursor: pointer; font-size: 16px; padding: 0 2px; }
 h1 { font-size: 15px; margin: 0 0 2px; }
-h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); margin: 16px 0 6px; }
+h2, h3.sub { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); margin: 16px 0 6px; font-weight: 600; }
 .dim { color: var(--dim); }
 .note { background: color-mix(in srgb, var(--query) 12%, transparent); border-left: 3px solid var(--query);
   padding: 4px 8px; margin: 6px 0; border-radius: 0 4px 4px 0; }
@@ -47,45 +50,163 @@ ul { list-style: none; margin: 0; padding: 0; }
 li.item { padding: 3px 6px; border-radius: 5px; cursor: pointer; }
 li.item:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 li.item.current { background: color-mix(in srgb, var(--path) 22%, transparent); }
-.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; flex: none; }
 .legend li { display: flex; justify-content: space-between; padding: 1px 0; }
 .legend { max-height: 160px; overflow-y: auto; }
 .tag { font-size: 11px; padding: 0 5px; border-radius: 4px; border: 1px solid var(--line); color: var(--dim); white-space: nowrap; }
 .row { display: flex; gap: 6px; align-items: center; }
-#details .path { font-family: ui-monospace, Consolas, monospace; font-size: 12px; word-break: break-all; }
+.path { font-family: ui-monospace, Consolas, monospace; font-size: 12px; word-break: break-all; }
 .tip { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; max-width: 320px; font: 12px/1.4 system-ui, sans-serif; }
+
+/* the selected page */
+.card { margin: 12px 0 4px; padding: 10px 12px; border-radius: 9px; background: var(--raised); border: 1px solid var(--line); }
+.card .head { display: flex; align-items: flex-start; gap: 8px; }
+.card .head b { flex: 1; min-width: 0; }
+.card p { margin: 6px 0; }
+.x { flex: none; width: 26px; height: 26px; border: 0; border-radius: 6px; background: none; color: var(--dim); cursor: pointer; padding: 0;
+  display: grid; place-items: center; }
+.x:hover { background: color-mix(in srgb, var(--text) 8%, transparent); }
+
+/* the cluster list (home view) */
+.clusters button { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 6px 8px; margin: 1px 0;
+  border: 1px solid transparent; border-radius: 8px; background: none; text-align: left; cursor: pointer;
+  transition: background .9s, border-color .9s; }
+.clusters button:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+.clusters .body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.clusters .top { display: flex; justify-content: space-between; gap: 8px; }
+.clusters .name { font-weight: 550; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.clusters .bar { display: block; height: 3px; border-radius: 2px; background: color-mix(in srgb, var(--text) 10%, transparent); overflow: hidden; }
+.clusters .bar span { display: block; height: 100%; }
+.clusters .detail { font-size: 11px; color: var(--dim); }
+.chev { flex: none; color: var(--dim); }
+
+/* the cluster view */
+.cv-head { position: relative; display: flex; align-items: center; gap: 6px; padding: 8px; margin: 12px -8px 6px; border-radius: 11px; border: 1px solid; }
+.cv-head h2 { flex: 1; min-width: 0; margin: 0; font-size: 15px; font-weight: 650; text-transform: none; letter-spacing: 0; color: var(--text); }
+#picker { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 38px; padding: 6px 10px; border-radius: 9px;
+  border: 1px solid var(--line); background: var(--bg); cursor: pointer; font-weight: 650; }
+#picker .name { flex: 1; min-width: 0; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#picker .hint { flex: none; font-size: 11px; font-weight: 500; color: var(--dim); }
+#picker svg { flex: none; transition: transform .15s; }
+#picker[aria-expanded="true"] svg { transform: rotate(180deg); }
+#closeCluster { width: 38px; height: 38px; border: 1px solid var(--line); border-radius: 9px; background: var(--bg); }
+#pickerMenu { position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 5; padding: 6px; max-height: 50vh; overflow-y: auto;
+  background: var(--solid); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 12px 28px rgba(0, 0, 0, .3); }
+#pickerMenu button { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 36px; padding: 6px 10px; border: 0; border-radius: 7px;
+  background: none; text-align: left; cursor: pointer; }
+#pickerMenu button:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+#pickerMenu button[aria-current="true"] { font-weight: 600; }
+#pickerMenu .name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pages li { display: flex; align-items: center; gap: 8px; min-height: 32px; }
+.pages li .t { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pages li .n { width: 18px; text-align: right; color: var(--dim); font-size: 12px; font-variant-numeric: tabular-nums; }
+.pages li.selected { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.away li { border: 1px dashed var(--line); margin: 2px 0; }
+.more { border: 0; background: none; color: var(--accent); cursor: pointer; padding: 4px 6px; margin-left: -6px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips button { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line);
+  background: var(--bg); cursor: pointer; font-size: 12px; }
+#questionText { display: flex; align-items: flex-start; gap: 6px; width: 100%; padding: 6px 8px; margin: 0 -8px; border: 0; border-radius: 8px;
+  background: color-mix(in srgb, var(--query) 9%, transparent); text-align: left; cursor: pointer; }
+#questionText .q { flex: 1; min-width: 0; }
+
+/* over the map */
+.overlay { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 1; }
+#hull { width: 100%; height: 100%; }
+.plabel { position: absolute; transform: translateY(-50%); font-size: 12px; line-height: 1.2; white-space: nowrap; color: var(--text);
+  text-shadow: 0 0 4px var(--canvas), 0 0 2px var(--canvas), 0 0 6px var(--canvas); }
+.plabel.strong { font-weight: 650; }
+.clabel, .chip { position: absolute; pointer-events: auto; cursor: pointer; white-space: nowrap; border-radius: 999px; font-size: 12px;
+  background: color-mix(in srgb, var(--canvas) 88%, transparent); }
+.clabel { transform: translate(-50%, -100%); padding: 3px 9px; font-weight: 600; border: 1px solid; }
+.chip { transform: translate(-50%, -50%); display: inline-flex; align-items: center; gap: 6px; max-width: 200px; overflow: hidden;
+  padding: 5px 10px; border: 1px dashed; }
+.toolbar { position: fixed; display: flex; align-items: center; gap: 4px; padding: 4px; z-index: 2;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px; backdrop-filter: blur(6px); }
+.toolbar button { display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: 7px; background: none; padding: 6px 10px; cursor: pointer; }
+.toolbar button:hover { background: color-mix(in srgb, var(--text) 7%, transparent); }
+.toolbar button[aria-pressed="true"] { background: color-mix(in srgb, var(--text) 14%, transparent); font-weight: 600; }
+#others { top: 12px; right: 12px; }
+#others span { color: var(--dim); font-size: 12px; padding: 0 6px 0 8px; }
+#camera { bottom: 12px; right: 12px; }
 @media (max-width: 640px) {
   #panel { top: auto; left: 8px; right: 8px; bottom: 8px; width: auto; max-height: 45vh; }
+  #camera { bottom: auto; top: 56px; }
 }
 </style>
 </head>
 <body>
 <div id="graph"></div>
+<div class="overlay" aria-hidden="true"><svg id="hull"><polygon id="hullShape" fill="none" stroke-width="1.5" stroke-linejoin="round" stroke-dasharray="6 5"></polygon></svg></div>
+<div class="overlay" id="labels" aria-hidden="true"></div>
+<div class="overlay" id="chips"></div>
+
+<div class="toolbar" id="others" role="group" aria-label="Other clusters" hidden>
+  <span>Other clusters</span>
+  <button id="dim" aria-pressed="true">Dim</button>
+  <button id="hide" aria-pressed="false">Hide</button>
+</div>
+<div class="toolbar" id="camera">
+  <button id="centreCluster" hidden>
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
+    Centre cluster</button>
+  <button id="resetView">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+    Reset view</button>
+</div>
+
 <aside id="panel">
   <button id="toggle" title="Hide panel" aria-label="Hide panel">&#x2013;</button>
   <h1 id="title">Wiki map</h1>
   <div id="meta" class="dim"></div>
   <div id="notes"></div>
 
-  <h2>View</h2>
-  <label>Colour by <select id="colorBy"></select></label>
-  <label>Relations <select id="edgeMode">
-    <option value="typed">typed only</option><option value="all">all links</option><option value="none">none</option>
-  </select></label>
-  <ul id="legend" class="legend"></ul>
-
-  <h2>Find a page</h2>
+  <h2><label for="find" style="margin:0">Find a page</label></h2>
   <input id="find" type="search" placeholder="slug or title" list="slugs" autocomplete="off">
   <datalist id="slugs"></datalist>
 
-  <div id="details"></div>
-  <div id="querySection"></div>
-  <div id="navSection"></div>
+  <div id="home">
+    <div id="selHome"></div>
+    <section id="clusterSection">
+      <h2>Clusters</h2>
+      <div id="clusterList" class="clusters"></div>
+    </section>
+    <div id="querySection"></div>
+    <div id="navSection"></div>
+    <section>
+      <h2>View</h2>
+      <label>Colour by <select id="colorBy"></select></label>
+      <label>Relations <select id="edgeMode">
+        <option value="typed">typed only</option><option value="all">all links</option><option value="none">none</option>
+      </select></label>
+      <ul id="legend" class="legend"></ul>
+    </section>
+    <h2>About this map</h2>
+    <p class="dim">Each point is a page's embedding, squeezed from hundreds of dimensions into three.
+    Nearby points are pages the model thinks are about similar things; distances are a hint, not proof.
+    Clusters come from links, so a cluster can be spread across the map.
+    Drag to orbit, scroll to zoom, click a point for details.</p>
+  </div>
 
-  <h2>About this map</h2>
-  <p class="dim">Each point is a page's embedding, squeezed from hundreds of dimensions into three.
-  Nearby points are pages the model thinks are about similar things; distances are a hint, not proof.
-  Drag to orbit, scroll to zoom, click a point for details.</p>
+  <section id="clusterView" aria-label="Cluster" hidden>
+    <div class="cv-head" id="cvHead">
+      <h2><button id="picker" aria-haspopup="menu" aria-expanded="false" aria-controls="pickerMenu">
+        <span class="swatch" id="pickerSwatch" style="margin:0"></span><span class="name" id="pickerName"></span><span class="hint">Change</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+      </button></h2>
+      <button id="closeCluster" class="x" title="Close cluster view" aria-label="Close cluster view">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+      <div id="pickerMenu" role="menu" aria-label="Clusters" hidden></div>
+    </div>
+    <div id="cvStats" class="dim"></div>
+    <div id="selCluster"></div>
+    <h3 class="sub"><span id="cvPagesTitle">Pages</span> <span style="text-transform:none;letter-spacing:0;font-weight:400">· most linked first</span></h3>
+    <ul id="cvPages" class="pages"></ul>
+    <button id="cvMore" class="more" hidden></button>
+    <div id="cvAway"></div>
+    <div id="cvLinked"></div>
+  </section>
 </aside>
 <script>/*__LIBRARY__*/</script>
 <script>
@@ -96,9 +217,24 @@ const css = (name) => getComputedStyle(document.documentElement).getPropertyValu
 const PALETTE = ["#4e79a7", "#f28e2b", "#59a14f", "#e15759", "#76b7b2", "#edc948", "#b07aa1", "#ff9da7", "#9c755f", "#86bcb6",
                  "#d37295", "#8cd17d", "#499894", "#f1ce63", "#a0cbe8"];
 const NONE = "#9a9a94";
-const clusterName = (index) => (DATA.clusters || [])[index] || `cluster ${index + 1}`;
+const clusterName = (index) => index === null || index === undefined ? "In no cluster" : (DATA.clusters || [])[index] || `cluster ${index + 1}`;
 const points = DATA.points;
 const big = points.length > 4000;
+const unit = DATA.points_kind === "chunks" ? ["section", "sections"] : ["page", "pages"];
+const plural = (n, word = unit) => `${n} ${n === 1 ? word[0] : word[1]}`;
+const pointTitle = (p) => p.section ? `${p.title} § ${p.section}` : p.title;
+const X_ICON = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+const CHEVRON = '<svg class="chev" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
+const ARROW = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;transform:rotate(DEGdeg)"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
+
+// A colour with transparency, from "#rrggbb" or "rgb(r,g,b)".
+function alpha(color, a) {
+  const hex = /^#([0-9a-f]{6})$/i.exec(color);
+  if (hex) { const n = parseInt(hex[1], 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; }
+  const rgb = /^rgba?\(([^)]+)\)$/.exec(color);
+  if (rgb) { const [r, g, b] = rgb[1].split(",").map((v) => v.trim()); return `rgba(${r},${g},${b},${a})`; }
+  return color;
+}
 
 // -- header ---------------------------------------------------------------
 const scope = DATA.group ? ` (group: ${DATA.group})` : "";
@@ -131,6 +267,10 @@ function ramp(t) {  // dark blue -> teal -> yellow
   const c = stops[i].map((v, k) => Math.round(v + (stops[i + 1][k] - v) * f));
   return `rgb(${c.join(",")})`;
 }
+// A cluster's own colour: the "link cluster" colouring's, whatever the points are coloured by.
+const clusterColors = categorical(points.map((p) => p.cluster)).colors;
+const clusterColor = (index) => (index === null || index === undefined ? NONE : clusterColors.get(index) || NONE);
+
 let colorOf = () => NONE;
 function applyColor() {
   const mode = $("colorBy").value;
@@ -151,7 +291,9 @@ function applyColor() {
     colorOf = (p) => p.visits ? ramp(p.visits / top) : NONE;
     legend.push([ramp(1), `read ${top}×`, ""], [ramp(1 / top), "read once", ""], [NONE, "never read", points.filter((p) => !p.visits).length]);
   }
-  $("legend").innerHTML = legend.map(([color, label, count]) =>
+  // With clusters shown, the cluster list is the legend for "link cluster".
+  const hidden = mode === "cluster" && SHAPES.length;
+  $("legend").innerHTML = hidden ? "" : legend.map(([color, label, count]) =>
     `<li><span><span class="swatch" style="background:${color}"></span>${esc(label)}</span><span class="dim">${count}</span></li>`).join("");
   refresh();
 }
@@ -166,9 +308,12 @@ function overlay(id, pos, kind, label) {
   return node;
 }
 const edgeLinks = DATA.edges.map((e) => ({source: e.s, target: e.t, kind: "edge", typed: e.typed, relation: e.relation}));
+const degree = new Array(points.length).fill(0);
+for (const e of DATA.edges) { degree[e.s]++; degree[e.t]++; }
+let queryNode = null;
 const queryLinks = [];
 if (DATA.query && DATA.query.pos) {
-  overlay("q", DATA.query.pos, "query", `Question: ${DATA.query.text}`);
+  queryNode = overlay("q", DATA.query.pos, "query", `Question: ${DATA.query.text}`);
   for (const hit of DATA.query.hits) if (hit.point !== null) queryLinks.push({source: "q", target: hit.point, kind: "hit", hit});
 }
 const navLinks = [];
@@ -188,10 +333,32 @@ DATA.nav.forEach((session, s) => {
   });
 });
 
+// -- clusters -------------------------------------------------------------
+// Each cluster's core, away points and axes come from vecmap.py (`shapes`); "none" is the
+// pages in no cluster.
+const SHAPES = (DATA.shapes || []).map((s) => ({...s, key: s.cluster === null ? "none" : String(s.cluster),
+  name: clusterName(s.cluster), color: clusterColor(s.cluster),
+  members: new Set([...s.core, ...s.away.map((a) => a.point)]), awaySet: new Set(s.away.map((a) => a.point))}));
+const shapeOf = new Map();
+for (const s of SHAPES) for (const i of s.members) shapeOf.set(i, s);
+const crossLinks = new Map(SHAPES.map((s) => [s.key, 0]));
+for (const e of DATA.edges) {
+  const a = shapeOf.get(e.s), b = shapeOf.get(e.t);
+  if (a && b && a !== b) { crossLinks.set(a.key, crossLinks.get(a.key) + 1); crossLinks.set(b.key, crossLinks.get(b.key) + 1); }
+}
+
 // -- state ----------------------------------------------------------------
 let selected = null;          // point index clicked or found
+let hover = null;             // point index under the pointer
 let navSession = DATA.nav.length ? DATA.nav.length - 1 : null;
 let navStep = null;           // index into the session's steps
+let focused = null;           // the open cluster's shape
+let others = "dim";           // what happens to other clusters' points: "dim" or "hide"
+let showAllPages = false;
+let listScroll = 0;
+const DIM = 0.14;
+const PAGE_CAP = 12;
+const LABEL_COUNT = 5;
 const hitPoints = new Map((DATA.query?.hits || []).filter((h) => h.point !== null).map((h) => [h.point, h]));
 const citedIn = (s) => new Set(s === null ? [] : DATA.nav[s].cited);
 
@@ -199,39 +366,66 @@ function currentNode() {
   if (navSession === null || navStep === null) return null;
   return DATA.nav[navSession].steps[navStep].node;
 }
-function nodeColor(node) {
+// Whether a node is outside the open cluster: scenery, with no tooltip, hover or click.
+const outside = (node) => focused !== null && (node.kind ? true : !focused.members.has(node.id));
+function baseColor(node) {
   if (node.kind === "query") return css("--query");
   if (node.kind === "navq" || node.kind === "navs") return node.session === navSession ? css("--path") : css("--dim");
   return colorOf(node.p);
 }
-function nodeVal(node) {
+function nodeColor(node) {
+  const color = baseColor(node);
+  return outside(node) ? alpha(color, DIM) : color;
+}
+function baseVal(node) {
   if (node.kind === "query") return 14;
   if (node.kind) return node.session === navSession ? 5 : 2;
   const i = node.id;
   if (i === selected || i === currentNode()) return 10;
+  if (i === hover) return 6;
   if (hitPoints.has(i)) return 5;
   if (navSession !== null && citedIn(navSession).has(node.p.slug)) return 4;
   return big ? 0.5 : 1;
 }
+function nodeVal(node) {
+  const val = baseVal(node);
+  if (focused === null) return val;
+  if (outside(node)) return node.id === selected ? val : (big ? 0.15 : 0.3);
+  return val < 4 ? val * 2.5 : val;
+}
 function nodeLabel(node) {
+  if (outside(node)) return "";
   if (node.kind) return `<div class="tip">${esc(node.label)}</div>`;
   const p = node.p, hit = hitPoints.get(node.id);
   return `<div class="tip"><b>${esc(p.title)}</b>${p.section ? ` <span class="dim">§ ${esc(p.section)}</span>` : ""}<br>` +
     `<span class="dim">${esc(p.type || "no type")}${p.cluster !== null && p.cluster !== undefined ? ` · ${esc(clusterName(p.cluster))}` : ""}</span>` +
     (hit ? `<br>search result ${hit.rank}` : "") + (p.summary ? `<br>${esc(p.summary)}` : "") + `</div>`;
 }
+const inFocus = (node) => focused !== null && !node.kind && focused.members.has(node.id);
 function linkVisible(link) {
-  if (link.kind === "edge") return $("edgeMode").value === "all" || ($("edgeMode").value === "typed" && link.typed);
+  if (link.kind === "edge" && !($("edgeMode").value === "all" || ($("edgeMode").value === "typed" && link.typed))) return false;
+  // Hide keeps only links with both ends in the cluster: a link to a hidden point would end in empty space.
+  if (focused !== null && others === "hide") return inFocus(link.source) && inFocus(link.target);
   return true;
 }
-function linkColor(link) {
+function baseLinkColor(link) {
   if (link.kind === "hit") return link.hit.vector_rank ? css("--query") : "rgba(194,65,12,0.45)";
   if (link.kind === "nav") return link.session === navSession ? css("--path") : "rgba(140,140,140,0.25)";
   return link.typed ? "rgba(120,140,170,0.55)" : "rgba(120,120,120,0.22)";
 }
+function linkColor(link) {
+  if (focused === null || link.kind !== "edge") return focused === null || (inFocus(link.source) && inFocus(link.target))
+    ? baseLinkColor(link) : alpha(css("--dim"), DIM * 0.5);
+  const a = inFocus(link.source), b = inFocus(link.target);
+  if (link.source.id === selected || link.target.id === selected) return css("--text");
+  if (a && b) return alpha(focused.color, 0.85);
+  if (a || b) return alpha(css("--dim"), 0.45);
+  return alpha(css("--dim"), DIM * 0.5);
+}
 function linkWidth(link) {
   if (link.kind === "hit") return 1.2;
   if (link.kind === "nav") return link.session === navSession ? (link.step === navStep ? 2.5 : 1.3) : 0.3;
+  if (focused !== null && inFocus(link.source) && inFocus(link.target)) return link.typed ? 0.8 : 0.3;
   return link.typed ? 0.4 : 0;
 }
 
@@ -259,14 +453,26 @@ const Graph = ForceGraph3D()($("graph"))
   .linkDirectionalArrowRelPos(1)
   .linkDirectionalParticles((link) => link.kind === "nav" && link.session === navSession ? 2 : 0)
   .linkDirectionalParticleWidth(1.6)
-  .onNodeClick((node) => { if (!node.kind) select(node.id, false); });
+  .onNodeHover((node) => {
+    const next = node && !node.kind && !outside(node) ? node.id : null;
+    $("graph").style.cursor = node && !outside(node) ? "pointer" : "";
+    if (next !== hover) { hover = next; refresh(); renderCluster(); }
+  })
+  .onNodeClick((node) => {
+    if (outside(node)) return;
+    if (node.kind) focus([node.x, node.y, node.z]);
+    else select(node.id, false);
+  })
+  .onBackgroundClick(() => { if (selected !== null) clearSelection(); });
 Graph.d3Force("charge", null); Graph.d3Force("link", null); Graph.d3Force("center", null);
 
 function refresh() {
   Graph.nodeColor(nodeColor).nodeVal(nodeVal)
+    .nodeVisibility((node) => !(focused !== null && others === "hide" && outside(node) && node.id !== selected))
     .linkVisibility(linkVisible).linkColor(linkColor).linkWidth(linkWidth)
     .linkDirectionalArrowLength(Graph.linkDirectionalArrowLength())
     .linkDirectionalParticles(Graph.linkDirectionalParticles());
+  lastFrame = "";
 }
 function focus(pos) {
   if (!pos) return;
@@ -276,20 +482,85 @@ function focus(pos) {
 window.addEventListener("resize", () => Graph.width(innerWidth).height(innerHeight));
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { Graph.backgroundColor(css("--canvas")); refresh(); });
 
-// -- details and find -----------------------------------------------------
+// -- the camera -----------------------------------------------------------
+// How much of the window's width the map really has, leaving the panel's side clear on wide screens.
+function panelShare() {
+  const open = innerWidth > 900 && !$("panel").classList.contains("collapsed");
+  return open ? ($("panel").offsetWidth + 24) / innerWidth : 0;
+}
+// ...and, on a phone, the pixels the toolbars take at the top and the panel along the bottom.
+function band() {
+  if (innerWidth > 640) return {top: 0, bottom: 0};
+  const open = !$("panel").classList.contains("collapsed");
+  return {top: $("camera").offsetTop + $("camera").offsetHeight + 8, bottom: open ? $("panel").offsetHeight + 8 : 0};
+}
+const panelDrop = () => { const b = band(); return (b.top + b.bottom) / innerHeight; };
+const freeAspect = () => (innerWidth * (1 - panelShare())) / (innerHeight * (1 - panelDrop()));
+// Put the camera at `distance` from `center` along `direction`, shifted so `center` shows in the
+// middle of the part of the window the panel leaves free.
+function lookAt(center, direction, distance, ms) {
+  const tanHalf = Math.tan((Graph.camera().fov * Math.PI / 180) / 2);
+  const d = direction.map((v) => v / (Math.hypot(...direction) || 1));
+  let right = [d[2], 0, -d[0]];  // the camera looks along -d with y up: right is (-d) × (0, 1, 0)
+  const length = Math.hypot(...right);
+  right = length < 1e-6 ? [1, 0, 0] : right.map((v) => v / length);
+  const up = [right[1] * -d[2] - right[2] * -d[1], right[2] * -d[0] - right[0] * -d[2], right[0] * -d[1] - right[1] * -d[0]];
+  const shift = -panelShare() / 2 * 2 * distance * tanHalf * (innerWidth / innerHeight);
+  const {top, bottom} = band(), lift = -(bottom - top) / 2 / innerHeight * 2 * distance * tanHalf;
+  const target = center.map((v, k) => v + right[k] * shift + up[k] * lift);
+  Graph.cameraPosition({x: target[0] + d[0] * distance, y: target[1] + d[1] * distance, z: target[2] + d[2] * distance},
+                       {x: target[0], y: target[1], z: target[2]}, ms);
+}
+// Frame every point: fit the bounding box to the view.
+function overview(ms = 600) {
+  const lo = [0, 1, 2].map((k) => Math.min(...points.map((p) => p.pos[k])));
+  const hi = [0, 1, 2].map((k) => Math.max(...points.map((p) => p.pos[k])));
+  const center = lo.map((v, k) => (v + hi[k]) / 2);
+  const tanHalf = Math.tan((Graph.camera().fov * Math.PI / 180) / 2), aspect = freeAspect(), tall = 1 - panelDrop();
+  const distance = Math.max((hi[1] - lo[1]) / 2 / (tanHalf * tall), (hi[0] - lo[0]) / 2 / (tanHalf * tall * aspect)) * 1.08 + (hi[2] - lo[2]) / 2;
+  lookAt(center, [0, 0, 1], distance, ms);
+}
+// Frame a cluster's core, looking along its thinnest axis so the core spreads out flat on screen,
+// from whichever side the camera is on now (the shorter swing).
+function frameCluster(shape, ms = 900) {
+  const camera = Graph.camera().position, c = shape.center;
+  let view = shape.axes[2];
+  if ((camera.x - c[0]) * view[0] + (camera.y - c[1]) * view[1] + (camera.z - c[2]) * view[2] < 0) view = view.map((v) => -v);
+  const tanHalf = Math.tan((Graph.camera().fov * Math.PI / 180) / 2), tall = 1 - panelDrop();
+  const distance = shape.radius * 1.2 / (tanHalf * tall * Math.min(freeAspect(), 1)) + shape.depth + 4;
+  lookAt(c, view, distance, ms);
+}
+
+// -- the selected page ----------------------------------------------------
+function card(index) {
+  const p = points[index], s = shapeOf.get(index);
+  const links = DATA.edges.filter((e) => e.s === index || e.t === index);
+  return `<div class="card" style="border-color:${alpha(s ? s.color : NONE, 0.55)}">
+    <div class="head"><b>${esc(p.title)}${p.section ? ` <span class="dim">§ ${esc(p.section)}</span>` : ""}</b>
+      <button class="x" data-clear aria-label="Clear selection">${X_ICON}</button></div>
+    <div class="dim">${esc(p.type || "no type")}${s ? ` · ${esc(s.name)}` : ""} · changed ${p.age_days} days ago${p.visits ? ` · read in ${p.visits} nav ${p.visits === 1 ? "step" : "steps"}` : ""}</div>
+    ${p.summary ? `<p>${esc(p.summary)}</p>` : ""}
+    <div class="row" style="margin-top:6px"><span class="path" style="flex:1">${esc(p.path)}</span><button class="small" data-copy>copy</button></div>
+    ${links.length ? `<div class="dim" style="margin-top:6px">${links.length} relations</div>` : ""}</div>`;
+}
+function renderSelection() {
+  for (const id of ["selHome", "selCluster"]) $(id).innerHTML = "";
+  if (selected === null) return;
+  const host = $(focused === null ? "selHome" : "selCluster");
+  host.innerHTML = card(selected);
+  host.querySelector("[data-clear]").onclick = clearSelection;
+  const copy = host.querySelector("[data-copy]");
+  copy.onclick = () => navigator.clipboard?.writeText(points[selected].path).then(() => { copy.textContent = "copied"; });
+}
 function select(index, fly = true) {
   selected = index;
-  const p = points[index];
-  const links = DATA.edges.filter((e) => e.s === index || e.t === index);
-  $("details").innerHTML = `<h2>Selected</h2><b>${esc(p.title)}</b>${p.section ? ` <span class="dim">§ ${esc(p.section)}</span>` : ""}
-    <div class="dim">${esc(p.type || "no type")} · changed ${p.age_days} days ago${p.visits ? ` · read in ${p.visits} nav ${p.visits === 1 ? "step" : "steps"}` : ""}</div>
-    ${p.summary ? `<p>${esc(p.summary)}</p>` : ""}
-    <div class="row"><span class="path">${esc(p.path)}</span><button class="small" id="copy">copy</button></div>
-    ${links.length ? `<div class="dim" style="margin-top:6px">${links.length} relations</div>` : ""}`;
-  $("copy").onclick = () => navigator.clipboard?.writeText(p.path).then(() => { $("copy").textContent = "copied"; });
-  if (fly) focus(p.pos);
-  refresh();
+  const shape = shapeOf.get(index);
+  if (focused !== null && shape && shape !== focused) openCluster(shape, false);
+  if (fly) focus(points[index].pos);
+  renderSelection(); renderCluster(); refresh();
 }
+function clearSelection() { selected = null; renderSelection(); renderCluster(); refresh(); }
+
 const seen = new Set();
 $("slugs").innerHTML = points.filter((p) => !seen.has(p.slug) && seen.add(p.slug))
   .map((p) => `<option value="${esc(p.slug)}">${esc(p.title)}</option>`).join("");
@@ -300,15 +571,224 @@ $("find").addEventListener("change", () => {
   if (term && index >= 0) select(index);
 });
 
+// -- the home view's cluster list -------------------------------------------
+function renderClusterList(flash = null) {
+  if (!SHAPES.length) {
+    $("clusterList").innerHTML = `<p class="dim" style="margin:0">No link clusters: the wiki is too small, or its pages link too little.</p>`;
+    return;
+  }
+  const max = Math.max(...SHAPES.map((s) => s.members.size));
+  $("clusterList").innerHTML = SHAPES.map((s) => {
+    const lit = s.key === flash;
+    const detail = [s.away.length ? `${s.away.length} away from the rest` : "", DATA.edges.length ? `${crossLinks.get(s.key)} links to other clusters` : ""]
+      .filter(Boolean).join(" · ");
+    return `<button data-cluster="${s.key}" style="${lit ? `background:${alpha(s.color, 0.14)};border-color:${alpha(s.color, 0.7)}` : ""}">
+      <span class="swatch" style="background:${s.color};margin:0"></span>
+      <span class="body"><span class="top"><span class="name">${esc(s.name)}</span><span class="dim">${s.members.size}</span></span>
+        <span class="bar"><span style="width:${Math.round(s.members.size / max * 100)}%;background:${alpha(s.color, 0.6)}"></span></span>
+        ${detail ? `<span class="detail">${detail}</span>` : ""}</span>${CHEVRON}</button>`;
+  }).join("");
+  for (const button of $("clusterList").querySelectorAll("button")) {
+    button.onclick = () => openCluster(SHAPES.find((s) => s.key === button.dataset.cluster));
+  }
+}
+
+// -- the cluster view -----------------------------------------------------
+function openCluster(shape, fly = true) {
+  if (focused === null) listScroll = $("panel").scrollTop;
+  const switching = focused !== null;
+  focused = shape; showAllPages = false;
+  if (selected !== null && shapeOf.get(selected) !== shape) selected = null;
+  closeMenu();
+  $("home").hidden = true; $("clusterView").hidden = false;
+  $("others").hidden = false; $("centreCluster").hidden = false;
+  if (!switching) $("panel").scrollTop = 0;
+  renderCluster(); renderSelection(); refresh();
+  if (fly) frameCluster(shape);
+  $("picker").focus({preventScroll: true});
+}
+// Back to the home view. The camera stays where it is: Reset view and Centre cluster move it.
+function closeCluster() {
+  const left = focused;
+  focused = null;
+  closeMenu();
+  $("clusterView").hidden = true; $("home").hidden = false;
+  $("others").hidden = true; $("centreCluster").hidden = true;
+  renderClusterList(left.key); renderSelection(); refresh();
+  $("panel").scrollTop = listScroll;
+  $("clusterList").querySelector(`[data-cluster="${left.key}"]`)?.focus({preventScroll: true});
+  setTimeout(() => renderClusterList(), 1600);
+}
+function renderCluster() {
+  if (focused === null) return;
+  const s = focused;
+  $("cvHead").style.cssText = `background:${alpha(s.color, 0.08)};border-color:${alpha(s.color, 0.4)}`;
+  $("pickerSwatch").style.background = s.color;
+  $("pickerName").textContent = s.name;
+  let inside = 0, out = 0;
+  const linked = new Map();
+  for (const e of DATA.edges) {
+    const a = s.members.has(e.s), b = s.members.has(e.t);
+    if (a && b) inside++;
+    else if (a || b) {
+      out++;
+      const other = shapeOf.get(a ? e.t : e.s);
+      if (other) linked.set(other, (linked.get(other) || 0) + 1);
+    }
+  }
+  $("cvStats").textContent = [plural(s.members.size), s.away.length ? `${s.away.length} away from the rest` : "",
+    DATA.edges.length ? `${inside} links inside · ${out} out` : ""].filter(Boolean).join(" · ");
+
+  const sorted = s.core.slice().sort((a, b) => degree[b] - degree[a] || pointTitle(points[a]).localeCompare(pointTitle(points[b])));
+  const shown = showAllPages ? sorted : sorted.slice(0, PAGE_CAP);
+  $("cvPagesTitle").textContent = unit[1][0].toUpperCase() + unit[1].slice(1);
+  $("cvPages").innerHTML = shown.map((i) => `<li class="item${i === selected ? " selected" : ""}" data-point="${i}"${i === hover ? ' style="background:color-mix(in srgb, var(--text) 7%, transparent)"' : ""}>
+    <span class="t">${esc(pointTitle(points[i]))}</span><span class="tag">${esc(points[i].type || "no type")}</span>${DATA.edges.length ? `<span class="n">${degree[i]}</span>` : ""}</li>`).join("");
+  $("cvMore").hidden = sorted.length <= PAGE_CAP;
+  $("cvMore").textContent = showAllPages ? "Show fewer" : `Show all ${sorted.length}`;
+
+  $("cvAway").innerHTML = s.away.length ? `<h3 class="sub">Away from the rest</h3><ul class="pages away">${s.away.map((a) =>
+    `<li class="item${a.point === selected ? " selected" : ""}" data-point="${a.point}" data-fly><span class="t">${esc(pointTitle(points[a.point]))}</span>
+      <span class="dim" style="font-size:12px;white-space:nowrap">${a.near === null ? "" : `near ${esc(clusterName(a.near))}`}</span></li>`).join("")}</ul>` : "";
+  const neighbours = [...linked.entries()].sort((a, b) => b[1] - a[1]);
+  $("cvLinked").innerHTML = neighbours.length ? `<h3 class="sub">Linked clusters</h3><div class="chips">${neighbours.map(([o, n]) =>
+    `<button data-cluster="${o.key}"><span class="swatch" style="background:${o.color};margin:0;width:8px;height:8px"></span>${esc(o.name)}<span class="dim">${n}</span></button>`).join("")}</div>` : "";
+
+  for (const li of $("clusterView").querySelectorAll("li[data-point]")) {
+    const index = +li.dataset.point;
+    li.onclick = () => select(index, li.hasAttribute("data-fly"));
+    li.onmouseenter = () => { hover = index; refresh(); };
+    li.onmouseleave = () => { hover = null; refresh(); };
+  }
+  for (const button of $("cvLinked").querySelectorAll("button")) {
+    button.onclick = () => openCluster(SHAPES.find((o) => o.key === button.dataset.cluster));
+  }
+}
+$("cvMore").onclick = () => { showAllPages = !showAllPages; renderCluster(); };
+$("closeCluster").onclick = closeCluster;
+function closeMenu() { $("pickerMenu").hidden = true; $("picker").setAttribute("aria-expanded", "false"); }
+$("picker").onclick = () => {
+  if (!$("pickerMenu").hidden) { closeMenu(); return; }
+  $("pickerMenu").innerHTML = SHAPES.map((s) => `<button role="menuitem" data-cluster="${s.key}"${s === focused ? ' aria-current="true"' : ""}
+    style="${s === focused ? `background:${alpha(s.color, 0.16)}` : ""}"><span class="swatch" style="background:${s.color};margin:0"></span>
+    <span class="name">${esc(s.name)}</span><span class="dim">${s.members.size}</span></button>`).join("");
+  for (const button of $("pickerMenu").querySelectorAll("button")) {
+    button.onclick = () => {
+      const shape = SHAPES.find((s) => s.key === button.dataset.cluster);
+      if (shape === focused) closeMenu(); else openCluster(shape);
+    };
+  }
+  $("pickerMenu").hidden = false; $("picker").setAttribute("aria-expanded", "true");
+};
+document.addEventListener("mousedown", (event) => {
+  if (!$("pickerMenu").hidden && !$("cvHead").contains(event.target)) closeMenu();
+});
+$("dim").onclick = () => setOthers("dim");
+$("hide").onclick = () => setOthers("hide");
+function setOthers(mode) {
+  others = mode;
+  $("dim").setAttribute("aria-pressed", String(mode === "dim"));
+  $("hide").setAttribute("aria-pressed", String(mode === "hide"));
+  refresh();
+}
+$("centreCluster").onclick = () => { if (focused !== null) frameCluster(focused); };
+$("resetView").onclick = () => overview();
+
+// -- labels, outline and chips over the map -------------------------------
+// Drawn as plain HTML over the canvas: each frame, while the camera or the selection changed, the
+// points they belong to are projected to the screen.
+let lastFrame = "";
+function screen(pos) {
+  const camera = Graph.camera(), forward = camera.getWorldDirection(camera.position.clone());
+  const behind = (pos[0] - camera.position.x) * forward.x + (pos[1] - camera.position.y) * forward.y + (pos[2] - camera.position.z) * forward.z <= 0;
+  const s = Graph.graph2ScreenCoords(pos[0], pos[1], pos[2]);
+  return {x: s.x, y: s.y, behind};
+}
+// Convex hull of screen points (monotone chain), pushed out from its middle by `pad` pixels.
+function hull(list, pad) {
+  if (list.length < 3) return [];
+  const ps = list.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const cross = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const lower = [], upper = [];
+  for (const p of ps) { while (lower.length >= 2 && cross(lower.at(-2), lower.at(-1), p) <= 0) lower.pop(); lower.push(p); }
+  for (const p of ps.slice().reverse()) { while (upper.length >= 2 && cross(upper.at(-2), upper.at(-1), p) <= 0) upper.pop(); upper.push(p); }
+  const h = lower.slice(0, -1).concat(upper.slice(0, -1));
+  const cx = h.reduce((t, p) => t + p[0], 0) / h.length, cy = h.reduce((t, p) => t + p[1], 0) / h.length;
+  return h.map(([x, y]) => { const l = Math.hypot(x - cx, y - cy) || 1; return [x + (x - cx) / l * pad, y + (y - cy) / l * pad]; });
+}
+function drawOverlays() {
+  const m = Graph.camera().matrixWorld.elements;
+  const key = `${m.map((v) => v.toFixed(3)).join(",")}|${innerWidth}x${innerHeight}|${panelShare()}|${panelDrop()}`;
+  if (key === lastFrame) return;
+  lastFrame = key;
+  // The free area: right of the panel on a wide screen, between the toolbars and the panel on a phone.
+  const {top, bottom} = band(), W = innerWidth, H = innerHeight - bottom;
+  const left = panelShare() ? $("panel").offsetLeft + $("panel").offsetWidth : 0;
+  const onScreen = (s) => !s.behind && s.x >= left && s.x <= W && s.y >= top && s.y <= H;
+  const labels = [], chips = [];
+  let outline = "";
+  if (focused === null) {
+    const boxes = [];
+    for (const s of SHAPES) {
+      if (s.cluster === null) continue;
+      const at = screen([s.center[0], s.center[1] + s.radius * 0.6, s.center[2]]);
+      if (!onScreen(at)) continue;
+      const width = s.name.length * 7 + 20, box = [at.x - width / 2, at.y - 24, at.x + width / 2, at.y];
+      if (boxes.some((b) => box[0] < b[2] && box[2] > b[0] && box[1] < b[3] && box[3] > b[1])) continue;
+      boxes.push(box);
+      labels.push(`<button class="clabel" data-cluster="${s.key}" style="left:${at.x}px;top:${at.y}px;color:${s.color};border-color:${alpha(s.color, 0.5)}">${esc(s.name)}</button>`);
+    }
+  } else {
+    const s = focused;
+    const projected = [...s.members].map((i) => ({i, ...screen(points[i].pos)}));
+    const core = projected.filter((p) => !s.awaySet.has(p.i) && !p.behind).map((p) => [p.x, p.y]);
+    outline = hull(core, 22).map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
+    // Labels: the selected and hovered point and away points on screen, then the most-linked, without overlaps.
+    const rank = (p) => (p.i === selected ? 1e6 : 0) + (p.i === hover ? 5e5 : 0) + (s.awaySet.has(p.i) ? 1e5 : 0) + degree[p.i];
+    const boxes = [];
+    let shown = 0;
+    for (const p of projected.filter(onScreen).sort((a, b) => rank(b) - rank(a))) {
+      const strong = p.i === selected || p.i === hover, must = strong || s.awaySet.has(p.i);
+      if (!must && shown >= LABEL_COUNT) break;
+      const text = pointTitle(points[p.i]);
+      const box = [p.x + 8, p.y - 9, p.x + 14 + text.length * 6.6, p.y + 9];
+      if (!strong && boxes.some((b) => box[0] < b[2] && box[2] > b[0] && box[1] < b[3] && box[3] > b[1])) continue;
+      boxes.push(box);
+      if (!must) shown++;
+      labels.push(`<span class="plabel${strong ? " strong" : ""}" style="left:${p.x + 10}px;top:${p.y}px">${esc(text)}</span>`);
+    }
+    // Away points off screen: a chip on the edge of the free area, pointing at the point.
+    const cx = (left + W) / 2, cy = (top + H) / 2;
+    for (const p of projected) {
+      if (!s.awaySet.has(p.i) || onScreen(p)) continue;
+      let vx = p.x - cx, vy = p.y - cy;
+      if (p.behind) { vx = -vx; vy = -vy; }
+      if (!vx && !vy) vx = 1;
+      const reach = Math.min(Math.max((W - left) / 2 - 100, 10) / Math.abs(vx || 1e-6), Math.max((H - top) / 2 - 24, 10) / Math.abs(vy || 1e-6));
+      const angle = Math.atan2(vy, vx) * 180 / Math.PI;
+      chips.push(`<button class="chip" data-point="${p.i}" aria-label="Fly to ${esc(pointTitle(points[p.i]))}, off screen"
+        style="left:${cx + vx * reach}px;top:${cy + vy * reach}px;color:${s.color};border-color:${alpha(s.color, 0.7)}">
+        ${ARROW.replace("DEG", angle.toFixed(0))}<span style="overflow:hidden;text-overflow:ellipsis">${esc(pointTitle(points[p.i]))}</span></button>`);
+    }
+  }
+  $("hullShape").setAttribute("points", outline);
+  if (focused !== null) { $("hullShape").setAttribute("stroke", alpha(focused.color, 0.6)); $("hullShape").setAttribute("fill", alpha(focused.color, 0.05)); }
+  $("labels").innerHTML = focused === null ? "" : labels.join("");
+  $("chips").innerHTML = (focused === null ? labels : []).concat(chips).join("");
+  for (const button of $("chips").querySelectorAll(".clabel")) button.onclick = () => openCluster(SHAPES.find((s) => s.key === button.dataset.cluster));
+  for (const button of $("chips").querySelectorAll(".chip")) button.onclick = () => select(+button.dataset.point);
+}
+(function tick() { drawOverlays(); requestAnimationFrame(tick); })();
+
 // -- query ----------------------------------------------------------------
 if (DATA.query) {
   const q = DATA.query;
-  $("querySection").innerHTML = `<h2>Question</h2><div><span class="swatch" style="background:var(--query)"></span>${esc(q.text)}</div>
+  $("querySection").innerHTML = `<h2>Question</h2>
+    <button id="questionText" title="Go to the question on the map"${q.pos ? "" : " disabled"}><span class="swatch" style="background:var(--query);margin-top:4px"></span><span class="q">${esc(q.text)}</span></button>
     <div class="dim" style="margin:4px 0">Search's results. A solid line: the point is also among the ${q.nearest.length} nearest the question in embedding space. A faint one: search found it another way (a section, keywords, the reranker).</div>
     <ul id="hits">${q.hits.map((h) => `<li class="item" data-point="${h.point ?? ""}"><b>${h.rank}.</b> ${esc(h.slug)}${h.section ? ` <span class="dim">§ ${esc(h.section)}</span>` : ""}
-      <span class="tag">${h.vector_rank ? `nearest #${h.vector_rank}` : `not in nearest ${q.nearest.length}`}</span></li>`).join("") || "<li class='dim'>No results.</li>"}</ul>
-    <div class="row" style="margin-top:6px"><button class="small" id="toQuery">Go to question</button></div>`;
-  $("toQuery").onclick = () => focus(q.pos);
+      <span class="tag">${h.vector_rank ? `nearest #${h.vector_rank}` : `not in nearest ${q.nearest.length}`}</span></li>`).join("") || "<li class='dim'>No results.</li>"}</ul>`;
+  $("questionText").onclick = () => focus(q.pos);
   for (const li of document.querySelectorAll("#hits li[data-point]")) if (li.dataset.point !== "") li.onclick = () => select(+li.dataset.point);
 }
 
@@ -322,7 +802,7 @@ function renderNav() {
     : `<b>Read</b> ${esc(step.slug)}${step.part ? ` <span class="dim">§ ${esc(step.part)}</span>` : ""}${session.cited.includes(step.slug) ? ' <span class="tag">cited</span>' : ""}` +
       (step.why ? `<div class="dim">${esc(step.why)}</div>` : "");
   $("navSection").innerHTML = `<h2>Navigation ${DATA.nav.length > 1 ? `(${DATA.nav.length} sessions)` : "session"}</h2>
-    ${DATA.nav.length > 1 ? `<select id="navPick" style="width:100%">${options}</select>` : `<div class="dim">${esc(session.session)}${session.ended ? "" : " (not ended)"}</div>`}
+    ${DATA.nav.length > 1 ? `<select id="navPick" style="width:100%" aria-label="Session">${options}</select>` : `<div class="dim">${esc(session.session)}${session.ended ? "" : " (not ended)"}</div>`}
     <div class="row" style="margin:6px 0"><button class="small" id="prev">&larr; prev</button><button class="small" id="next">next &rarr;</button>
       <span class="dim">${navStep === null ? "" : `step ${navStep + 1} of ${session.steps.length}`}</span></div>
     <ul>${session.steps.map((step, i) => `<li class="item ${i === navStep ? "current" : ""}" data-step="${i}">${i + 1}. ${describe(step)}</li>`).join("")}</ul>
@@ -343,24 +823,10 @@ function goStep(i) {
 
 applyColor();
 renderNav();
+renderClusterList();
 $("colorBy").onchange = applyColor;
 $("edgeMode").onchange = refresh;
-// Frame every point: fit the bounding box to the view, leaving the panel's side clear on wide screens.
-function overview() {
-  const lo = [0, 1, 2].map((k) => Math.min(...points.map((p) => p.pos[k])));
-  const hi = [0, 1, 2].map((k) => Math.max(...points.map((p) => p.pos[k])));
-  const center = lo.map((v, k) => (v + hi[k]) / 2);
-  const panelOpen = innerWidth > 900 && !$("panel").classList.contains("collapsed");
-  const usable = panelOpen ? 1 - ($("panel").offsetWidth + 24) / innerWidth : 1;
-  const tanHalf = Math.tan((Graph.camera().fov * Math.PI / 180) / 2), aspect = (innerWidth * usable) / innerHeight;
-  const distance = Math.max((hi[1] - lo[1]) / 2 / tanHalf, (hi[0] - lo[0]) / 2 / (tanHalf * aspect)) * 1.08 + (hi[2] - lo[2]) / 2;
-  const shift = panelOpen ? -(1 - usable) / 2 * 2 * distance * tanHalf * (innerWidth / innerHeight) : 0;
-  Graph.cameraPosition({x: center[0] + shift, y: center[1], z: center[2] + distance},
-                       {x: center[0] + shift, y: center[1], z: center[2]}, 600);
-}
 overview();
-$("meta").insertAdjacentHTML("beforeend", ` &middot; <a href="#" id="reset" style="color:var(--accent)">reset view</a>`);
-$("reset").onclick = (event) => { event.preventDefault(); overview(); };
 </script>
 </body>
 </html>
