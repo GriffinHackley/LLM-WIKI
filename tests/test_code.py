@@ -289,7 +289,7 @@ class TestGuides:
         write(code_wiki, "guides/parts/pr-tickets.md", "The key is on the `Ticket:` line of the PR body.\n")
         _, guide = run_json(capsys, "guide", "ingest", "--root", str(code_wiki))
         assert ("find the tickets it implements.\n       The key is on the `Ticket:` line of the PR body.\n"
-                "       For each, find its page first") in guide["text"]
+                "       Name each under `## Implements` by its key") in guide["text"]
         assert "in its title, description, branch name" not in guide["text"]
 
     def test_code_query_guide_differs_from_the_generic_one_only_in_step_seven(self):

@@ -374,7 +374,8 @@ postmortem as a gotcha. Where a document and the code disagree, the code wins.
 Tickets and epics live in a tracker and change there. Ask your agent to ingest one by key
 or link: it fetches it, writes a `ticket` or `epic` page naming it by `key:` and `url:`,
 and records the tracker's last-updated time in `synced:`. A story's epic goes in
-`parent:`, and gets a page if it has none.
+`parent:`, and gets a page if it has none. Ingesting a pull request writes no ticket
+pages: its page names its tickets by key and link, and links their epic.
 
 `wiki stale` lists records due for a recheck: never synced, or synced more than 30 days
 ago and still open ([`[records]`](config.md#records-items-that-live-elsewhere) changes

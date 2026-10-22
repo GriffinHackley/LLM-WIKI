@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Ingest: a pull request no longer brings its tickets into the wiki. Its page names each
+  ticket under `## Implements` by key and tracker link, not a page link (a ticket page
+  goes stale; the pull request's description holds what was done), and links an
+  existing ticket page only if there is one. It links its tickets' epic there directly,
+  writing the epic's page first when it has none, so the pull request still counts
+  toward its epic's clusters. The code preset's `pr` template shows both.
+
 ## 0.6.0 (2026-10-16): clusters on the map
 
 - `wiki map` can open a link cluster. The panel lists the clusters, with how many of

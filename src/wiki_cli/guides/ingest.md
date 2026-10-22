@@ -235,16 +235,25 @@ template.
 {{#records}}
      - **A pull request's tickets:** find the tickets it implements.
        {{part:pr-tickets}}
-       For each, find its page first, `wiki search "<key>" --keyword-only`. If it has
-       none, fetch the ticket and write its page now (step 3), before finishing the pull
-       request's page, and name it under `## Implements`. Its parent then follows the rule for a
-       record's parent (step 3), so a missing epic is written too. Write only the tickets
-       the pull request names, not their other pull requests or sibling tickets. They
-       count toward the run's page cap (step 4).
+       Name each under `## Implements` by its key and tracker link,
+       `- [PROJ-412](https://...) — what of it the pull request does`, not by a
+       `[[link]]`: the pull request's own description says what was done, and a ticket
+       page goes stale. Never fetch a ticket to write its page during a pull request's
+       ingest. If one already has a page (`wiki search "<key>" --keyword-only`), link
+       it, `[[slug]]`, instead of its key.
+     - **A pull request's epic:** the record its tickets belong to (their parent, an
+       epic), if they have one. Fetch a ticket to read its parent's key, then find the
+       parent's page,
+       `wiki search "<key>" --keyword-only`. If it has none, fetch the parent and write
+       its page now (step 3), before finishing the pull request's page. Link it under
+       `## Implements`, so the pull request reaches its epic directly. Write only the
+       epic, not its other tickets or pull requests. It counts toward the run's page cap
+       (step 4).
 {{/records}}
      - **Link sections:** a module's dependencies (other modules, and `dependency` pages)
        under `## Depends on`, the pages a decision or a gotcha affects under `## Affects`,
-       a pull request's tickets under `## Implements`, and a ticket's epic in `parent:`.
+       a pull request's tickets and epic under `## Implements`, and a ticket's epic in
+       `parent:`.
 {{/code}}
 8. **Record questions** where the wiki keeps open questions (`wiki/open-questions.md` in
    the presets), and mention each on the source page:

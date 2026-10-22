@@ -25,4 +25,5 @@ What changed, by area, linking the pages ([[module-slug]]) and code
 ([name](code:src/<path>)) involved. Explain the change; don't list every file.
 
 ## Implements
-- [[ticket-slug]] — what of the ticket it does
+- [[epic-slug]] — what of the feature it delivers
+- [KEY-123](https://...) — what of the ticket it does (its key and link, not a page)
