@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.6.1 (2026-10-23)
+
 - `wiki finish` commits every file that changed since the task started, in the code repo
   and the wiki, not only those the agent's edit tools touched: files a script, a
   formatter, `git mv` or `git rm` changed were left behind before, and a wiki page
