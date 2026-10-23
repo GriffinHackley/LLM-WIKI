@@ -57,6 +57,7 @@ def run(capsys, *args) -> tuple[int, str]:
 def test_a_task_from_start_to_finish(repo, code_wiki, monkeypatch, capsys):
     search = repo / "src/app/search.py"
     assert "No task is open" in edit(monkeypatch, capsys, "s1", search, "x")
+    write(repo, "src/app/nav.py", "changed by hand\n")  # before the task: not the task's
 
     asked = shell(monkeypatch, capsys, "s1", 'wiki task start "Fix search"')
     assert asked["permissionDecision"] == "ask"
@@ -65,7 +66,6 @@ def test_a_task_from_start_to_finish(repo, code_wiki, monkeypatch, capsys):
 
     assert "Another session holds the open task" in edit(monkeypatch, capsys, "s2", search, "x")
     assert edit(monkeypatch, capsys, "s1", search, "def search():\n    return [1]\n") is None
-    write(repo, "src/app/nav.py", "changed by hand\n")  # not the task's
 
     code, out = run(capsys, "finish", "-m", "Return one result", "--dry-run")
     assert code != 0 and "[[search]] covers src/app/search.py" in out
@@ -118,12 +118,85 @@ def test_files_outside_the_code_and_the_wiki_are_not_guarded(repo, tmp_path, mon
     assert edit(monkeypatch, capsys, "s1", tmp_path / "notes.txt", "x") is None
 
 
-def test_include_adds_a_change_the_task_did_not_make(repo, monkeypatch, capsys):
+def test_include_adds_a_change_from_before_the_task(repo, monkeypatch, capsys):
+    write(repo, "src/app/nav.py", "formatted\n")  # say, by a formatter run before the task
     tasks.start(load_settings(repo), "Nav", "s1")
-    write(repo, "src/app/nav.py", "formatted\n")  # say, by a formatter the agent ran
+    code, out = run(capsys, "finish", "-m", "Format nav", "--dry-run")
+    assert code != 0 and "nothing to commit" in out and "src/app/nav.py" in out
     code, out = run(capsys, "finish", "-m", "Format nav", "--include", "src/app/nav.py")
     assert code == 0, out
     assert git(repo, "show", "--name-only", "--format=", "HEAD") == "src/app/nav.py"
+
+
+def test_finish_commits_what_changed_since_the_start_however_it_changed(repo, code_wiki, monkeypatch, capsys):
+    write(repo, "src/app/nav.py", "mine, before the task\n")
+    write(repo, "notes.txt", "mine too\n")
+    write(code_wiki, "wiki/draft.md", "a draft of mine\n")
+    tasks.start(load_settings(repo), "Rename", "s1")
+    write(repo, "src/app/nav.py", "mine, and then the task's\n")  # by a script: no hook saw it
+    write(repo, "src/app/new.py", "made by a generator\n")
+    git(repo, "rm", "-q", "src/app/search.py")
+    module_page(code_wiki, "nav", ["src/app/nav.py"], "pending")  # a page a script wrote
+    page = code_wiki / "wiki/modules/search.md"
+    page.write_text(page.read_text(encoding="utf-8").replace(
+        'verified: "' + git(repo, "rev-parse", "HEAD~1"), 'verified: "pending'), encoding="utf-8")
+
+    code, out = run(capsys, "finish", "-m", "Rename", "--dry-run")
+    assert code == 0, out
+    assert f"src/app/nav.py  ({tasks.UNRECORDED}; {tasks.EARLIER})" in out
+    assert f"src/app/new.py  ({tasks.UNRECORDED})" in out
+    assert "Left out, changed in the code repo" in out and "  notes.txt" in out
+    assert "Left out, changed in the wiki" in out and "  wiki/draft.md" in out
+
+    code, out = run(capsys, "finish", "-m", "Rename")
+    assert code == 0, out
+    assert sorted(git(repo, "show", "--name-only", "--format=", "HEAD").splitlines()) == [
+        "src/app/nav.py", "src/app/new.py", "src/app/search.py"]
+    assert git(repo, "status", "--porcelain") == "?? notes.txt"
+    assert sorted(git(code_wiki, "show", "--name-only", "--format=", "HEAD").splitlines()) == [
+        "wiki/modules/nav.md", "wiki/modules/search.md"]
+    assert git(code_wiki, "status", "--porcelain") == "?? wiki/draft.md"
+
+
+def test_include_and_exclude_name_files_in_either_repo(repo, code_wiki, monkeypatch, capsys):
+    write(code_wiki, "wiki/draft.md", "a draft of mine\n")
+    tasks.start(load_settings(repo), "Nav", "s1")
+    write(repo, "src/app/nav.py", "the task's\n")
+    write(repo, "scratch.txt", "not for the commit\n")
+    code, out = run(capsys, "finish", "-m", "Nav", "--dry-run", "--include", str(code_wiki / "wiki/draft.md"),
+                    "--exclude", "scratch.txt", "--format", "json")
+    assert code == 0, out
+    plan = json.loads(out)
+    assert plan["code"] == ["src/app/nav.py"] and plan["other"] == ["scratch.txt"]
+    assert plan["wiki"] == ["wiki/draft.md"] and plan["notes"]["wiki:wiki/draft.md"] == [tasks.INCLUDED]
+    code, out = run(capsys, "finish", "-m", "Nav", "--dry-run", "--exclude", "src/app/missing.py",
+                    "--include", "nowhere.txt")
+    assert code != 0 and "--exclude src/app/missing.py" in out and "--include nowhere.txt" in out
+
+
+def test_a_task_started_before_snapshots_still_finishes(repo, code_wiki, monkeypatch, capsys):
+    settings = load_settings(repo)
+    write(repo, "src/app/nav.py", "mine\n")
+    tasks.start(settings, "Old", "s1")
+    task_file = settings.root / ".cache" / tasks.TASK_FILE
+    data = json.loads(task_file.read_text(encoding="utf-8"))
+    del data["before"]
+    data["changed_before"] = ["src/app/nav.py"]
+    task_file.write_text(json.dumps(data), encoding="utf-8")
+    write(repo, "src/app/new.py", "the task's\n")
+    code, out = run(capsys, "finish", "-m", "Old", "--format", "json")
+    assert code == 0, out
+    assert json.loads(out)["code"] == ["src/app/new.py"] and json.loads(out)["left_out"] == ["src/app/nav.py"]
+
+
+def test_a_change_of_line_endings_alone_is_no_change(repo, monkeypatch, capsys):
+    git(repo, "config", "core.autocrlf", "true")
+    write(repo, "src/app/nav.py", "mine\n")
+    tasks.start(load_settings(repo), "Nav", "s1")
+    (repo / "src/app/nav.py").write_bytes(b"mine\r\n")
+    write(repo, "src/app/new.py", "the task's\n")
+    code, out = run(capsys, "finish", "-m", "Nav", "--dry-run", "--format", "json")
+    assert json.loads(out)["other"] == ["src/app/nav.py"]
 
 
 def test_stale_and_check_accept_a_pending_page(repo, code_wiki, capsys):

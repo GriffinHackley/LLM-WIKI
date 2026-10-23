@@ -42,5 +42,7 @@ each step marked *Stop*: don't treat silence, or approval of something else, as 
    line saying what the task did, and a short body if it needs one.
 7. **Finish.** Once the user approves, `wiki finish -m "<the approved message>"`. It
    shows the user the files it will commit and asks them to confirm, then commits the
-   files this task edited in the code repo, sets the pending pages' `verified:` to that
-   commit, and commits the wiki. Never run `git commit` yourself: it is refused.
+   files changed in the code repo since the task started (your edits and the files your
+   commands wrote alike), sets the pending pages' `verified:` to that commit, and commits
+   the wiki's. If it lists a file that is not the task's, ask the user, and leave it out
+   with `--exclude <file>`. Never run `git commit` yourself: it is refused.

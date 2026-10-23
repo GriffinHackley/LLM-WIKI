@@ -19,6 +19,8 @@ from wiki_cli.config import CONFIG_FILENAME, Settings
 CODE_PREFIX = "code:"
 PENDING = "pending"  # `verified:` of a page checked in a task not committed yet (tasks.py)
 PART_OF = "part-of"  # the relation a file or nested module names its module with (code preset)
+DELETED = "deleted"  # file_hashes() of a changed file that no longer exists
+FOLDER = "folder"  # file_hashes() of a changed path that is a folder (a submodule)
 
 
 class CodeRepoError(Exception):
@@ -106,6 +108,26 @@ def changed_files(path: Path) -> set[str]:
             names.add(entries[index])
             index += 1
     return names
+
+
+def file_hashes(path: Path, names: set[str] | list[str]) -> dict[str, str]:
+    """The blob hash of each of ``names`` (relative to the repository's top) as git would
+    store it, after its line-ending filters, so a change of line endings alone is no
+    change; a missing file is ``DELETED``, a folder (a submodule) ``FOLDER``. Writes nothing."""
+    hashes, files = {}, []
+    for name in sorted(names):
+        full = path / name
+        if full.is_file():
+            files.append(name)
+        else:
+            hashes[name] = FOLDER if full.is_dir() else DELETED
+    if files:
+        done = subprocess.run(["git", "-C", str(path), "hash-object", "--stdin-paths"], input="\n".join(files) + "\n",
+                              capture_output=True, text=True, encoding="utf-8")
+        if done.returncode != 0:
+            raise CodeRepoError(done.stderr.strip() or "git hash-object failed")
+        hashes.update(zip(files, done.stdout.split()))
+    return hashes
 
 
 def exists(path: Path, rel: str) -> bool:

@@ -382,13 +382,18 @@ The open task, and the files it would commit.
 
 ### `wiki finish`
 
-End the open task: commit the code files it edited, set the pending pages' `verified:`
-to that commit, then commit the wiki. The user confirms, seeing the files.
+End the open task: commit the code files that changed since it started, set the pending
+pages' `verified:` to that commit, then commit the wiki files that changed since it
+started. `wiki task start` notes every file already changed in either repository; those
+are left out and listed unless they changed again during the task. The user confirms,
+seeing the files, with the ones the agent's edit tools did not touch (a command's, or
+yours) marked.
 
 | Option | What it does |
 |---|---|
 | `-m`, `--message` | The commit message the user approved. |
-| `--include` | Also commit this changed code file the task did not edit. Repeatable. |
+| `--include` | Also commit this file, changed before the task started, in the code repo or the wiki. Repeatable. |
+| `--exclude` | Leave this file out of the commit. Repeatable. |
 | `--dry-run` | Show what it would commit, and stop. |
 
 ```bash

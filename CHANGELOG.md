@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- `wiki finish` commits every file that changed since the task started, in the code repo
+  and the wiki, not only those the agent's edit tools touched: files a script, a
+  formatter, `git mv` or `git rm` changed were left behind before, and a wiki page
+  written by a command was skipped without a word. `wiki task start` notes the hash of
+  each file already changed; those are left out and listed (now for the wiki too)
+  unless they change again during the task. `--include` takes a wiki file as well as a
+  code file, the new `--exclude` drops one, and `wiki task status` marks the files no
+  edit tool touched.
+
 - Ingest: a pull request no longer brings its tickets into the wiki. Its page names each
   ticket under `## Implements` by key and tracker link, not a page link (a ticket page
   goes stale; the pull request's description holds what was done), and links an

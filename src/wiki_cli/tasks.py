@@ -6,10 +6,13 @@ hooks refuse edits to the code and the wiki from any other session, and record e
 the holding session edits; with no task open they refuse every such edit. Starting,
 taking over and finishing a task each ask the user first, through the hook.
 
-`wiki finish` commits exactly the files the task edited: in the code repo first, then in
-the wiki, after setting the `verified:` of each page the task checked (`"pending"`) to the
-new code commit. It refuses while a page covering a changed file is still unchecked, or a
-changed page has errors.
+`wiki task start` takes a snapshot: the hash of every file already changed in the code repo
+and the wiki. `wiki finish` commits every file changed since then, by the agent's edit
+tools, a shell command or by hand, and leaves out (listing them) the changes that were
+already there and have not moved: in the code repo first, then in the wiki, after setting
+the `verified:` of each page the task checked (`"pending"`) to the new code commit. It
+refuses while a page covering a changed file is still unchecked, or a changed page has
+errors.
 
 The task lives in the wiki's `.cache/task.json`: like the rest of the cache it is local to
 this checkout and never committed.
@@ -43,7 +46,9 @@ class Task:
     title: str
     session: str | None
     started: str
-    changed_before: list[str] = field(default_factory=list)  # code repo files already changed at the start
+    # per repository ("code", and "wiki" when it is its own), the files already changed at the start and
+    # their hashes (None: not known); a repository missing here had no snapshot taken
+    before: dict[str, dict[str, str | None]] = field(default_factory=dict)
     edited: list[str] = field(default_factory=list)  # absolute paths the task's sessions edited
 
     def to_dict(self) -> dict:
@@ -57,6 +62,8 @@ def _cache(settings: Settings) -> Path:
 def load(settings: Settings) -> Task | None:
     try:
         data = json.loads((_cache(settings) / TASK_FILE).read_text(encoding="utf-8"))
+        if "changed_before" in data and "before" not in data:  # a task started before snapshots: names only
+            data["before"] = {"code": dict.fromkeys(data["changed_before"])}
         return Task(**{key: data[key] for key in Task.__dataclass_fields__ if key in data})
     except (OSError, ValueError, TypeError, KeyError):
         return None
@@ -114,7 +121,8 @@ def start(settings: Settings, title: str, session: str | None) -> Task:
         raise TaskError(f"a task is already open: {describe(current)}. Finish it (`wiki finish`) or cancel it "
                         "(`wiki task cancel`) first; to carry it on in this session, `wiki task takeover`")
     task = Task(title=title.strip(), session=session, started=_now(),
-                changed_before=sorted(codebase.changed_files(_code_repo(settings))))
+                before={key: codebase.file_hashes(repo, codebase.changed_files(repo))
+                        for key, repo in _repos(settings).items()})
     save(settings, task)
     return task
 
@@ -189,9 +197,11 @@ class Plan:
     task: Task
     code: list[str] = field(default_factory=list)  # code repo files to commit, relative to it
     wiki: list[str] = field(default_factory=list)  # wiki files to commit, relative to the wiki's repo
+    notes: dict[str, list[str]] = field(default_factory=dict)  # "code:<file>" or "wiki:<file>": how it got in
     pending: list[str] = field(default_factory=list)  # wiki pages whose verified: is "pending"
     unchanged: list[str] = field(default_factory=list)  # edited, but nothing to commit
-    other: list[str] = field(default_factory=list)  # changed in the code repo, not by the task: left out
+    other: list[str] = field(default_factory=list)  # changed in the code repo before the task, not since: left out
+    other_wiki: list[str] = field(default_factory=list)  # the same in the wiki
     problems: list[str] = field(default_factory=list)  # why it cannot finish yet
 
     def to_dict(self) -> dict:
@@ -200,53 +210,102 @@ class Plan:
         return data
 
 
-def plan(settings: Settings, include: list[str] | None = None) -> Plan:
+UNRECORDED = "changed by a command or by hand"
+EARLIER = "already changed when the task started: those changes go in too"
+INCLUDED = "added with --include"
+
+
+def plan(settings: Settings, include: list[str] | None = None, exclude: list[str] | None = None) -> Plan:
+    """What `wiki finish` would commit: every file changed since the task's snapshot, or
+    edited by its sessions, in the code repo and the wiki, and every pending page."""
     task = load(settings)
     if task is None:
         raise TaskError("no task is open: `wiki finish` commits an open task's files")
-    code_repo = _code_repo(settings)
+    repos = _repos(settings)
     wiki_repo = codebase.top_level(settings.root)
     result = Plan(task)
-    code_changed = codebase.changed_files(code_repo)
-    wiki_changed = codebase.changed_files(wiki_repo) if wiki_repo is not None else set()
-    code_lookup = {name.lower(): name for name in code_changed}
-    wiki_lookup = {name.lower(): name for name in wiki_changed}
-    for edited in task.edited:
-        path = Path(edited)
-        in_wiki = _inside(path, settings.root) is not None
-        repo, lookup, bucket = ((wiki_repo, wiki_lookup, result.wiki) if in_wiki else
-                                (code_repo, code_lookup, result.code))
-        rel = _inside(path, repo) if repo is not None else None
-        if rel is None:
-            continue
-        if rel.lower() in lookup:
-            if lookup[rel.lower()] not in bucket:
-                bucket.append(lookup[rel.lower()])
-        else:
-            result.unchanged.append(rel)
-    for given in include or []:
-        name = code_lookup.get(Path(given).as_posix().lstrip("./").lower())
-        if name is None:
-            result.problems.append(f"--include {given}: no change to it in the code repo")
-        elif name not in result.code:
-            result.code.append(name)
-    wiki_prefix = _inside(settings.root, code_repo)
-    before = {name.lower() for name in task.changed_before}
-    result.other = sorted(name for name in code_changed
-                          if name not in result.code and name.lower() not in before
-                          and not (wiki_prefix and name.lower().startswith(wiki_prefix.lower() + "/")))
+    taken: dict[str, tuple[str, str]] = {}  # lower-case full path -> ("code" or "wiki", name in its repo)
+    left: dict[str, tuple[str, str]] = {}  # the same, for changes left out
+    for key, repo in repos.items():
+        changed = codebase.changed_files(repo)
+        hashes = codebase.file_hashes(repo, changed)
+        before = task.before.get(key)
+        before = None if before is None else {name.lower(): value for name, value in before.items()}
+        recorded = {rel.lower(): rel for edited in task.edited if (rel := _inside(Path(edited), repo))}
+        lowered = {name.lower() for name in changed}
+        result.unchanged += sorted(rel for lower, rel in recorded.items() if lower not in lowered)
+        for name in sorted(changed):
+            full = repo / name
+            bucket = "wiki" if key == "wiki" or _inside(full, settings.root) is not None else "code"
+            earlier = before is None or name.lower() in before  # no snapshot: everything counts as earlier
+            moved = not earlier or (before[name.lower()] is not None and before[name.lower()] != hashes[name])
+            notes = ([] if name.lower() in recorded else [UNRECORDED]) + ([EARLIER] if earlier else [])
+            if moved or name.lower() in recorded:
+                taken[_key(full)] = (bucket, name)
+                result.notes[f"{bucket}:{name}"] = notes
+            else:
+                left[_key(full)] = (bucket, name)
     result.pending = _pending_pages(settings)
+    pending = {_key(settings.root / rel) for rel in result.pending}
     for rel in result.pending:
         wiki_rel = _inside(settings.root / rel, wiki_repo) if wiki_repo is not None else None
-        if wiki_rel and wiki_rel not in result.wiki:
-            result.wiki.append(wiki_rel)
-    result.code.sort()
-    result.wiki.sort()
+        if wiki_rel:
+            taken.setdefault(_key(settings.root / rel), ("wiki", wiki_rel))
+            left.pop(_key(settings.root / rel), None)
+    for given in include or []:
+        found = _given(given, repos, left) or _given(given, repos, taken)
+        if found is None:
+            result.problems.append(f"--include {given}: no change to it in the code repo or the wiki")
+        elif found in left:
+            taken[found] = left.pop(found)
+            result.notes[":".join(taken[found])] = [INCLUDED]
+    for given in exclude or []:
+        found = _given(given, repos, taken)
+        if found is None:
+            result.problems.append(f"--exclude {given}: not among the files to commit")
+        elif found in pending:
+            result.problems.append(f"--exclude {given}: its verified: is \"pending\", so it goes in; set it back "
+                                   "to the commit it was checked against to leave it out")
+        else:
+            left[found] = taken.pop(found)
+    for bucket, name in taken.values():
+        (result.wiki if bucket == "wiki" else result.code).append(name)
+    for bucket, name in left.values():
+        (result.other_wiki if bucket == "wiki" else result.other).append(name)
+    result.notes = {name: notes for name, notes in result.notes.items()
+                    if notes and name.split(":", 1)[1] in (result.code if name.startswith("code:") else result.wiki)}
+    for names in (result.code, result.wiki, result.other, result.other_wiki):
+        names.sort()
     if not result.code and not result.wiki:
         result.problems.append("the task changed no file in the code repo or the wiki: nothing to commit "
                                "(`wiki task cancel` closes it)")
     result.problems += _unchecked_pages(settings, result.code)
     return result
+
+
+def _repos(settings: Settings) -> dict[str, Path]:
+    """The repositories a task commits to: "code", and "wiki" unless the wiki is a folder in
+    the code repo."""
+    code_repo = _code_repo(settings).resolve()
+    repos = {"code": code_repo}
+    wiki_repo = codebase.top_level(settings.root)
+    if wiki_repo is not None and _key(wiki_repo) != _key(code_repo):
+        repos["wiki"] = wiki_repo
+    return repos
+
+
+def _key(path: Path) -> str:
+    return path.resolve().as_posix().lower()
+
+
+def _given(given: str, repos: dict[str, Path], pool: dict[str, tuple[str, str]]) -> str | None:
+    """The key in ``pool`` of the file an --include or --exclude path names: absolute,
+    relative to the current folder, or relative to the top of the code repo or the wiki's."""
+    path = Path(given)
+    for candidate in [path] if path.is_absolute() else [Path.cwd() / path, *(repo / path for repo in repos.values())]:
+        if _key(candidate) in pool:
+            return _key(candidate)
+    return None
 
 
 def _pending_pages(settings: Settings) -> list[str]:
@@ -277,25 +336,31 @@ def _unchecked_pages(settings: Settings, code_files: list[str]) -> list[str]:
 
 def plan_text(result: Plan) -> str:
     lines = [f"Task {describe(result.task)}"]
-    for title, names in (("Code to commit", result.code), ("Wiki pages to commit", result.wiki),
-                         ("Changed in the code repo but not by this task (left out; --include adds one)",
-                          result.other)):
+    for title, bucket, names in (
+            ("Code to commit", "code", result.code), ("Wiki files to commit", "wiki", result.wiki),
+            ("Left out, changed in the code repo before the task and not since (--include adds one)", None,
+             result.other),
+            ("Left out, changed in the wiki before the task and not since (--include adds one)", None,
+             result.other_wiki)):
         if names:
             lines.append(f"{title}:")
-            lines += [f"  {name}" for name in names]
+            for name in names:
+                notes = result.notes.get(f"{bucket}:{name}") if bucket else None
+                lines.append(f"  {name}" + (f"  ({'; '.join(notes)})" if notes else ""))
     if result.problems:
         lines.append("Not ready to finish:")
         lines += [f"  {problem}" for problem in result.problems]
     return "\n".join(lines)
 
 
-def finish(settings: Settings, message: str, include: list[str] | None = None) -> dict:
+def finish(settings: Settings, message: str, include: list[str] | None = None,
+           exclude: list[str] | None = None) -> dict:
     if not message.strip():
         raise TaskError("give the commit message the user approved: wiki finish -m \"<message>\"")
-    result = plan(settings, include)
+    result = plan(settings, include, exclude)
     if result.problems:
         raise TaskError("not ready to finish:\n  " + "\n  ".join(result.problems))
-    errors = _page_errors(settings, result.task, result.pending)
+    errors = _page_errors(settings, result)
     if errors:
         raise TaskError("wiki pages have errors (`wiki check <page>`):\n  " + "\n  ".join(errors))
     code_repo = _code_repo(settings)
@@ -312,16 +377,18 @@ def finish(settings: Settings, message: str, include: list[str] | None = None) -
         wiki_commit = _commit(wiki_repo, result.wiki, body)
     close(settings)
     return {"task": result.task.title, "code_commit": code_commit, "wiki_commit": wiki_commit,
-            "code": result.code, "wiki": result.wiki, "verified": result.pending, "left_out": result.other}
+            "code": result.code, "wiki": result.wiki, "verified": result.pending, "left_out": result.other,
+            "left_out_wiki": result.other_wiki}
 
 
-def _page_errors(settings: Settings, task: Task, pending: list[str]) -> list[str]:
+def _page_errors(settings: Settings, result: Plan) -> list[str]:
     """Errors (not warnings) `wiki check` finds on the pages the task changed or checked."""
     from wiki_cli.model import ERROR
     from wiki_cli.pages import Resolver, load as load_page, scan_vault
     from wiki_cli.validation import check_page
-    wanted = set(pending) | {rel for edited in task.edited
-                             if (rel := _inside(Path(edited), settings.root)) and rel.endswith(".md")}
+    wiki_repo = codebase.top_level(settings.root)
+    wanted = set(result.pending) | {rel for name in result.wiki if wiki_repo is not None
+                                    and (rel := _inside(wiki_repo / name, settings.root)) and rel.endswith(".md")}
     scanned, others = scan_vault(settings)
     files = [page_file for page_file, _ in scanned]
     resolver = Resolver([(page_file.slug, page_file.rel) for page_file in files], others)
@@ -335,7 +402,11 @@ def _page_errors(settings: Settings, task: Task, pending: list[str]) -> list[str
 
 
 def _commit(repo: Path, files: list[str], message: str) -> str:
-    codebase.git(repo, "add", "-A", "--", *files)
+    # a file removed with `git rm` is in neither the working tree nor the index, and `git add` refuses it
+    indexed = set(codebase.git(repo, "ls-files", "-z", "--", *files).split("\0"))
+    to_add = [name for name in files if name in indexed or (repo / name).exists()]
+    if to_add:
+        codebase.git(repo, "add", "-A", "--", *to_add)
     codebase.git(repo, "commit", "-q", "-m", message, "--", *files)
     return codebase.head(repo)
 

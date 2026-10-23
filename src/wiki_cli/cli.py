@@ -270,10 +270,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     finish_parser = commands.add_parser(
         "finish", parents=[common],
-        help="end the open task: commit the files it edited in the code repo, then the wiki pages")
+        help="end the open task: commit what changed since it started in the code repo, then the wiki")
     finish_parser.add_argument("-m", "--message", required=True, help="the commit message the user approved")
     finish_parser.add_argument("--include", action="append", default=[], metavar="path",
-                               help="also commit this changed code file the task did not edit; repeatable")
+                               help="also commit this file, changed before the task started; repeatable")
+    finish_parser.add_argument("--exclude", action="append", default=[], metavar="path",
+                               help="leave this file out of the commit; repeatable")
     finish_parser.add_argument("--dry-run", action="store_true", help="show what it would commit, and stop")
     finish_parser.set_defaults(handler=cmd_finish)
 
@@ -1036,13 +1038,13 @@ def _task_said(args: argparse.Namespace, task, what: str) -> int:
 def cmd_finish(args: argparse.Namespace, settings: Settings) -> int:
     try:
         if args.dry_run:
-            plan = tasks.plan(settings, args.include)
+            plan = tasks.plan(settings, args.include, args.exclude)
             if args.format == "json":
                 _print_json(plan.to_dict())
             else:
                 print(tasks.plan_text(plan))
             return EXIT_INVALID if plan.problems else EXIT_OK
-        result = tasks.finish(settings, args.message, args.include)
+        result = tasks.finish(settings, args.message, args.include, args.exclude)
     except (tasks.TaskError, codebase.CodeRepoError) as exc:
         raise UsageError(str(exc)) from exc
     if args.format == "json":
@@ -1055,7 +1057,9 @@ def cmd_finish(args: argparse.Namespace, settings: Settings) -> int:
     if result["wiki_commit"]:
         print(f"Committed the wiki: {result['wiki_commit'][:12]} ({output.plural(len(result['wiki']), 'file')})")
     if result["left_out"]:
-        print("Left out, changed but not by this task: " + ", ".join(result["left_out"]))
+        print("Left out, changed in the code repo before the task: " + ", ".join(result["left_out"]))
+    if result["left_out_wiki"]:
+        print("Left out, changed in the wiki before the task: " + ", ".join(result["left_out_wiki"]))
     print(f"The task \"{result['task']}\" is finished.")
     return EXIT_OK
 

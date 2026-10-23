@@ -294,8 +294,10 @@ Ask your agent to do the task. It follows `wiki guide work`:
 7. **It reports, and stops,** with the changes, the test results, the pages it updated,
    and a commit message. You approve it.
 8. **`wiki finish -m "<message>"`** shows you the files and asks to confirm, then
-   commits exactly the files the task edited in the code repo, sets the pending pages'
-   `verified:` to that commit, and commits the wiki.
+   commits the files that changed in the code repo since the task started (by the agent's
+   edits, a command it ran or your hand), sets the pending pages' `verified:` to that
+   commit, and commits the wiki's. Changes already there at the start are left out and
+   listed (`--include` adds one, `--exclude` drops one).
 
 Steps 1 and 2 are `wiki guide plan`, which `wiki guide work` runs first. To get a plan
 and decide later, ask for `wiki guide plan` (`/wiki-plan`) on its own: it stops at the

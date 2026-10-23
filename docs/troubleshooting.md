@@ -67,7 +67,8 @@ the cache is lost by rebuilding it.
 | The agent's edits are refused: no task is open | With the code repo connected, edits need an open task. The agent runs `wiki task start "<title>"` after you approve its plan. |
 | `Another session holds the open task` | A different agent session started it. Finish or cancel it there, or, if that session is gone (a restart, a cleared conversation), `wiki task takeover` moves it here. |
 | `no agent session asked for this` | `wiki task start` and `takeover` are run by the agent, so its hook knows which session holds the task. Ask the agent to run them. |
-| `the task changed no file ... nothing to commit` | `wiki finish` found nothing the task edited. `wiki task status` shows what it tracked; a changed file it did not edit goes in with `--include <file>`. |
+| `the task changed no file ... nothing to commit` | Nothing changed in the code repo or the wiki since the task started. `wiki task status` lists the changes left out because they were already there; one goes in with `--include <file>`. |
+| `wiki finish` would commit a file you changed by hand | It commits every change made since the task started, however it was made. `--exclude <file>` leaves one out. |
 | `git commit` is refused during a task | By design: `wiki finish -m "<message>"` makes both commits, once you approve. |
 
 ## Agents

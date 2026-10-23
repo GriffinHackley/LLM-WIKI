@@ -175,8 +175,9 @@ files need, which you add by hand: one line in `AGENTS.md` sending agents to `WI
   pages brought up to date, and your approval of the result;
 - edits to the code and the wiki are refused until a task is open, and from any session
   but the one holding it; `git commit` is refused;
-- `wiki finish -m "<message>"` (you confirm, seeing the files) commits exactly the files
-  the task edited, then the wiki pages, with `verified:` set to the new commit.
+- `wiki finish -m "<message>"` (you confirm, seeing the files) commits the code files
+  that changed since the task started, then the wiki's, with `verified:` set to the new
+  commit; changes already there when it started are left out.
 
 Then work in the code repo as usual. To document a module or a decision, ask the agent
 (it follows `wiki guide ingest`): pages link to code with `[name](code:src/app.py)`, list
