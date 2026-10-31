@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- In a code repo, the wiki is the first place to search. `WIKI.md`, the code query guide
+  and the code repo's `AGENTS.md` section now say that for any question about the code
+  (how it works, where something lives, where a change belongs) the first search action
+  is `wiki nav start`, with no grep, glob, semantic search or source file before it, not
+  even one targeted keyword grep. The code is the fallback only for a part that
+  `nav candidates` and `nav search` have both failed to answer, and the answer says which
+  parts came from the code. The query skill's description names "where" questions, so
+  agents pick it for them. Rerun `wiki connect` to get the new `WIKI.md` and skills.
+
 ## 0.6.1 (2026-10-23)
 
 - `wiki finish` commits every file that changed since the task started, in the code repo

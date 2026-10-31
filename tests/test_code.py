@@ -263,6 +263,18 @@ class TestGuides:
             code, guide = run_json(capsys, "guide", name, "--root", str(code_wiki))
             assert code_repo.resolve().as_posix() in guide["text"] and "{{" not in guide["text"]
 
+    def test_the_query_guide_puts_the_wiki_before_the_code(self, code_wiki, capsys):
+        code, guide = run_json(capsys, "guide", "query", "--root", str(code_wiki))
+        text = guide["text"]
+        flat = " ".join(text.split())
+        assert "where something lives" in text.splitlines()[0]  # the title, which the skill describes
+        rule = text.index("**The wiki comes first.**")
+        assert rule < text.index("1. **Split.**")
+        assert "not even one targeted keyword grep" in flat and "do not open source files" in flat
+        # the fallback is the gap check, and the answer says what came from the code
+        assert "**The code, only as the fallback.**" in text and "gap check" in text[text.index("7. **"):]
+        assert "came from the code instead" in flat
+
     def test_the_ingest_guide_keeps_its_code_parts_in_a_code_wiki(self, code_wiki, capsys):
         code, guide = run_json(capsys, "guide", "ingest", "--root", str(code_wiki))
         text = guide["text"]
@@ -292,12 +304,20 @@ class TestGuides:
                 "       Name each under `## Implements` by its key") in guide["text"]
         assert "in its title, description, branch name" not in guide["text"]
 
-    def test_code_query_guide_differs_from_the_generic_one_only_in_step_seven(self):
+    def test_code_query_guide_differs_from_the_generic_one_only_where_the_code_comes_in(self):
         guides = Path(__file__).parents[1] / "src/wiki_cli/guides"
-        generic = (guides / "query.md").read_text(encoding="utf-8").split("\n7. ")
-        code = (guides / "code/query.md").read_text(encoding="utf-8").split("\n7. ")
-        assert generic[0] == code[0]
-        assert generic[1].split("\n8. ", 1)[1] == code[1].split("\n8. ", 1)[1]
+        generic = " ".join((guides / "query.md").read_text(encoding="utf-8").split())
+        code = " ".join((guides / "code/query.md").read_text(encoding="utf-8").split())
+        # the code-only text: its title, the wiki-first rule, step 2's lead and step 8's clause
+        code = code.split(" ", 1)[1].split(" Answer a question by", 1)[1]
+        rule = code[code.index(" **The wiki comes first.**"):code.index(" Navigate with the `wiki` command")]
+        for text in (rule, " This is your first search action, before any search of the code.",
+                     ", and mark each part that came from the code instead (step 7)"):
+            assert text in code
+            code = code.replace(text, "", 1)
+        generic = generic.split(" Answer a question by", 1)[1]
+        assert generic.split(" 7. **")[0] == code.split(" 7. **")[0]
+        assert generic.split(" 8. **", 1)[1] == code.split(" 8. **", 1)[1]
 
 
 class TestNestedModules:

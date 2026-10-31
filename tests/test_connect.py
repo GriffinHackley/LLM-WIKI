@@ -27,7 +27,14 @@ def test_claude_code_gets_the_wikis_files_and_the_lines_to_add(code_wiki, code_r
     assert written[".claude/skills/wiki-plan/SKILL.md"] == "created"
     assert ".github/hooks/wiki.json" not in written
     assert load_settings(code_repo).agents == ("claude-code",)  # the pointer works, and names the agent
-    assert "wiki guide work" in (code_repo / "WIKI.md").read_text(encoding="utf-8")
+    wiki_md = (code_repo / "WIKI.md").read_text(encoding="utf-8")
+    assert "wiki guide work" in wiki_md
+    # the wiki-first rule comes before the list of tasks, and covers "where" questions
+    assert wiki_md.index("**Search the wiki first.**") < wiki_md.index("\n- **")
+    flat = " ".join(wiki_md.split())
+    assert "not even one targeted keyword grep" in flat and "which file handles Y?" in flat
+    skill = (code_repo / ".claude/skills/wiki-query/SKILL.md").read_text(encoding="utf-8")
+    assert "where something lives" in skill.split("---")[1]
 
     lines = by_hand(result)
     assert "@WIKI.md" in lines["AGENTS.md"] and lines["CLAUDE.md"] == "@AGENTS.md\n"
