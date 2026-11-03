@@ -54,7 +54,7 @@ from wiki_cli.models import (
     load_embedder,
     load_reranker,
 )
-from wiki_cli.nav import DEFAULT_MAX_PAGES, NavError, Navigator
+from wiki_cli.nav import DEFAULT_MAX_PAGES, MAX_CHARS as NAV_MAX_CHARS, NavError, Navigator
 from wiki_cli.pages import PageNotFound, Resolver, load, resolve, scan_vault
 from wiki_cli.search import search
 from wiki_cli.suggest import suggest
@@ -148,6 +148,8 @@ def build_parser() -> argparse.ArgumentParser:
         title="nav commands", metavar="<command>")
     nav_start = nav.add_parser("start", parents=[common, models], help="search and open a session")
     nav_start.add_argument("question")
+    nav_start.add_argument("--part", action="append", default=[],
+                           help="one part of the question, searched on its own (repeat for each part)")
     nav_start.add_argument("--max-pages", type=_positive_int, default=DEFAULT_MAX_PAGES)
     nav_start.add_argument("--limit", type=_positive_int, help="pages to return (default: [search] results in .wiki-cli.toml, else 3)")
     nav_start.set_defaults(handler=cmd_nav_start)
@@ -156,8 +158,11 @@ def build_parser() -> argparse.ArgumentParser:
     nav_read.add_argument("slug")
     nav_read.add_argument("--why", required=True, help="a few sentences: the open question and why this page")
     part = nav_read.add_mutually_exclusive_group()
-    part.add_argument("--section", help="read this section instead of the best match")
+    part.add_argument("--section", action="append", help="read this section instead of the best match (repeatable)")
     part.add_argument("--full", action="store_true", help="read the whole page")
+    part.add_argument("--more", action="store_true", help="continue where the last read of this page was cut")
+    nav_read.add_argument("--max-chars", type=_chars, default=NAV_MAX_CHARS,
+                          help=f"cut the text at about this many characters (default {NAV_MAX_CHARS})")
     nav_read.set_defaults(handler=cmd_nav_read)
     nav_candidates = nav.add_parser("candidates", parents=[common, models], help="next pages to consider")
     nav_candidates.add_argument("session")
@@ -171,6 +176,8 @@ def build_parser() -> argparse.ArgumentParser:
     nav_end = nav.add_parser("end", parents=[common, models], help="close the session, recording cited pages")
     nav_end.add_argument("session")
     nav_end.add_argument("--cited", default="", help="comma-separated slugs the answer cites")
+    nav_end.add_argument("--gap", action="append", default=[],
+                         help="a part of the question the wiki seems not to cover; the tool checks it (repeatable)")
     nav_end.set_defaults(handler=cmd_nav_end)
     nav_log = nav.add_parser("log", parents=[common, models], help="show a session's steps")
     nav_log.add_argument("session")
@@ -404,6 +411,13 @@ def _positive_float(value: str) -> float:
     return number
 
 
+def _chars(value: str) -> int:
+    number = int(value)
+    if number < 500:
+        raise argparse.ArgumentTypeError("must be at least 500")
+    return number
+
+
 def _positive_int(value: str) -> int:
     number = int(value)
     if number < 1:
@@ -473,13 +487,13 @@ def _navigate(args: argparse.Namespace, settings: Settings, step) -> int:
 
 
 def cmd_nav_start(args, settings):
-    return _navigate(args, settings, lambda nav: nav.start(args.question, max_pages=args.max_pages,
+    return _navigate(args, settings, lambda nav: nav.start(args.question, parts=args.part, max_pages=args.max_pages,
                                                                limit=args.limit or settings.search_results))
 
 
 def cmd_nav_read(args, settings):
-    return _navigate(args, settings, lambda nav: nav.read(args.session, args.slug, args.why,
-                                                          section=args.section, full=args.full))
+    return _navigate(args, settings, lambda nav: nav.read(args.session, args.slug, args.why, sections=args.section,
+                                                          full=args.full, more=args.more, max_chars=args.max_chars))
 
 
 def cmd_nav_candidates(args, settings):
@@ -493,7 +507,7 @@ def cmd_nav_search(args, settings):
 
 def cmd_nav_end(args, settings):
     cited = [slug.strip() for slug in args.cited.split(",") if slug.strip()]
-    return _navigate(args, settings, lambda nav: nav.end(args.session, cited))
+    return _navigate(args, settings, lambda nav: nav.end(args.session, cited, gaps=args.gap))
 
 
 def cmd_nav_log(args, settings):
@@ -508,11 +522,19 @@ def _print_nav_text(result: dict) -> None:
         print()
         print(result["content"].rstrip())
         print()
-        print(output.wrap(" · ".join(result["sections"]), output.dim("Sections: ")))
+        if result.get("more"):
+            print(output.dim(f"Cut here: {result['more']}"))
+        sections = [f"{item['name']} ({item['chars']:,}{', read' if item.get('read') else ''})"
+                    for item in result["sections"]]
+        print(output.wrap(" · ".join(sections), output.dim("Sections: ")))
+        if result.get("next_section"):
+            print(output.dim(f"Closest unread section: {result['next_section']}"))
         return
     if "results" in result:  # nav start, nav search
         limit = f": up to {output.plural(result['max_pages'], 'page')}" if result.get("max_pages") else ""
-        print(f"{output.heading('Session ' + session)}{limit}")
+        print(f"{output.heading('Session ' + session)}{limit}  {output.dim('coverage: ' + result['coverage'])}")
+        for part in result.get("parts", []):
+            print(output.wrap(f"{part['part']}: {part['coverage']} ({', '.join(part['pages']) or 'no pages'})", "  "))
         for number, hit in enumerate(result["results"], start=1):
             _print_hit(number, hit["slug"], hit.get("section"), hit.get("summary"))
         if result["results"]:
@@ -549,6 +571,12 @@ def _print_nav_text(result: dict) -> None:
         for key, label in (("cited_without_reading", "cited without reading"), ("unknown", "unknown pages")):
             if result.get(key):
                 print(f"{output.style('warning:', 'yellow')} {label}: {', '.join(result[key])}")
+        for item in result.get("cut_short", []):
+            print(f"{output.style('warning:', 'yellow')} {item['slug']} was cut short: "
+                  f"{item['chars_not_read']:,} characters not read")
+        for item in result.get("not_covered", []):
+            print(output.wrap(f"{item['part']}: {item['checked']}", "  Gap:   "))
+        print(output.wrap(result["sources"], "  "))
         return
     if "events" in result:  # nav log
         state = " (ended)" if result["ended"] else ""

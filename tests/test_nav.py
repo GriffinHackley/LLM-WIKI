@@ -57,7 +57,8 @@ def test_read_returns_best_section_and_section_list(nav):
     result = nav.read(session, "mill-meeting", WHY)
     assert result["section"] == "Participants"
     assert "[[silas-reed]]" in result["content"] and "Officials met" not in result["content"]
-    assert result["sections"][:2] == ["What happened", "Participants"]
+    assert [item["name"] for item in result["sections"][:2]] == ["What happened", "Participants"]
+    assert result["sections"][1]["read"] and "read" not in result["sections"][0]
     assert (result["pages_read"], result["pages_left"]) == (1, 5)
 
 
@@ -73,7 +74,7 @@ def test_read_picks_section_from_stored_vectors_without_the_reranker(nav):
 
 def test_read_specific_section_and_full(nav):
     session = start(nav)["session"]
-    assert "Officials met" in nav.read(session, "mill-meeting", WHY, section="What happened")["content"]
+    assert "Officials met" in nav.read(session, "mill-meeting", WHY, sections=["What happened"])["content"]
     full = nav.read(session, "mill-meeting", WHY, full=True)
     assert full["section"] == "full page" and "[[courier-report]]" in full["content"]
     assert full["pages_read"] == 1  # other parts of a visited page do not count again
@@ -110,7 +111,7 @@ def test_unknown_page_and_section(nav):
         nav.read(session, "nobody", WHY)
     assert info.value.code == "no-such-page"
     with pytest.raises(NavError) as info:
-        nav.read(session, "silas-reed", WHY, section="Nope")
+        nav.read(session, "silas-reed", WHY, sections=["Nope"])
     assert info.value.code == "no-such-section"
 
 
@@ -163,7 +164,8 @@ def test_end_and_log(nav):
     nav.read(session, "courier-report", WHY)
     result = nav.end(session, ["courier-report", "silas-reed"])
     assert result == {"session": session, "pages_read": ["courier-report"], "cited": ["courier-report", "silas-reed"],
-                      "cited_without_reading": ["silas-reed"]}
+                      "cited_without_reading": ["silas-reed"],
+                      "sources": "From the wiki: courier-report. From page summaries only: silas-reed."}
     with pytest.raises(NavError) as info:
         nav.read(session, "silas-reed", WHY)
     assert info.value.code == "session-ended"
@@ -178,7 +180,7 @@ def test_works_without_vectors(wiki_graph):
         navigator = Navigator(cache)
         session = navigator.start("North Mill meeting Thorne")["session"]
         read = navigator.read(session, "mill-meeting", WHY)
-        assert read["section"] in read["sections"]
+        assert read["section"] in [item["name"] for item in read["sections"]]
         assert navigator.candidates(session)["linked"]
 
 
@@ -272,11 +274,14 @@ def test_unwritten_and_orphans(wiki_graph, run):
     assert "silas-reed" not in slugs
 
 
-def test_rereading_a_section_by_full_path_is_refused(nav):
+def test_a_named_section_can_be_read_again(nav):
+    """An agent whose shell cut the output can ask for the section again; a bare reread is refused."""
     session = start(nav)["session"]
-    nav.read(session, "mill-meeting", WHY, section="Participants")
+    first = nav.read(session, "mill-meeting", WHY, sections=["Participants"])
+    again = nav.read(session, "mill-meeting", WHY, sections=["mill-meeting > Participants"])
+    assert again["content"] == first["content"] and again["pages_read"] == 1
     with pytest.raises(NavError) as info:
-        nav.read(session, "mill-meeting", WHY, section="mill-meeting > Participants")
+        nav.read(session, "mill-meeting", WHY)
     assert info.value.code == "already-read"
 
 
@@ -301,9 +306,157 @@ def test_read_shows_linked_page_titles(wiki):
     cache.refresh()
     nav = Navigator(cache, embedder=HashEmbedder())
     session = nav.start("who was at the meeting")["session"]
-    content = nav.read(session, "meeting", WHY, section="Who was there")["content"]
+    content = nav.read(session, "meeting", WHY, sections=["Who was there"])["content"]
     cache.close()
     assert "Present: [[rmarsh|Ruth Marsh]], [[rmarsh|the Owner]], [[silas-reed]], [[ghost]]." in content
     assert "![[rmarsh#^q-1]]" in content
     assert r"| [[rmarsh\|Ruth Marsh]] | Owner |" in content
     assert "Present: [[rmarsh]], " in (wiki.root / "wiki/topics/meeting.md").read_text(encoding="utf-8")  # file untouched
+
+
+# -- parts, coverage, sized reads and the gap check ---------------------------
+
+def test_start_searches_each_part_and_labels_coverage(nav):
+    result = nav.start("Who attended the North Mill meeting, and what did the bakery sell?",
+                       parts=["who attended the North Mill meeting", "bakery bread prices"])
+    covered, missing = result["parts"]
+    assert covered["coverage"] == "good" and covered["pages"]
+    assert missing["coverage"] == "none"
+    slugs = [hit["slug"] for hit in result["results"]]
+    assert len(slugs) == len(set(slugs))  # each page listed once across the parts
+    assert set(covered["pages"]) <= set(slugs)
+
+
+def test_start_refuses_too_many_parts(nav):
+    with pytest.raises(NavError) as info:
+        nav.start("everything", parts=[f"part {n}" for n in range(6)])
+    assert info.value.code == "too-many-parts"
+
+
+def test_coverage_is_unknown_without_a_measured_reranker(wiki_graph):
+    with Cache(wiki_graph.settings()) as cache:
+        cache.refresh()
+        assert Navigator(cache).start("North Mill meeting")["coverage"] == "unknown"
+
+
+def test_read_returns_the_section_search_showed_and_never_the_summary(nav):
+    started = nav.start("Which panel did the council chair lead?")
+    read = nav.read(started["session"], "silas-reed", WHY)
+    assert read["section"] == "Documented role"
+    assert "Chair of the town council" not in read["content"]  # the summary comes once, in "summary"
+    assert read["summary"] == "Chair of the town council."
+
+
+def test_read_returns_the_section_start_showed(nav):
+    """The section a search hit names is what the read returns, even where vectors would pick another."""
+    started = nav.start("Ashford Courier reporter account of the meeting")
+    hit = next(hit for hit in started["results"] if hit["slug"] == "mill-meeting")
+    assert hit["section"] == "mill-meeting > Sources"
+    # Pretend the search had matched another section: the read follows the search, not its own pick.
+    nav.conn.execute("UPDATE nav_frontier SET reason = 'mill-meeting > Participants' WHERE session_id = ? "
+                     "AND slug = 'mill-meeting'", (started["session"],))
+    assert nav.read(started["session"], "mill-meeting", WHY)["section"] == "Participants"
+
+
+def test_read_several_sections_in_one_call(nav):
+    session = start(nav)["session"]
+    read = nav.read(session, "mill-meeting", WHY, sections=["Participants", "Sources"])
+    assert read["section"] == "Participants, Sources"
+    assert "[[silas-reed]]" in read["content"] and "[[courier-report]]" in read["content"]
+    assert {item["name"] for item in read["sections"] if item.get("read")} == {"Participants", "Sources"}
+
+
+@pytest.fixture
+def big_nav(wiki):
+    lines = "\n".join(f"- Step {n}: the press moves sheet {n} through roller {n % 7} before drying." for n in range(140))
+    wiki.page("topic", "printing-press", {"Process": lines, "History": "Built in 1851 by the Ashford works."},
+              summary="How the Courier's printing press works, step by step.")
+    wiki.page("topic", "bakery", summary="The bakery on Mill Street.")
+    cache = Cache(wiki.settings())
+    cache.refresh()
+    cache.embed_pending(HashEmbedder())
+    yield Navigator(cache, embedder=HashEmbedder(), reranker=OverlapReranker())
+    cache.close()
+
+
+def test_a_large_section_is_cut_and_continued_with_more(big_nav):
+    session = big_nav.start("What steps does the printing press take?")["session"]
+    first = big_nav.read(session, "printing-press", WHY, max_chars=2000)
+    assert first["section"] == "Process" and len(first["content"]) <= 2000
+    assert first["content"].endswith("drying.") and "--more" in first["more"]
+    seen = [first["content"]]
+    result = first
+    while "more" in result:
+        result = big_nav.read(session, "printing-press", WHY, more=True, max_chars=2000)
+        assert len(result["content"]) <= 2000 and "summary" not in result
+        seen.append(result["content"])
+    text = "\n".join(seen)
+    assert "Step 0:" in text and "Step 139:" in text and text.count("Step 70:") == 1
+    assert "History" not in text  # --more continues the section asked for, not the rest of the page
+    with pytest.raises(NavError) as info:
+        big_nav.read(session, "printing-press", WHY, more=True)
+    assert info.value.code == "nothing-more"
+    assert big_nav.read(session, "printing-press", WHY, sections=["History"])["pages_read"] == 1
+
+
+def test_end_reports_a_page_cut_short(big_nav):
+    session = big_nav.start("What steps does the printing press take?")["session"]
+    big_nav.read(session, "printing-press", WHY, full=True, max_chars=2000)
+    ended = big_nav.end(session, ["printing-press"])
+    [cut] = ended["cut_short"]
+    assert cut["slug"] == "printing-press" and cut["chars_not_read"] > 5000
+    assert "partly read" in ended["sources"]
+
+
+def test_end_refuses_a_gap_the_wiki_covers_until_it_is_read(nav):
+    session = start(nav, "Who led the panel?")["session"]
+    nav.read(session, "mill-meeting", WHY)
+    with pytest.raises(NavError) as info:
+        nav.end(session, ["mill-meeting"], gaps=["Ruth Marsh mill owner documented role"])
+    assert info.value.code == "possible-answer" and "rmarsh" in str(info.value)
+    nav.read(session, "rmarsh", WHY)
+    ended = nav.end(session, ["mill-meeting", "rmarsh"], gaps=["Ruth Marsh mill owner documented role"])
+    assert ended["not_covered"][0]["checked"].startswith("searched the wiki")
+
+
+def test_end_records_a_real_gap_with_what_was_checked(nav):
+    session = start(nav)["session"]
+    nav.read(session, "mill-meeting", WHY)
+    ended = nav.end(session, ["mill-meeting"], gaps=["bakery bread prices"])
+    assert ended["not_covered"] == [{"part": "bakery bread prices", "checked": ended["not_covered"][0]["checked"]}]
+    assert "(none)" in ended["not_covered"][0]["checked"] or "no match" in ended["not_covered"][0]["checked"]
+    assert ended["sources"].endswith("Not found in the wiki: bakery bread prices.")
+
+
+def test_end_with_a_lead_is_allowed_at_the_page_limit(nav):
+    session = start(nav, max_pages=1)["session"]
+    nav.read(session, "mill-meeting", WHY)
+    assert nav.end(session, [], gaps=["Ruth Marsh mill owner documented role"])["not_covered"]
+
+
+def test_cli_parts_sections_more_and_gaps(run, wiki_graph):
+    run("index", "refresh")
+    code, started, _ = run("nav", "start", "Who attended the meeting?", "--part", "who attended", "--part", "bakery")
+    assert code == 0 and [part["part"] for part in started["parts"]] == ["who attended", "bakery"]
+    session = started["session"]
+    code, read, _ = run("nav", "read", session, "mill-meeting", "--why", WHY,
+                        "--section", "Participants", "--section", "Sources", "--max-chars", "500")
+    assert code == 0 and read["section"] == "Participants, Sources"
+    code, refused, _ = run("nav", "read", session, "mill-meeting", "--why", WHY, "--more")
+    assert code == 1 and refused["error"] == "nothing-more"
+    code, ended, _ = run("nav", "end", session, "--cited", "mill-meeting", "--gap", "bakery bread prices")
+    assert code == 0 and ended["not_covered"][0]["part"] == "bakery bread prices"
+
+
+def test_cli_text_output(wiki_graph, capsys):
+    root = ["--root", str(wiki_graph.root)]
+    main(["index", "refresh", *root])
+    capsys.readouterr()
+    main(["nav", "start", "Who attended the meeting?", "--part", "who attended", *root, "--format", "json"])
+    session = json.loads(capsys.readouterr().out)["session"]
+    main(["nav", "read", session, "mill-meeting", "--why", WHY, *root])
+    text = capsys.readouterr().out
+    assert "Sections: " in text and "read)" in text
+    main(["nav", "end", session, "--cited", "mill-meeting", "--gap", "bakery bread prices", *root])
+    text = capsys.readouterr().out
+    assert "Gap:" in text and "From the wiki: mill-meeting." in text

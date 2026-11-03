@@ -12,8 +12,8 @@ something lives, or where a change belongs, your first search action must be
 sections with `wiki nav read`, do not run grep, glob or semantic search (not even one
 targeted keyword grep) and do not open source files. A code search before `wiki nav start`,
 or in the same command, breaks this rule. Fall back to the code only for a part that
-`wiki nav candidates` and `wiki nav search` have both failed to answer, and say which parts
-of your answer came from the wiki and which from the code.
+`wiki nav end` reports as not covered after checking it (`--gap`), and say which parts of
+your answer came from the wiki and which from the code.
 
 - **A task on the code** (a fix, a feature, a refactor): run `wiki guide work` and follow
   it. It starts from the wiki, stops for the user's approval of the plan and of each

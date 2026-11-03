@@ -140,6 +140,7 @@ is read. [navigation.md](navigation.md) walks through a session.
 | Option | What it does |
 |---|---|
 | `question` | The question the session answers. |
+| `--part` | One part of the question, searched on its own; repeat for each part (at most 5). Each part gets its pages and a `coverage`. |
 | `--max-pages` | Pages the session may read. Default 6. |
 | `--limit` | Search results shown. Default: as for `wiki search`. |
 
@@ -147,18 +148,24 @@ is read. [navigation.md](navigation.md) walks through a session.
 wiki nav start "Who gave evidence at the North Mill fire inquiry?"
 ```
 
+Each search reports a `coverage` from the reranker's top score: `good`, `weak`, `none`,
+or `unknown` when no measured reranker ran ([navigation.md](navigation.md#coverage)).
+
 ### `wiki nav read`
 
-Read one page in a session: its summary, the section that best matches the question, and
-the names of its other sections.
+Read one page in a session: its summary, the section the search matched on it (else the
+closest to the question), and its sections with their sizes. The text is cut at about
+4,000 characters; a cut response gives the `--more` command that continues it.
 
 | Option | What it does |
 |---|---|
 | `session` | The session id `nav start` printed. |
 | `slug` | The page. |
 | `--why` | Required: a few sentences on the open question and why this page. At most 400 characters. |
-| `--section` | Read this section instead of the best match. |
+| `--section` | Read this section instead of the best match. Repeat it to read several in one call. |
 | `--full` | Read the whole page. |
+| `--more` | Continue where the last read of this page was cut. |
+| `--max-chars` | Cut the text at about this many characters (at least 500). Default 4000. |
 
 ```bash
 wiki nav read a41f0c north-mill-fire-inquiry-1887 --why "The inquiry's page should list the witnesses."
@@ -187,12 +194,15 @@ session, never the same question twice.
 
 ### `wiki nav end`
 
-Close the session.
+Close the session and report what the answer drew on: the pages read, those cited
+without reading, those cut short, the parts the wiki does not cover, and a `sources`
+line for the answer. Run it before writing the answer.
 
 | Option | What it does |
 |---|---|
 | `session` | The session id. |
 | `--cited` | The pages the answer cites, comma-separated. |
+| `--gap` | A part of the question the wiki seems not to cover; repeat for each. The tool searches the wiki for it and refuses (`possible-answer`) while a well-matched section is unread. |
 
 ### `wiki nav log`
 

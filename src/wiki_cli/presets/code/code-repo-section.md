@@ -6,8 +6,8 @@ This code has an LLM-maintained wiki at `{{wiki_path}}`, {{wiki_where}}. Keep it
   change would go): run `wiki guide query` and follow it. Your first search action must be
   `wiki nav start`: no grep, glob or semantic search, not even a targeted keyword grep, and
   no source files opened before it. Fall back to the code only for a part that
-  `wiki nav candidates` and `wiki nav search` have both failed to answer, and say which
-  parts came from the wiki and which from the code.
+  `wiki nav end` reports as not covered after checking it (`--gap`), and say which parts
+  came from the wiki and which from the code.
 - **After changing code:** commit the code, then run `wiki guide sync` and follow it, so
   the pages describing what you changed stay accurate. {{wiki_commit}}
 - **Documenting something new** (a module, a decision), or a design doc, RFC or postmortem

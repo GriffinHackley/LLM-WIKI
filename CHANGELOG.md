@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+- `wiki nav` tells an agent how well the wiki covers each part of its question, and
+  returns text that fits in its shell.
+  - `nav start --part "<part>"` (repeatable) searches each part of the question too, lists
+    each page once, and gives each part its pages and a `coverage` (`good`, `weak`,
+    `none`, or `unknown`) from the reranker's top score; `nav start` and `nav search`
+    give one for the whole question.
+  - `nav read` returns the section the search showed for the page, never the summary's
+    section (the summary comes with it anyway), lists the page's sections with their
+    sizes and which were read, and names the closest unread one. `--section` can be
+    repeated. Text is cut at about 4,000 characters (`--max-chars`, was 6,000) at a line
+    end, and a cut read gives the `--more` command that continues it. A section named
+    again can be reread.
+  - `nav end --gap "<part>"` checks a claimed gap: it searches the wiki and refuses with
+    `possible-answer` while a well-matched section is unread. It reports pages cut short,
+    the parts not covered with what was checked, and a `sources` line for the answer.
+  - The query guides drop from ten steps to seven: start with the parts, read, close the
+    open parts, end with the gaps, the fallback (raw sources, the code or the originals),
+    answer from what `nav end` reported, keep the answer. The code repo's `WIKI.md` and
+    `AGENTS.md` section allow the code for a part `nav end` reported as not covered.
+
 - In a code repo, the wiki is the first place to search. `WIKI.md`, the code query guide
   and the code repo's `AGENTS.md` section now say that for any question about the code
   (how it works, where something lives, where a change belongs) the first search action
