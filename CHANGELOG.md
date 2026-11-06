@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.6.2 (2026-11-05)
+
 - `wiki nav` tells an agent how well the wiki covers each part of its question, and
   returns text that fits in its shell.
   - `nav start --part "<part>"` (repeatable) searches each part of the question too, lists
